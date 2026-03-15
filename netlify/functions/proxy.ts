@@ -1,4 +1,5 @@
 import type { Handler, HandlerEvent } from '@netlify/functions'
+import { getProxyTimeoutMs, handleProxyRequest, parseProxyError } from '../../src/shared/lib/proxy'
 
 const handler: Handler = async (event: HandlerEvent) => {
   const headers = {
@@ -26,16 +27,7 @@ const handler: Handler = async (event: HandlerEvent) => {
   }
 
   try {
-    new URL(url) // Validate URL
-
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        Accept: 'application/json, text/plain, */*',
-      },
-    })
-
+    const response = await handleProxyRequest(url)
     const text = await response.text()
     const contentType = response.headers.get('content-type') || 'application/json'
 
@@ -48,11 +40,12 @@ const handler: Handler = async (event: HandlerEvent) => {
       body: text,
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const { message, cause } = parseProxyError(error)
+    const timeoutMs = getProxyTimeoutMs()
     return {
       statusCode: 500,
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Proxy request failed', message }),
+      body: JSON.stringify({ error: 'Proxy request failed', message, cause, timeoutMs }),
     }
   }
 }

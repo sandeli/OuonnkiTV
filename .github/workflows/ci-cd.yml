@@ -8,16 +8,16 @@ on:
     branches: [main]
 
 env:
-  # 支持多个容器仓库
   GITHUB_REGISTRY: ghcr.io
-  DOCKER_REGISTRY: docker.io
   IMAGE_NAME: ouonnkitv
-  VITE_PROXY_URL: https://api.codetabs.com/v1/proxy?quest=
-  VITE_INITIAL_VIDEO_SOURCES: ''
+  OKI_INITIAL_VIDEO_SOURCES: ''
+  OKI_TMDB_API_TOKEN: ''
+  OKI_ACCESS_PASSWORD: ''
+  OKI_DISABLE_ANALYTICS: 'true'
+  OKI_INITIAL_CONFIG: ''
 
 jobs:
-  # 代码质量检查
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -30,10 +30,7 @@ jobs:
           check-latest: true
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9.15.4
-          run_install: false
+        uses: pnpm/action-setup@v4
 
       - name: Get pnpm store path
         id: pnpm-store
@@ -53,13 +50,8 @@ jobs:
       - name: Run linter
         run: pnpm lint
 
-      - name: Build project
-        run:
-          pnpm build
-          # end lint-and-test
-
   build-and-push:
-    needs: lint-and-test
+    needs: lint
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     permissions:
@@ -82,11 +74,84 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check Docker Hub credentials
+        id: dockerhub
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+            echo "::warning::DOCKERHUB_USERNAME 或 DOCKERHUB_TOKEN 未配置，将跳过 Docker Hub 推送，仅推送 GHCR。"
+          fi
+
+      - name: Normalize Docker Hub credentials
+        if: steps.dockerhub.outputs.enabled == 'true'
+        env:
+          RAW_DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          RAW_DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          DOCKERHUB_USERNAME_CLEAN="$(printf '%s' "$RAW_DOCKERHUB_USERNAME" | tr -d '\r' | xargs)"
+          DOCKERHUB_TOKEN_CLEAN="$(printf '%s' "$RAW_DOCKERHUB_TOKEN" | tr -d '\r' | xargs)"
+
+          if [ -z "$DOCKERHUB_USERNAME_CLEAN" ] || [ -z "$DOCKERHUB_TOKEN_CLEAN" ]; then
+            echo "::warning::Docker Hub 凭据清洗后为空，将跳过 Docker Hub 推送。"
+            echo "enabled=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "::add-mask::$DOCKERHUB_TOKEN_CLEAN"
+          echo "DOCKERHUB_USERNAME_CLEAN=$DOCKERHUB_USERNAME_CLEAN" >> $GITHUB_ENV
+          echo "DOCKERHUB_TOKEN_CLEAN=$DOCKERHUB_TOKEN_CLEAN" >> $GITHUB_ENV
+
+      - name: Log in to Docker Hub
+        id: dockerhub-login
+        if: steps.dockerhub.outputs.enabled == 'true'
+        continue-on-error: true
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME_CLEAN }}
+          password: ${{ env.DOCKERHUB_TOKEN_CLEAN }}
+
+      - name: Decide Docker Hub publish
+        id: dockerhub-publish
+        run: |
+          if [ "${{ steps.dockerhub.outputs.enabled }}" != "true" ]; then
+            echo "enabled=false" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.dockerhub-login.outcome }}" = "success" ]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+            echo "::warning::Docker Hub 登录失败，将仅推送 GHCR。请检查 DOCKERHUB_USERNAME 与 DOCKERHUB_TOKEN。"
+          fi
+
+      - name: Resolve Docker Hub image
+        id: dockerhub-image
+        run: |
+          if [ "${{ steps.dockerhub-publish.outputs.enabled }}" = "true" ]; then
+            echo "value=${{ env.DOCKERHUB_USERNAME_CLEAN }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
+          else
+            echo "value=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Resolve GHCR owner
+        id: ghcr-owner
+        env:
+          RAW_GHCR_OWNER: ${{ github.repository_owner }}
+        run: |
+          GHCR_OWNER_CLEAN="$(printf '%s' "$RAW_GHCR_OWNER" | tr '[:upper:]' '[:lower:]' | xargs)"
+          if [ -z "$GHCR_OWNER_CLEAN" ]; then
+            echo "::error::无法解析 GHCR 仓库所有者。"
+            exit 1
+          fi
+          echo "value=$GHCR_OWNER_CLEAN" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          images: |
+            ghcr.io/${{ steps.ghcr-owner.outputs.value }}/${{ env.IMAGE_NAME }}
+            ${{ steps.dockerhub-image.outputs.value }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -95,7 +160,7 @@ jobs:
             type=sha,prefix={{branch}}-
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -108,10 +173,12 @@ jobs:
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VCS_REF=${{ github.sha }}
             VERSION=${{ steps.meta.outputs.version }}
-            VITE_PROXY_URL=${{ env.VITE_PROXY_URL }}
-            VITE_INITIAL_VIDEO_SOURCES=${{ env.VITE_INITIAL_VIDEO_SOURCES }}
+            OKI_INITIAL_VIDEO_SOURCES=${{ env.OKI_INITIAL_VIDEO_SOURCES }}
+            OKI_TMDB_API_TOKEN=${{ env.OKI_TMDB_API_TOKEN }}
+            OKI_ACCESS_PASSWORD=${{ env.OKI_ACCESS_PASSWORD }}
+            OKI_DISABLE_ANALYTICS=${{ env.OKI_DISABLE_ANALYTICS }}
+            OKI_INITIAL_CONFIG=${{ env.OKI_INITIAL_CONFIG }}
 
-  # 安全扫描（可选）
   security-scan:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -120,10 +187,22 @@ jobs:
       security-events: write
 
     steps:
+      - name: Resolve GHCR owner
+        id: ghcr-owner
+        env:
+          RAW_GHCR_OWNER: ${{ github.repository_owner }}
+        run: |
+          GHCR_OWNER_CLEAN="$(printf '%s' "$RAW_GHCR_OWNER" | tr '[:upper:]' '[:lower:]' | xargs)"
+          if [ -z "$GHCR_OWNER_CLEAN" ]; then
+            echo "::error::无法解析 GHCR 仓库所有者。"
+            exit 1
+          fi
+          echo "value=$GHCR_OWNER_CLEAN" >> $GITHUB_OUTPUT
+
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.34.0
         with:
-          image-ref: 'ghcr.io/ouonnki/${{ env.IMAGE_NAME }}:latest'
+          image-ref: 'ghcr.io/${{ steps.ghcr-owner.outputs.value }}/${{ env.IMAGE_NAME }}:latest'
           format: 'sarif'
           output: 'trivy-results.sarif'
 

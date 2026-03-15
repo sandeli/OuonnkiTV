@@ -1,28 +1,9 @@
 import express from 'express'
 import cors from 'cors'
+import { getProxyTimeoutMs, parseProxyError, handleProxyRequest } from './shared/proxy-core.js'
 
 const app = express()
 const PORT = process.env.PROXY_PORT || 3001
-
-// 统一的代理处理逻辑
-async function handleProxyRequest(targetUrl) {
-  try {
-    new URL(targetUrl)
-  } catch {
-    throw new Error('Invalid URL format')
-  }
-
-  const response = await fetch(targetUrl, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      Accept: 'application/json, text/plain, */*',
-    },
-    signal: AbortSignal.timeout(15000),
-  })
-
-  return response
-}
 
 app.use(cors({ origin: '*' }))
 
@@ -41,9 +22,12 @@ app.get('/proxy', async (req, res) => {
     res.setHeader('Content-Type', contentType)
     res.status(response.status).send(text)
   } catch (error) {
+    const { message, cause } = parseProxyError(error)
     res.status(500).json({
       error: 'Proxy request failed',
-      message: error.message,
+      message,
+      cause,
+      timeoutMs: getProxyTimeoutMs(),
     })
   }
 })
