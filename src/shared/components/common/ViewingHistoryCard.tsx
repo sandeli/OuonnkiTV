@@ -1,12 +1,25 @@
-import { Play } from 'lucide-react'
+import { Play, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
-import type { MouseEvent } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { NavLink } from 'react-router'
+import { toast } from 'sonner'
 import { AspectRatio } from '@/shared/components/ui/aspect-ratio'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/shared/components/ui/alert-dialog'
 import { Checkbox } from '@/shared/components/ui/checkbox'
 import { Progress } from '@/shared/components/ui/progress'
 import { cn } from '@/shared/lib/utils'
 import { buildHistoryPlayPath, isTmdbHistoryItem } from '@/shared/lib/viewingHistory'
+import { useViewingHistoryStore } from '@/shared/store/viewingHistoryStore'
 import type { ViewingHistoryItem } from '@/shared/types'
 
 interface ViewingHistoryCardProps {
@@ -73,6 +86,21 @@ export function ViewingHistoryCard({
     handleSelect()
   }
 
+  const removeViewingHistoryItem = useViewingHistoryStore(state => state.removeViewingHistoryItem)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+
+  const handleDeleteClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleConfirmDelete = () => {
+    removeViewingHistoryItem(item)
+    setDeleteConfirmOpen(false)
+    toast.success('已删除历史记录')
+  }
+
   const posterCardContent = (
     <div
       className={cn(
@@ -99,6 +127,17 @@ export function ViewingHistoryCard({
             />
           </motion.div>
         </AnimatePresence>
+      )}
+
+      {!selectionMode && (
+        <button
+          type="button"
+          aria-label={`删除《${item.title}》的观看记录`}
+          onClick={handleDeleteClick}
+          className="absolute top-2 right-2 z-20 flex size-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/85"
+        >
+          <Trash2 className="size-4" />
+        </button>
       )}
 
       <AspectRatio ratio={1.778}>
@@ -129,7 +168,7 @@ export function ViewingHistoryCard({
       </div>
 
       {!selectionMode ? (
-        <div className="pointer-events-none absolute top-2 right-2 flex max-w-[82%] items-center gap-1 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+        <div className="pointer-events-none absolute top-11 right-2 flex max-w-[82%] items-center gap-1 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
           <span className="max-w-[56%] truncate rounded bg-black/60 px-1.5 py-0.5 text-xs font-medium text-white">
             {getSourceLabel(item)}
           </span>
@@ -180,6 +219,16 @@ export function ViewingHistoryCard({
         <div className="relative w-[50%] shrink-0 overflow-hidden rounded-md">
           <AspectRatio ratio={16 / 9}>
             <img className="h-full w-full object-cover" src={item.imageUrl} alt={item.title} />
+            {!selectionMode && (
+              <button
+                type="button"
+                aria-label={`删除《${item.title}》的观看记录`}
+                onClick={handleDeleteClick}
+                className="absolute top-1 right-1 z-20 flex size-6 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/85"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
             <div className="pointer-events-none absolute right-1 bottom-1 rounded bg-black/65 px-1.5 py-0.5 text-[10px] text-white">
               {progressDetailLabel}
             </div>
@@ -204,25 +253,48 @@ export function ViewingHistoryCard({
 
           <div className="mt-1 text-[11px] text-muted-foreground">{timestampLabel}</div>
         </div>
+
       </div>
     </div>
   )
 
   return (
-    <NavLink
-      to={getPlayPath(item)}
-      className={cn('block', className)}
-      onClick={handleCardClick}
-      aria-pressed={selectionMode ? selected : undefined}
-    >
-      {mobileListLayout ? (
-        <>
-          <div className="md:hidden">{mobileListCardContent}</div>
-          <div className="hidden md:block">{posterCardContent}</div>
-        </>
-      ) : (
-        posterCardContent
-      )}
-    </NavLink>
+    <>
+      <NavLink
+        to={getPlayPath(item)}
+        className={cn('block', className)}
+        onClick={handleCardClick}
+        aria-pressed={selectionMode ? selected : undefined}
+      >
+        {mobileListLayout ? (
+          <>
+            <div className="md:hidden">{mobileListCardContent}</div>
+            <div className="hidden md:block">{posterCardContent}</div>
+          </>
+        ) : (
+          posterCardContent
+        )}
+      </NavLink>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+              <Trash2 />
+            </AlertDialogMedia>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除《{item.title}》这条观看历史吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="outline">取消</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleConfirmDelete}>
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
