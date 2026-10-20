@@ -1,6 +1,6 @@
 <h1 align="center">
-  <img src="https://cdn.ouonnki.com/gh/Ouonnki/blog-pictures/posts/logo.svg" alt="OuonnkiTV Logo" width="80"/><br/>
-  OuonnkiTV
+  <img src="https://cdn.tgys.com/gh/Tgys/blog-pictures/posts/logo.svg" alt="TGYSTV Logo" width="80"/><br/>
+  TGYSTV
 </h1>
 
 <p align="center">
@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node.js >=20"/>
   <img src="https://img.shields.io/badge/pnpm-%3E%3D9.15.4-blue" alt="pnpm >=9.15.4"/>
   <img src="https://img.shields.io/badge/vite-%5E6.3.5-yellowgreen" alt="Vite"/>
-  <a href="https://github.com/Ouonnki/OuonnkiTV/stargazers"><img src="https://img.shields.io/github/stars/Ouonnki/OuonnkiTV?style=social" alt="GitHub stars"/></a>
+  <a href="https://github.com/Tgys/TGYSTV/stargazers"><img src="https://img.shields.io/github/stars/Tgys/TGYSTV?style=social" alt="GitHub stars"/></a>
 </p>
 
 ---
@@ -23,7 +23,7 @@
 
 ## 🚀 快速开始
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Ouonnki/OuonnkiTV&build-command=pnpm%20build&install-command=pnpm%20install&output-directory=dist)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Tgys/TGYSTV&build-command=pnpm%20build&install-command=pnpm%20install&output-directory=dist)
 
 > Docker、Cloudflare Pages、Netlify、本地开发等完整部署指南 → [docs/deployment.md](docs/deployment.md)
 
@@ -35,13 +35,13 @@
 | [配置管理](docs/configuration.md) | 环境变量、TMDB 配置、完整配置导入 |
 | [TMDB Key 申请](docs/tmdb-key.md) | TMDB API Token 注册与获取教程 |
 | [视频源导入](docs/video-sources.md) | 导入方式、JSON 格式说明 |
-| [开发者指南](docs/development.md) | 技术栈、项目结构、代理架构、@ouonnki/cms-core |
+| [开发者指南](docs/development.md) | 技术栈、项目结构、代理架构、@tgys/cms-core |
 
 ---
 
 ## 📜 贡献与许可
 
-欢迎通过 [Issue](https://github.com/Ouonnki/OuonnkiTV/issues) 或 [Pull Request](https://github.com/Ouonnki/OuonnkiTV/pulls) 参与贡献。本项目采用 [Apache License 2.0](LICENSE) 开源协议。
+欢迎通过 [Issue](https://github.com/Tgys/TGYSTV/issues) 或 [Pull Request](https://github.com/Tgys/TGYSTV/pulls) 参与贡献。本项目采用 [Apache License 2.0](LICENSE) 开源协议。
 
 ## ⚠️ 免责声明
 
@@ -67,8 +67,8 @@
 ---
 
 <p align="center">
-  <a href="https://star-history.com/#Ouonnki/OuonnkiTV&Date">
-    <img src="https://api.star-history.com/svg?repos=Ouonnki/OuonnkiTV&type=Date" alt="Star History Chart" />
+  <a href="https://star-history.com/#Tgys/TGYSTV&Date">
+    <img src="https://api.star-history.com/svg?repos=Tgys/TGYSTV&type=Date" alt="Star History Chart" />
   </a>
 </p>
 

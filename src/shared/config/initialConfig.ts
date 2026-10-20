@@ -102,13 +102,13 @@ export const parseInitialConfig = (rawConfig: unknown): ExportedConfig | null =>
     }
     return parsed as ExportedConfig
   } catch (error) {
-    console.error('Failed to parse OKI_INITIAL_CONFIG:', error)
+    console.error('Failed to parse TGYS_INITIAL_CONFIG:', error)
     return null
   }
 }
 
 export const getInitialConfig = (): ExportedConfig | null => {
-  return parseInitialConfig(getPublicEnv('OKI_INITIAL_CONFIG'))
+  return parseInitialConfig(getPublicEnv('TGYS_INITIAL_CONFIG'))
 }
 
 export const INITIAL_CONFIG = getInitialConfig()

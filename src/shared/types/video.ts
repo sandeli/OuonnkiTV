@@ -5,7 +5,7 @@ export type {
   SearchResult,
   DetailResult,
   VideoSource as VideoApi,
-} from '@ouonnki/cms-core'
+} from '@tgys/cms-core'
 
 // 观看历史项
 export interface ViewingHistoryItem {

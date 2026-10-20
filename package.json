@@ -1,5 +1,5 @@
 {
-  "name": "ouonnkitv",
+  "name": "tgys-tv",
   "private": true,
   "version": "2.0.0",
   "type": "module",
@@ -8,7 +8,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "prebuild": "pnpm --filter @ouonnki/cms-core build",
+    "prebuild": "pnpm --filter @tgys/cms-core build",
     "dev": "vite --host",
     "build": "tsc -b && vite build",
     "test": "vitest run",
@@ -25,7 +25,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@fontsource/inter": "^5.1.1",
     "@hookform/resolvers": "^5.2.2",
-    "@ouonnki/cms-core": "workspace:*",
+    "@tgys/cms-core": "workspace:*",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",

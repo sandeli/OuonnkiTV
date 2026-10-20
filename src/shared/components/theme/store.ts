@@ -37,7 +37,7 @@ export const useThemeStore = create<ThemeStore>()(
         },
       })),
       {
-        name: 'ouonnki-tv-theme-store',
+        name: 'tgys-tv-theme-store',
         version: 1,
       },
     ),

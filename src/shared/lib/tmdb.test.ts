@@ -8,8 +8,8 @@ import {
   resolveTmdbImageBaseUrl,
 } from './tmdb'
 
-const ORIGINAL_ENV_API_BASE = import.meta.env.OKI_TMDB_API_BASE_URL
-const ORIGINAL_ENV_IMAGE_BASE = import.meta.env.OKI_TMDB_IMAGE_BASE_URL
+const ORIGINAL_ENV_API_BASE = import.meta.env.TGYS_TMDB_API_BASE_URL
+const ORIGINAL_ENV_IMAGE_BASE = import.meta.env.TGYS_TMDB_IMAGE_BASE_URL
 const ORIGINAL_FETCH = globalThis.fetch
 const ORIGINAL_SYSTEM = structuredClone(useSettingStore.getState().system)
 
@@ -25,8 +25,8 @@ describe('tmdb base url 解析策略', () => {
       ...state,
       system: { ...ORIGINAL_SYSTEM },
     }))
-    import.meta.env.OKI_TMDB_API_BASE_URL = ORIGINAL_ENV_API_BASE
-    import.meta.env.OKI_TMDB_IMAGE_BASE_URL = ORIGINAL_ENV_IMAGE_BASE
+    import.meta.env.TGYS_TMDB_API_BASE_URL = ORIGINAL_ENV_API_BASE
+    import.meta.env.TGYS_TMDB_IMAGE_BASE_URL = ORIGINAL_ENV_IMAGE_BASE
   })
 
   afterEach(() => {
@@ -34,8 +34,8 @@ describe('tmdb base url 解析策略', () => {
   })
 
   it('设置值优先于环境变量', () => {
-    import.meta.env.OKI_TMDB_API_BASE_URL = '/tmdb-env-api'
-    import.meta.env.OKI_TMDB_IMAGE_BASE_URL = '/tmdb-env-image'
+    import.meta.env.TGYS_TMDB_API_BASE_URL = '/tmdb-env-api'
+    import.meta.env.TGYS_TMDB_IMAGE_BASE_URL = '/tmdb-env-image'
     setSystemSettingsForTest({
       tmdbApiBaseUrl: '/tmdb-setting-api',
       tmdbImageBaseUrl: '/tmdb-setting-image',
@@ -46,8 +46,8 @@ describe('tmdb base url 解析策略', () => {
   })
 
   it('设置值为空时回退环境变量', () => {
-    import.meta.env.OKI_TMDB_API_BASE_URL = 'https://example.com/tmdb'
-    import.meta.env.OKI_TMDB_IMAGE_BASE_URL = 'https://example.com/tmdb-images'
+    import.meta.env.TGYS_TMDB_API_BASE_URL = 'https://example.com/tmdb'
+    import.meta.env.TGYS_TMDB_IMAGE_BASE_URL = 'https://example.com/tmdb-images'
     setSystemSettingsForTest({
       tmdbApiBaseUrl: '',
       tmdbImageBaseUrl: '   ',
@@ -58,8 +58,8 @@ describe('tmdb base url 解析策略', () => {
   })
 
   it('环境变量为空时回退官方默认地址', () => {
-    import.meta.env.OKI_TMDB_API_BASE_URL = ''
-    import.meta.env.OKI_TMDB_IMAGE_BASE_URL = ''
+    import.meta.env.TGYS_TMDB_API_BASE_URL = ''
+    import.meta.env.TGYS_TMDB_IMAGE_BASE_URL = ''
     setSystemSettingsForTest({
       tmdbApiBaseUrl: '',
       tmdbImageBaseUrl: '',
@@ -80,8 +80,8 @@ describe('tmdb base url 解析策略', () => {
   })
 
   it('非法地址会回退到下一优先级', () => {
-    import.meta.env.OKI_TMDB_API_BASE_URL = '/env-api'
-    import.meta.env.OKI_TMDB_IMAGE_BASE_URL = '/env-image'
+    import.meta.env.TGYS_TMDB_API_BASE_URL = '/env-api'
+    import.meta.env.TGYS_TMDB_IMAGE_BASE_URL = '/env-image'
     setSystemSettingsForTest({
       tmdbApiBaseUrl: 'ftp://invalid-host',
       tmdbImageBaseUrl: 'javascript:alert(1)',
@@ -98,8 +98,8 @@ describe('tmdb 请求改写', () => {
       ...state,
       system: { ...ORIGINAL_SYSTEM },
     }))
-    import.meta.env.OKI_TMDB_API_BASE_URL = ORIGINAL_ENV_API_BASE
-    import.meta.env.OKI_TMDB_IMAGE_BASE_URL = ORIGINAL_ENV_IMAGE_BASE
+    import.meta.env.TGYS_TMDB_API_BASE_URL = ORIGINAL_ENV_API_BASE
+    import.meta.env.TGYS_TMDB_IMAGE_BASE_URL = ORIGINAL_ENV_IMAGE_BASE
   })
 
   afterEach(() => {

@@ -1,6 +1,6 @@
 # 部署指南
 
-本文档详细介绍 OuonnkiTV 的各种部署方式和更新同步方法。
+本文档详细介绍 TGYSTV 的各种部署方式和更新同步方法。
 
 ---
 
@@ -25,29 +25,29 @@ docker-compose up -d --build
 
    ```env
    # 初始视频源（单行 JSON 格式）
-   OKI_INITIAL_VIDEO_SOURCES=[{"name":"示例源","url":"https://api.example.com","isEnabled":true}]
+   TGYS_INITIAL_VIDEO_SOURCES=[{"name":"示例源","url":"https://api.example.com","isEnabled":true}]
 
    # TMDB API Token（可选，启用 TMDB 智能模式，申请方式见下方链接）
-   OKI_TMDB_API_TOKEN=your_tmdb_token
+   TGYS_TMDB_API_TOKEN=your_tmdb_token
 
    # TMDB API 基础地址（可选，支持相对路径）
-   OKI_TMDB_API_BASE_URL=https://api.themoviedb.org/3
+   TGYS_TMDB_API_BASE_URL=https://api.themoviedb.org/3
 
    # TMDB 图片基础地址（可选，支持相对路径）
-   OKI_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/
+   TGYS_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/
 
    # 禁用分析（建议开启）
-   OKI_DISABLE_ANALYTICS=true
+   TGYS_DISABLE_ANALYTICS=true
 
    # 访问密码（可选）
-   OKI_ACCESS_PASSWORD=your_secure_password
+   TGYS_ACCESS_PASSWORD=your_secure_password
    ```
 
    > 中国大陆网络环境如遇 TMDB 官方域名访问不稳定，建议改为：
    >
-   > `OKI_TMDB_API_BASE_URL=https://api.tmdb.org`
+   > `TGYS_TMDB_API_BASE_URL=https://api.tmdb.org`
    >
-   > `OKI_TMDB_IMAGE_BASE_URL=https://image.tmdb.org`
+   > `TGYS_TMDB_IMAGE_BASE_URL=https://image.tmdb.org`
 
    > 📘 完整环境变量说明 → [配置管理](./configuration.md)
    > 📘 TMDB Token 申请方法 → [TMDB API Key 申请指南](./tmdb-key.md)
@@ -69,17 +69,17 @@ docker-compose up -d --force-recreate
 
 ```bash
 # Docker Hub（推荐国内用户，替换为当前官方发布账号）
-docker pull archiewang0307/ouonnkitv:latest
-docker run -d --name ouonnkitv -p 3000:80 \
-  -e 'OKI_INITIAL_VIDEO_SOURCES=[{"name":"示例源","url":"https://api.example.com","isEnabled":true}]' \
-  -e 'OKI_DISABLE_ANALYTICS=true' \
-  archiewang0307/ouonnkitv:latest
+docker pull archiewang0307/tgystv:latest
+docker run -d --name tgystv -p 3000:80 \
+  -e 'TGYS_INITIAL_VIDEO_SOURCES=[{"name":"示例源","url":"https://api.example.com","isEnabled":true}]' \
+  -e 'TGYS_DISABLE_ANALYTICS=true' \
+  archiewang0307/tgystv:latest
 
 # GitHub Container Registry
-docker pull ghcr.io/ouonnki/ouonnkitv:latest
-docker run -d --name ouonnkitv -p 3000:80 \
+docker pull ghcr.io/tgys/tgystv:latest
+docker run -d --name tgystv -p 3000:80 \
   --env-file .env \
-  ghcr.io/ouonnki/ouonnkitv:latest
+  ghcr.io/tgys/tgystv:latest
 
 # 访问 http://localhost:3000
 ```
@@ -92,23 +92,23 @@ docker run -d --name ouonnkitv -p 3000:80 \
 | `main`         | main 分支每次推送自动生成 |
 | `main-abc1234` | 带 7 位提交哈希的精确标签 |
 
-预构建镜像支持全部 `OKI_*` 环境变量。可用 `-e`、`--env-file` 或 Compose 的 `environment` 传入；修改后必须删除并重建容器，不能只执行 `docker restart`。
+预构建镜像支持全部 `TGYS_*` 环境变量。可用 `-e`、`--env-file` 或 Compose 的 `environment` 传入；修改后必须删除并重建容器，不能只执行 `docker restart`。
 
 使用预构建镜像的 Compose 示例：
 
 ```yaml
 services:
-  ouonnkitv:
-    image: ghcr.io/ouonnki/ouonnkitv:latest
-    container_name: ouonnkitv
+  tgystv:
+    image: ghcr.io/tgys/tgystv:latest
+    container_name: tgystv
     restart: unless-stopped
     ports:
       - '9321:80'
     environment:
-      OKI_INITIAL_VIDEO_SOURCES: >-
+      TGYS_INITIAL_VIDEO_SOURCES: >-
         [{"name":"示例源","url":"https://api.example.com","isEnabled":true}]
-      OKI_TMDB_API_TOKEN: ${OKI_TMDB_API_TOKEN:-}
-      OKI_DISABLE_ANALYTICS: 'true'
+      TGYS_TMDB_API_TOKEN: ${TGYS_TMDB_API_TOKEN:-}
+      TGYS_DISABLE_ANALYTICS: 'true'
 ```
 
 若使用 `.env`，执行 `docker compose up -d --force-recreate` 让修改后的变量进入新容器。
@@ -120,13 +120,13 @@ services:
 3. 使用原端口和新的 `-e` / `--env-file` 参数创建容器。
 4. 浏览器刷新页面；初始配置变化时，应用会重新执行一次初始内容导入。若需完全替换已有本地配置，请在应用内执行「恢复默认配置」。
 
-> `feixiangii/ouonnkitv` 是其他使用者发布的旧镜像，不包含本项目新版运行时配置能力。
+> `feixiangii/tgystv` 是其他使用者发布的旧镜像，不包含本项目新版运行时配置能力。
 
 ---
 
 ## 新版环境变量对部署方式的影响
 
-所有部署方式继续使用相同的 `OKI_*` 变量名、JSON 格式和配置优先级，但生效阶段不同。
+所有部署方式继续使用相同的 `TGYS_*` 变量名、JSON 格式和配置优先级，但生效阶段不同。
 
 | 部署方式                | 新版影响                                               | 修改变量后操作                          |
 | ----------------------- | ------------------------------------------------------ | --------------------------------------- |
@@ -145,7 +145,7 @@ Docker 运行时配置优先于镜像中可能存在的构建时配置；其他�
 
 点击下方按钮，一键部署到 Vercel：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Ouonnki/OuonnkiTV&build-command=pnpm%20build&install-command=pnpm%20install&output-directory=dist)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Tgys/TGYSTV&build-command=pnpm%20build&install-command=pnpm%20install&output-directory=dist)
 
 **部署步骤：**
 
@@ -185,7 +185,7 @@ Docker 运行时配置优先于镜像中可能存在的构建时配置；其他�
 
 ## Netlify 部署
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/Ouonnki/OuonnkiTV)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/Tgys/TGYSTV)
 
 **部署步骤：**
 
@@ -211,8 +211,8 @@ Docker 运行时配置优先于镜像中可能存在的构建时配置；其他�
 
 ```bash
 # 克隆仓库
-git clone https://github.com/Ouonnki/OuonnkiTV.git
-cd OuonnkiTV
+git clone https://github.com/Tgys/TGYSTV.git
+cd TGYSTV
 
 # 安装依赖
 pnpm install
@@ -258,11 +258,11 @@ docker stop <container_id>
 docker rm <container_id>
 
 # 拉取最新镜像（选择其一）
-docker pull archiewang0307/ouonnkitv:latest
-docker pull ghcr.io/ouonnki/ouonnkitv:latest
+docker pull archiewang0307/tgystv:latest
+docker pull ghcr.io/tgys/tgystv:latest
 
 # 运行新容器
-docker run -d --name ouonnkitv -p 3000:80 --env-file .env archiewang0307/ouonnkitv:latest
+docker run -d --name tgystv -p 3000:80 --env-file .env archiewang0307/tgystv:latest
 ```
 
 ### 本地更新
@@ -295,7 +295,7 @@ pnpm dev
 **CLI 手动同步：**
 
 ```bash
-git remote add upstream https://github.com/Ouonnki/OuonnkiTV.git  # 仅首次
+git remote add upstream https://github.com/Tgys/TGYSTV.git  # 仅首次
 git fetch upstream
 git checkout main
 git merge upstream/main  # 或使用 rebase

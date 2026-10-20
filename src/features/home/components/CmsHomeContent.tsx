@@ -1,6 +1,6 @@
 import { useApiStore } from '@/shared/store/apiStore'
 import { useCmsVideoList } from '@/shared/hooks/useCmsCore'
-import type { VideoSource } from '@ouonnki/cms-core'
+import type { VideoSource } from '@tgys/cms-core'
 import { ContinueWatching } from './ContinueWatching'
 import { CmsMediaCarousel } from './CmsMediaCarousel'
 import { NavLink } from 'react-router'

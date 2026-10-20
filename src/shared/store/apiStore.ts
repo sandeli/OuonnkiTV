@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
-import type { VideoSource, SourceStore } from '@ouonnki/cms-core'
+import type { VideoSource, SourceStore } from '@tgys/cms-core'
 import {
   addSource,
   removeSource,
@@ -10,7 +10,7 @@ import {
   deselectAllSources,
   getEnabledSources,
   importSources,
-} from '@ouonnki/cms-core/source'
+} from '@tgys/cms-core/source'
 import { getInitialVideoSources } from '@/shared/config/api.config'
 import { DEFAULT_SETTINGS } from '@/shared/config/settings.config'
 import { v4 as uuidv4 } from 'uuid'
@@ -245,7 +245,7 @@ export const useApiStore = create<ApiStore>()(
         },
       })),
       {
-        name: 'ouonnki-tv-api-store',
+        name: 'tgys-tv-api-store',
         version: 6,
         migrate: (persistedState: unknown, version: number) => {
           const state = persistedState as Partial<ApiState>

@@ -15,7 +15,7 @@ import {
 import { NavLink } from 'react-router'
 import { motion } from 'framer-motion'
 import { Home, Search, Star, History, Settings } from 'lucide-react'
-import { OkiLogo } from '@/shared/components/icons'
+import { TgysLogo } from '@/shared/components/icons'
 import { useVersionStore } from '../store'
 import { cn } from '@/shared/lib'
 
@@ -100,9 +100,9 @@ export default function SideBar({
         <NavLink to="/" className="flex items-center" onClick={handleNavLinkClick}>
           <div className="flex items-end">
             <div>
-              <OkiLogo />
+              <TgysLogo />
             </div>
-            <p className="text-accent-foreground text-lg font-bold">OUONNKI TV</p>
+            <p className="text-accent-foreground text-lg font-bold">TGYS TV</p>
           </div>
         </NavLink>
       </SidebarHeader>

@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { cn } from '@/shared/lib'
-import type { VideoSource } from '@ouonnki/cms-core'
+import type { VideoSource } from '@tgys/cms-core'
 import VideoSourceCard from './VideoSourceCard'
 
 interface SortableVideoSourceCardProps {

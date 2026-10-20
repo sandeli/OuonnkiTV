@@ -1,5 +1,5 @@
 import type { TmdbMediaItem } from '@/shared/types/tmdb'
-import type { VideoItem } from '@ouonnki/cms-core'
+import type { VideoItem } from '@tgys/cms-core'
 import { MediaPosterCard } from '@/shared/components/common/MediaPosterCard'
 import { NoResultIcon } from '@/shared/components/icons'
 import { Skeleton } from '@/shared/components/ui/skeleton'

@@ -1,6 +1,6 @@
 import { History, Inbox, SearchX, Settings } from 'lucide-react'
 
-export const OkiLogo = ({
+export const TgysLogo = ({
   size = 36,
   className,
   ...props

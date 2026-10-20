@@ -92,7 +92,7 @@ export const useViewingHistoryStore = create<ViewingHistoryStore>()(
         },
       })),
       {
-        name: 'ouonnki-tv-viewing-history', // 持久化存储的键名
+        name: 'tgys-tv-viewing-history', // 持久化存储的键名
         version: 3,
         migrate: (persistedState: unknown, version: number) => {
           const persistedHistory =

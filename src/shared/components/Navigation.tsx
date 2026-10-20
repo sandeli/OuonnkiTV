@@ -1,5 +1,5 @@
 import { Navbar, NavbarBrand, NavbarContent } from '@/shared/components/ui/navbar'
-import { OkiLogo } from '@/shared/components/icons'
+import { TgysLogo } from '@/shared/components/icons'
 import { SidebarTrigger } from '@/shared/components/ui/sidebar'
 import { NavLink, useLocation } from 'react-router'
 import { useState } from 'react'
@@ -65,9 +65,9 @@ export default function Navigation({ hidden = false, enableScrollAnimation = fal
             <NavLink to="/" className="flex items-center">
               <div className="flex items-end">
                 <div>
-                  <OkiLogo />
+                  <TgysLogo />
                 </div>
-                <p className="text-accent-foreground text-lg font-bold">OUONNKI TV</p>
+                <p className="text-accent-foreground text-lg font-bold">TGYS TV</p>
               </div>
             </NavLink>
           </NavbarBrand>

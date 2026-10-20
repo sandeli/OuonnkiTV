@@ -21,7 +21,7 @@ function createCmsVideo(overrides: Partial<VideoItem> = {}): VideoItem {
 
 describe('favoritesStore cms id encoding', () => {
   beforeEach(() => {
-    localStorage.removeItem('ouonnki-tv-favorites-store')
+    localStorage.removeItem('tgys-tv-favorites-store')
     useFavoritesStore.persist.clearStorage()
     useFavoritesStore.setState({
       favorites: [],

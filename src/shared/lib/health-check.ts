@@ -1,5 +1,5 @@
-import { createConcurrencyLimiter } from '@ouonnki/cms-core'
-import type { VideoSource } from '@ouonnki/cms-core'
+import { createConcurrencyLimiter } from '@tgys/cms-core'
+import type { VideoSource } from '@tgys/cms-core'
 import type { VideoSourceSubscription } from '@/shared/types/subscription'
 import { buildProxyRequestUrl } from '@/shared/config/api.config'
 import { useSettingStore } from '@/shared/store/settingStore'

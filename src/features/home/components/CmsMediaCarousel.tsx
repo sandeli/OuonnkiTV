@@ -12,7 +12,7 @@ import { Button } from '@/shared/components/ui/button'
 import { Skeleton } from '@/shared/components/ui/skeleton'
 import { useIsMobile } from '@/shared/hooks/use-mobile'
 import { buildCmsPlayPath } from '@/shared/lib/routes'
-import type { VideoItem } from '@ouonnki/cms-core'
+import type { VideoItem } from '@tgys/cms-core'
 
 interface CmsMediaCarouselProps {
   /** 板块标题 */

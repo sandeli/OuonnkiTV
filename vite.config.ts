@@ -6,7 +6,7 @@ import { proxyMiddleware } from './src/middleware/proxy.dev'
 
 // https://vite.dev/config/
 export default defineConfig({
-  envPrefix: 'OKI_',
+  envPrefix: 'TGYS_',
   resolve: {
     conditions: ['development'],
     alias: {

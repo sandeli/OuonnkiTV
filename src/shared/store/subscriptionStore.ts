@@ -3,7 +3,7 @@ import { devtools, persist } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { v4 as uuidv4 } from 'uuid'
 import { toast } from 'sonner'
-import type { VideoSource } from '@ouonnki/cms-core'
+import type { VideoSource } from '@tgys/cms-core'
 import type { VideoSourceSubscription } from '@/shared/types/subscription'
 import { useApiStore } from './apiStore'
 import { useSettingStore } from './settingStore'
@@ -86,7 +86,7 @@ interface SubscriptionActions {
   setRefreshInterval: (subscriptionId: string, intervalMinutes: number) => void
   /** 判断 URL 是否已被订阅 */
   isUrlSubscribed: (url: string) => boolean
-  /** 从 OKI_INITIAL_CONFIG 恢复并拉取订阅 */
+  /** 从 TGYS_INITIAL_CONFIG 恢复并拉取订阅 */
   initializeEnvSubscriptions: () => Promise<void>
   /** 用指定订阅替换现有订阅并拉取 */
   replaceSubscriptions: (subscriptions: SubscriptionConfig[]) => Promise<void>
@@ -254,7 +254,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         },
       })),
       {
-        name: 'ouonnki-tv-subscription-store',
+        name: 'tgys-tv-subscription-store',
         version: 1,
       },
     ),

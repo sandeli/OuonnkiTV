@@ -12,7 +12,7 @@ import {
   type SearchResultEvent,
   type SearchProgressEvent,
   type SearchErrorEvent,
-} from '@ouonnki/cms-core'
+} from '@tgys/cms-core'
 import { useSettingStore } from '@/shared/store/settingStore'
 import { normalizeProxyPrefix } from '@/shared/config/api.config'
 

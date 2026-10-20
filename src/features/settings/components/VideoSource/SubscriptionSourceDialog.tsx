@@ -8,7 +8,7 @@ import {
 } from '@/shared/components/ui/dialog'
 import { Button } from '@/shared/components/ui/button'
 import SubscriptionSourceDetail from './SubscriptionSourceDetail'
-import type { VideoSource } from '@ouonnki/cms-core'
+import type { VideoSource } from '@tgys/cms-core'
 
 interface SubscriptionSourceDialogProps {
   source: VideoSource | null

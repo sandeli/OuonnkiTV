@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { type VideoItem, type SearchResultEvent, type Pagination, type VideoSource } from '@ouonnki/cms-core'
+import { type VideoItem, type SearchResultEvent, type Pagination, type VideoSource } from '@tgys/cms-core'
 import { useApiStore } from '@/shared/store/apiStore'
 import { useCmsClient } from '@/shared/hooks'
 import { PaginationConfig } from '@/shared/config/video.config'

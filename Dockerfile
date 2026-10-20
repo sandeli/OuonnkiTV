@@ -37,15 +37,15 @@ ARG VCS_REF
 ARG VERSION
 
 # 添加标签
-LABEL org.opencontainers.image.title="OuonnkiTV"
-LABEL org.opencontainers.image.description="OuonnkiTV Web Application"
+LABEL org.opencontainers.image.title="TGYSTV"
+LABEL org.opencontainers.image.description="TGYSTV Web Application"
 LABEL org.opencontainers.image.version=${VERSION}
 LABEL org.opencontainers.image.created=${BUILD_DATE}
 LABEL org.opencontainers.image.revision=${VCS_REF}
-LABEL org.opencontainers.image.source="https://github.com/Ouonnki/OuonnkiTV"
+LABEL org.opencontainers.image.source="https://github.com/Tgys/TGYSTV"
 
 # 自托管默认禁用分析；docker run/compose 可显式设为 false 覆盖
-ENV OKI_DISABLE_ANALYTICS=true
+ENV TGYS_DISABLE_ANALYTICS=true
 
 # 安装 nginx 和 supervisor，并清理缓存
 RUN apk add --no-cache nginx supervisor && \

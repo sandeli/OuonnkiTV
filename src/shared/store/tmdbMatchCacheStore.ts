@@ -94,7 +94,7 @@ export const useTmdbMatchCacheStore = create<TmdbMatchCacheStore>()(
         },
       })),
       {
-        name: 'ouonnki-tv-tmdb-match-cache-store',
+        name: 'tgys-tv-tmdb-match-cache-store',
         version: 1,
         partialize: state => ({ entries: state.entries }),
       },

@@ -1,4 +1,4 @@
-import type { VideoSource } from '@ouonnki/cms-core'
+import type { VideoSource } from '@tgys/cms-core'
 
 export interface SourcePaginationInfo {
   totalPages: number

@@ -3,22 +3,25 @@ import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const PUBLIC_ENV_KEYS = [
-  'OKI_INITIAL_VIDEO_SOURCES',
-  'OKI_TMDB_API_TOKEN',
-  'OKI_TMDB_API_BASE_URL',
-  'OKI_TMDB_IMAGE_BASE_URL',
-  'OKI_ACCESS_PASSWORD',
-  'OKI_DISABLE_ANALYTICS',
-  'OKI_INITIAL_CONFIG',
+  'TGYS_INITIAL_VIDEO_SOURCES',
+  'TGYS_TMDB_API_TOKEN',
+  'TGYS_TMDB_API_BASE_URL',
+  'TGYS_TMDB_IMAGE_BASE_URL',
+  'TGYS_ACCESS_PASSWORD',
+  'TGYS_DISABLE_ANALYTICS',
+  'TGYS_INITIAL_CONFIG',
 ]
 
 export function collectRuntimeConfig(environment = process.env) {
-  return Object.fromEntries(
-    PUBLIC_ENV_KEYS.filter(key => typeof environment[key] === 'string').map(key => [
-      key,
-      environment[key],
-    ]),
-  )
+  const entries = []
+  for (const key of PUBLIC_ENV_KEYS) {
+    // 兼容改名前的变量名：TGYS_* 未设置时回退读取 OKI_*
+    const legacyKey = key.replace(/^TGYS_/, 'OKI_')
+    const value =
+      typeof environment[key] === 'string' ? environment[key] : environment[legacyKey]
+    if (typeof value === 'string') entries.push([key, value])
+  }
+  return Object.fromEntries(entries)
 }
 
 export function serializeRuntimeConfig(config) {
@@ -26,7 +29,7 @@ export function serializeRuntimeConfig(config) {
     .replaceAll('<', '\\u003c')
     .replaceAll('\u2028', '\\u2028')
     .replaceAll('\u2029', '\\u2029')
-  return `globalThis.__OKI_RUNTIME_CONFIG__ = Object.freeze(${json});\n`
+  return `globalThis.__TGYS_RUNTIME_CONFIG__ = Object.freeze(${json});\n`
 }
 
 export async function writeRuntimeConfig(outputPath, environment = process.env) {

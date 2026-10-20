@@ -619,7 +619,7 @@ export const useFavoritesStore = create<FavoritesStore>()(
         },
       })),
       {
-        name: 'ouonnki-tv-favorites-store',
+        name: 'tgys-tv-favorites-store',
         version: 2,
         partialize: state => ({ favorites: state.favorites }),
         migrate: persistedState => {

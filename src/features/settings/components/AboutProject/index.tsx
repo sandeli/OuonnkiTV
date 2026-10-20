@@ -1,4 +1,4 @@
-import { OkiLogo } from '@/shared/components/icons'
+import { TgysLogo } from '@/shared/components/icons'
 import { Badge } from '@/shared/components/ui/badge'
 import { Github, History, Sparkles } from 'lucide-react'
 import { useVersionStore } from '@/shared/store/versionStore'
@@ -22,10 +22,10 @@ export default function AboutProject() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
               <div className="bg-background ring-border/60 flex size-18 shrink-0 items-center justify-center rounded-2xl ring-1">
-                <OkiLogo size={56} className="drop-shadow-sm" />
+                <TgysLogo size={56} className="drop-shadow-sm" />
               </div>
               <div className="space-y-1">
-                <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Ouonnki TV</h2>
+                <h2 className="text-xl font-semibold tracking-tight md:text-2xl">TGYS TV</h2>
                 <p className="text-muted-foreground text-sm">
                   面向高频观影场景的流媒体聚合应用，强调连续性与模块化体验。
                 </p>
@@ -60,7 +60,7 @@ export default function AboutProject() {
       <SettingsSection title="项目资源" description="查看仓库代码与版本更新记录。" tone="violet">
         <div className="grid gap-3 md:grid-cols-2">
           <a
-            href="https://github.com/ouonnki/OuonnkiTV"
+            href="https://github.com/tgys/TGYSTV"
             target="_blank"
             rel="noopener noreferrer"
             className="border-border/70 bg-muted/35 hover:bg-muted/55 rounded-xl border px-4 py-4 transition-colors"
@@ -107,7 +107,7 @@ export default function AboutProject() {
       </SettingsSection>
 
       <footer className="border-border/70 text-muted-foreground mt-1 border-t pt-4 text-center text-sm">
-        © {currentYear} Ouonnki TV
+        © {currentYear} TGYS TV
       </footer>
     </SettingsPageShell>
   )

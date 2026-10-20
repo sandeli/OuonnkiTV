@@ -41,7 +41,7 @@
 项目采用 **Feature-Sliced Design** 架构，功能按领域模块组织。
 
 ```text
-OuonnkiTV/
+TGYSTV/
 ├─ api/                        # Vercel Serverless Functions
 │  └─ proxy.ts
 ├─ functions/                  # Cloudflare Workers Functions
@@ -51,7 +51,7 @@ OuonnkiTV/
 ├─ shared/                     # 跨平台代理核心逻辑
 │  └─ proxy-core.js
 ├─ packages/
-│  └─ cms-core/                # @ouonnki/cms-core 内容管理核心包
+│  └─ cms-core/                # @tgys/cms-core 内容管理核心包
 │     ├─ src/
 │     │  ├─ core/              # 搜索、聚合、解析、并发控制
 │     │  ├─ adapters/          # 网络适配器（fetch、proxy）
@@ -118,16 +118,16 @@ OuonnkiTV/
 
 ---
 
-## @ouonnki/cms-core
+## @tgys/cms-core
 
-`@ouonnki/cms-core` 是一个无头（headless）、纯函数、事件驱动的 CMS 视频源聚合搜索引擎。它与框架无关，可以在任何 JavaScript/TypeScript 项目中使用，适合构建自己的视频搜索应用、机器人、CLI 工具等。
+`@tgys/cms-core` 是一个无头（headless）、纯函数、事件驱动的 CMS 视频源聚合搜索引擎。它与框架无关，可以在任何 JavaScript/TypeScript 项目中使用，适合构建自己的视频搜索应用、机器人、CLI 工具等。
 
 ### 安装
 
 ```bash
-npm install @ouonnki/cms-core
+npm install @tgys/cms-core
 # 或
-pnpm add @ouonnki/cms-core
+pnpm add @tgys/cms-core
 ```
 
 如需 M3U8 流处理功能，还需安装可选依赖：
@@ -139,7 +139,7 @@ pnpm add hls.js
 ### 快速上手
 
 ```typescript
-import { createCmsClient, createFetchAdapter, createUrlPrefixProxyStrategy } from '@ouonnki/cms-core'
+import { createCmsClient, createFetchAdapter, createUrlPrefixProxyStrategy } from '@tgys/cms-core'
 
 // 1. 创建客户端
 const client = createCmsClient({
@@ -182,9 +182,9 @@ client.destroy()
 
 | 入口 | 说明 |
 | ---- | ---- |
-| `@ouonnki/cms-core` | 核心模块（客户端、搜索、聚合、解析、事件、适配器） |
-| `@ouonnki/cms-core/m3u8` | M3U8 流处理（过滤、HLS 加载、处理器） |
-| `@ouonnki/cms-core/source` | 视频源管理（导入、验证、存储） |
+| `@tgys/cms-core` | 核心模块（客户端、搜索、聚合、解析、事件、适配器） |
+| `@tgys/cms-core/m3u8` | M3U8 流处理（过滤、HLS 加载、处理器） |
+| `@tgys/cms-core/source` | 视频源管理（导入、验证、存储） |
 
 ### 核心 API
 
@@ -207,7 +207,7 @@ import {
   createUrlPrefixProxyStrategy,  // URL 前缀代理（如 /proxy?url=xxx）
   createWhitelistProxyStrategy,  // 白名单代理（仅代理指定域名）
   createDirectStrategy,          // 直连（不使用代理）
-} from '@ouonnki/cms-core'
+} from '@tgys/cms-core'
 ```
 
 ### 适用场景
@@ -222,10 +222,10 @@ import {
 
 ```bash
 # 本地构建
-pnpm --filter @ouonnki/cms-core build
+pnpm --filter @tgys/cms-core build
 
 # npm 发布（通过 GitHub Actions 手动触发）
-# 进入 Actions → Publish @ouonnki/cms-core → Run workflow
+# 进入 Actions → Publish @tgys/cms-core → Run workflow
 ```
 
 ---

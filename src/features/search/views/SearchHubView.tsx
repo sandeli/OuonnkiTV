@@ -6,7 +6,7 @@ import { useDocumentTitle, useSearchHistory } from '@/shared/hooks'
 import { useTmdbEnabled } from '@/shared/hooks/useTmdbMode'
 import { useTmdbNowPlaying } from '@/shared/hooks/useTmdb'
 import { useSearchStore } from '@/shared/store/searchStore'
-import { OkiLogo } from '@/shared/components/icons'
+import { TgysLogo } from '@/shared/components/icons'
 import { normalizeSearchMode } from '../lib/searchMode'
 
 import {
@@ -127,7 +127,7 @@ export default function SearchHubView() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <OkiLogo size={56} />
+              <TgysLogo size={56} />
               <span className="text-muted-foreground text-sm tracking-wide">发现你的下一部好剧</span>
             </motion.div>
           )}

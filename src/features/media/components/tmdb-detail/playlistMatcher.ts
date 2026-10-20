@@ -1,4 +1,4 @@
-import type { VideoItem } from '@ouonnki/cms-core'
+import type { VideoItem } from '@tgys/cms-core'
 import type { TmdbMediaType } from '@/shared/types/tmdb'
 import type { DetailSeason } from './types'
 

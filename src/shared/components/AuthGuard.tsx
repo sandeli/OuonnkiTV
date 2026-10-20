@@ -5,7 +5,7 @@ import { Input } from '@/shared/components/ui/input'
 import { Button } from '@/shared/components/ui/button'
 import { Spinner } from '@/shared/components/ui/spinner'
 import { useAuthStore } from '@/shared/store/authStore'
-import { OkiLogo } from '@/shared/components/icons'
+import { TgysLogo } from '@/shared/components/icons'
 import { toast } from 'sonner'
 import { getPublicEnv } from '@/shared/config/runtimeEnv'
 
@@ -25,7 +25,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const revealOriginRef = useRef('50% 50%')
 
-  const accessPassword = getPublicEnv('OKI_ACCESS_PASSWORD')
+  const accessPassword = getPublicEnv('TGYS_ACCESS_PASSWORD')
   const isProtectionEnabled = !!accessPassword && accessPassword.trim() !== ''
 
   useEffect(() => {
@@ -128,8 +128,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
               transition={{ duration: 0.5, delay: 0.1, ease: easeOutQuad }}
               className="flex flex-col items-center gap-3"
             >
-              <OkiLogo size={80} />
-              <div className="text-xl font-bold tracking-widest">OUONNKI TV</div>
+              <TgysLogo size={80} />
+              <div className="text-xl font-bold tracking-widest">TGYS TV</div>
             </motion.div>
 
             <motion.p

@@ -39,7 +39,7 @@ import { URLSourceModal, TextSourceModal } from './ImportSourceModal'
 import { SettingsSection } from '../common'
 import { v4 as uuidv4 } from 'uuid'
 import type { VideoApi } from '@/shared/types'
-import type { VideoSource } from '@ouonnki/cms-core'
+import type { VideoSource } from '@tgys/cms-core'
 
 export default function VideoSource() {
   const {
@@ -190,7 +190,7 @@ export default function VideoSource() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `ouonnki-tv-sources-${dayjs().format('YYYY-MM-DD')}.json`
+      link.download = `tgys-tv-sources-${dayjs().format('YYYY-MM-DD')}.json`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)

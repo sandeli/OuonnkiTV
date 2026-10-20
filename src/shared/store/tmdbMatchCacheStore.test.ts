@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTmdbMatchCacheStore } from './tmdbMatchCacheStore'
 
-const CACHE_KEY = 'ouonnki-tv-tmdb-match-cache-store'
+const CACHE_KEY = 'tgys-tv-tmdb-match-cache-store'
 
 describe('tmdbMatchCacheStore', () => {
   beforeEach(() => {

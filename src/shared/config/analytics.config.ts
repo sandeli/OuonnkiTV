@@ -23,7 +23,7 @@ export const trackEvent = (
   properties?: Record<string, string | number | boolean | null>,
 ) => {
   // 当禁用Analytics时不执行跟踪
-  if (getPublicEnv('OKI_DISABLE_ANALYTICS') !== 'true') {
+  if (getPublicEnv('TGYS_DISABLE_ANALYTICS') !== 'true') {
     track(eventName, properties)
   }
 }

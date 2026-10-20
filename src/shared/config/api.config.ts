@@ -124,5 +124,5 @@ export const getInitialVideoSources = async (): Promise<VideoApi[]> => {
   if (INITIAL_CONFIG && INITIAL_CONFIG.videoSources !== undefined) {
     return loadVideoSources(INITIAL_CONFIG.videoSources)
   }
-  return loadVideoSources(getPublicEnv('OKI_INITIAL_VIDEO_SOURCES'))
+  return loadVideoSources(getPublicEnv('TGYS_INITIAL_VIDEO_SOURCES'))
 }

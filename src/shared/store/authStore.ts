@@ -41,7 +41,7 @@ export const useAuthStore = create<AuthStore>()(
       isInitialized: false,
 
       login: async (password: string) => {
-        const correctPassword = getPublicEnv('OKI_ACCESS_PASSWORD')
+        const correctPassword = getPublicEnv('TGYS_ACCESS_PASSWORD')
         // If no password configured, always allow
         if (!correctPassword) {
           return true
@@ -60,7 +60,7 @@ export const useAuthStore = create<AuthStore>()(
 
       validateSession: async () => {
         const { sessionToken, salt } = get()
-        const correctPassword = getPublicEnv('OKI_ACCESS_PASSWORD')
+        const correctPassword = getPublicEnv('TGYS_ACCESS_PASSWORD')
 
         // If no password configured, always valid
         if (!correctPassword) {

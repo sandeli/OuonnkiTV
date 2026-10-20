@@ -1,5 +1,5 @@
 {
-  "name": "@ouonnki/cms-core",
+  "name": "@tgys/cms-core",
   "version": "1.0.0",
   "description": "CMS视频源核心逻辑库 - 无头、纯函数、事件驱动",
   "type": "module",
@@ -48,7 +48,7 @@
     "search",
     "headless"
   ],
-  "author": "Ouonnki",
+  "author": "Tgys",
   "license": "MIT",
   "devDependencies": {
     "tsup": "^8.3.5",

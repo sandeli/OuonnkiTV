@@ -38,15 +38,15 @@ export const DEFAULT_SETTINGS = {
   system: {
     tmdbEnabled:
       envSettings?.system?.tmdbEnabled ??
-      Boolean(envSettings?.system?.tmdbApiToken || getPublicEnv('OKI_TMDB_API_TOKEN')),
+      Boolean(envSettings?.system?.tmdbApiToken || getPublicEnv('TGYS_TMDB_API_TOKEN')),
     tmdbApiToken: envSettings?.system?.tmdbApiToken ?? '',
     tmdbApiBaseUrl:
       envSettings?.system?.tmdbApiBaseUrl ??
-      getPublicEnv('OKI_TMDB_API_BASE_URL') ??
+      getPublicEnv('TGYS_TMDB_API_BASE_URL') ??
       DEFAULT_TMDB_API_BASE_URL,
     tmdbImageBaseUrl:
       envSettings?.system?.tmdbImageBaseUrl ??
-      getPublicEnv('OKI_TMDB_IMAGE_BASE_URL') ??
+      getPublicEnv('TGYS_TMDB_IMAGE_BASE_URL') ??
       DEFAULT_TMDB_IMAGE_BASE_URL,
     isUpdateLogEnabled: envSettings?.system?.isUpdateLogEnabled ?? false,
     isScrollChromeAnimationEnabled: envSettings?.system?.isScrollChromeAnimationEnabled ?? false,

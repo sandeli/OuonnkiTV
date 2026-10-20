@@ -84,7 +84,7 @@ export function resolveTmdbApiBaseUrl(): string {
   const settingsValue = useSettingStore.getState().system.tmdbApiBaseUrl
   return (
     normalizeApiBaseUrlCandidate(settingsValue) ??
-    normalizeApiBaseUrlCandidate(getPublicEnv('OKI_TMDB_API_BASE_URL')) ??
+    normalizeApiBaseUrlCandidate(getPublicEnv('TGYS_TMDB_API_BASE_URL')) ??
     DEFAULT_TMDB_API_BASE_URL
   )
 }
@@ -93,7 +93,7 @@ export function resolveTmdbImageBaseUrl(): string {
   const settingsValue = useSettingStore.getState().system.tmdbImageBaseUrl
   return (
     normalizeImageBaseUrlCandidate(settingsValue) ??
-    normalizeImageBaseUrlCandidate(getPublicEnv('OKI_TMDB_IMAGE_BASE_URL')) ??
+    normalizeImageBaseUrlCandidate(getPublicEnv('TGYS_TMDB_IMAGE_BASE_URL')) ??
     DEFAULT_TMDB_IMAGE_BASE_URL
   )
 }
@@ -134,7 +134,7 @@ function ensureTmdbApiPatched(): void {
 function resolveTmdbToken(): string | undefined {
   const userToken = useSettingStore.getState().system.tmdbApiToken
   if (userToken) return userToken
-  const envToken = getPublicEnv('OKI_TMDB_API_TOKEN')
+  const envToken = getPublicEnv('TGYS_TMDB_API_TOKEN')
   if (envToken) return envToken
   return undefined
 }
@@ -142,7 +142,7 @@ function resolveTmdbToken(): string | undefined {
 export function getTmdbClient(): TMDB {
   const token = resolveTmdbToken()
   if (!token) {
-    throw new Error('TMDB API Token 未配置，请在设置中手动输入或配置 OKI_TMDB_API_TOKEN 环境变量')
+    throw new Error('TMDB API Token 未配置，请在设置中手动输入或配置 TGYS_TMDB_API_TOKEN 环境变量')
   }
   ensureTmdbApiPatched()
   // token 变化时销毁旧单例并重建

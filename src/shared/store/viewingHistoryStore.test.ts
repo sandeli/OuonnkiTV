@@ -38,7 +38,7 @@ function createTmdbHistoryItem(
 
 describe('viewingHistoryStore', () => {
   beforeEach(() => {
-    localStorage.removeItem('ouonnki-tv-viewing-history')
+    localStorage.removeItem('tgys-tv-viewing-history')
     useViewingHistoryStore.setState({ viewingHistory: [] })
   })
 

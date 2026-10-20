@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { VideoSource } from '@ouonnki/cms-core'
+import type { VideoSource } from '@tgys/cms-core'
 import { getSourcesToFetch } from './directSearch.utils'
 
 function createSource(id: string): VideoSource {

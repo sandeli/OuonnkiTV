@@ -21,7 +21,7 @@ const app = (
     <TooltipProvider>
       <AppRouter />
       <Toaster richColors position="top-center" />
-      {getPublicEnv('OKI_DISABLE_ANALYTICS') !== 'true' && (
+      {getPublicEnv('TGYS_DISABLE_ANALYTICS') !== 'true' && (
         <>
           <Analytics />
           <SpeedInsights />

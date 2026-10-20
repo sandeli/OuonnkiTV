@@ -61,21 +61,21 @@ const VERSION_UPDATES: VersionUpdate[] = [
     title: '部署配置与初始化体验修复',
     date: formatDate('2026-08-14'),
     features: [
-      'Docker 预构建镜像支持在容器启动时读取全部 OKI_* 环境变量，无需为配置重新构建镜像。',
+      'Docker 预构建镜像支持在容器启动时读取全部 TGYS_* 环境变量，无需为配置重新构建镜像。',
       '统一各部署方式的环境变量配置入口，并补充 Docker、Vercel、Cloudflare Pages、Netlify 与本地开发文档。',
     ],
-    fixes: ['修复 OKI_INITIAL_CONFIG 中 Token、远程视频源、订阅和广告过滤等配置未完整生效的问题。'],
+    fixes: ['修复 TGYS_INITIAL_CONFIG 中 Token、远程视频源、订阅和广告过滤等配置未完整生效的问题。'],
     breaking: [
-      'Docker Compose 用户需将 OKI_* 从 build.args 迁移到 environment；Vercel、Cloudflare Pages 和 Netlify 无需调整。',
+      'Docker Compose 用户需将 TGYS_* 从 build.args 迁移到 environment；Vercel、Cloudflare Pages 和 Netlify 无需调整。',
     ],
     links: [
       {
         label: '查看部署指南',
-        href: 'https://github.com/Ouonnki/OuonnkiTV/blob/main/docs/deployment.md',
+        href: 'https://github.com/Tgys/TGYSTV/blob/main/docs/deployment.md',
       },
       {
         label: '查看配置说明',
-        href: 'https://github.com/Ouonnki/OuonnkiTV/blob/main/docs/configuration.md',
+        href: 'https://github.com/Tgys/TGYSTV/blob/main/docs/configuration.md',
       },
     ],
   },
@@ -140,12 +140,12 @@ const VERSION_UPDATES: VersionUpdate[] = [
       '新增视频源订阅功能，支持远程订阅自动更新',
       '全新 UI 体系：迁移至 Radix UI + shadcn/ui，视觉与交互全面升级',
       '新增 Docker Hub 镜像源，拉取更快更稳定',
-      '发布 @ouonnki/cms-core npm 包，支持独立构建视频搜索应用',
+      '发布 @tgys/cms-core npm 包，支持独立构建视频搜索应用',
     ],
     breaking: [
       '前端架构全面重构，不兼容 1.x 版本的自定义修改',
       'UI 组件库从 HeroUI 迁移至 Radix UI + shadcn/ui',
-      '环境变量前缀统一为 OKI_，旧前缀不再支持',
+      '环境变量前缀统一为 TGYS_，旧前缀不再支持',
     ],
   },
   {
@@ -238,7 +238,7 @@ const VERSION_UPDATES: VersionUpdate[] = [
       '导入过程自动进行 JSON 格式与字段校验，提供清晰错误提示',
       '自动去重：已存在的视频源不会重复添加',
       '导入结果统计与 Toast 通知（成功数 / 失败数）',
-      '支持通过环境变量 OKI_INITIAL_VIDEO_SOURCES 预加载初始视频源',
+      '支持通过环境变量 TGYS_INITIAL_VIDEO_SOURCES 预加载初始视频源',
     ],
     fixes: ['导入弹窗交互细节优化，减少不必要的重复渲染'],
     breaking: [],
@@ -261,7 +261,7 @@ const VERSION_UPDATES: VersionUpdate[] = [
     ],
     fixes: ['优化了视频源管理功能', '优化视频搜索逻辑，增快搜索速度'],
     breaking: [
-      '旧版域名https://tv.new.ouonnki.com即将失效,请尽快使用新版域名访问https://tv.ouonnki.com',
+      '旧版域名https://tv.new.tgys.com即将失效,请尽快使用新版域名访问https://tv.tgys.com',
     ],
   },
   {
@@ -343,7 +343,7 @@ export const useVersionStore = create<VersionStore>()(
         },
       })),
       {
-        name: 'ouonnki-tv-version-store',
+        name: 'tgys-tv-version-store',
         version: 1,
         partialize: state => ({
           lastViewedVersion: state.lastViewedVersion,

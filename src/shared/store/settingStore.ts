@@ -107,7 +107,7 @@ export const useSettingStore = create<SettingStore>()(
             if (
               'tmdbApiToken' in settings &&
               !settings.tmdbApiToken &&
-              !getPublicEnv('OKI_TMDB_API_TOKEN')
+              !getPublicEnv('TGYS_TMDB_API_TOKEN')
             ) {
               merged.tmdbEnabled = false
             }
@@ -125,7 +125,7 @@ export const useSettingStore = create<SettingStore>()(
         },
       })),
       {
-        name: 'ouonnki-tv-setting-store',
+        name: 'tgys-tv-setting-store',
         version: 14,
         migrate: (persistedState: unknown, version: number) => {
           const state = persistedState as Record<string, unknown>

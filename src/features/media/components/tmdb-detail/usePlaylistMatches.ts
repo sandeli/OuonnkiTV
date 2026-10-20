@@ -5,7 +5,7 @@ import type {
   SearchStartEvent,
   VideoItem,
   VideoSource,
-} from '@ouonnki/cms-core'
+} from '@tgys/cms-core'
 import type { TmdbMediaType } from '@/shared/types/tmdb'
 import { useCmsClient } from '@/shared/hooks'
 import { useApiStore } from '@/shared/store/apiStore'

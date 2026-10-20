@@ -9,7 +9,7 @@ import {
   useSubscriptionStore,
 } from '@/shared/store/subscriptionStore'
 import dayjs from 'dayjs'
-import type { VideoSource } from '@ouonnki/cms-core'
+import type { VideoSource } from '@tgys/cms-core'
 import HealthStatusIndicator from './HealthStatusIndicator'
 
 interface VideoSourceCardProps {

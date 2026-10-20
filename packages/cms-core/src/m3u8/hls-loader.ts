@@ -18,7 +18,7 @@ export interface HlsLoaderConfig {
  * @example
  * ```typescript
  * import Hls from 'hls.js'
- * import { createM3u8Processor, createHlsLoaderClass } from '@ouonnki/cms-core/m3u8'
+ * import { createM3u8Processor, createHlsLoaderClass } from '@tgys/cms-core/m3u8'
  *
  * const processor = createM3u8Processor({ filterAds: true })
  * const CustomLoader = createHlsLoaderClass({ m3u8Processor: processor, Hls })

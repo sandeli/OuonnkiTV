@@ -18,13 +18,13 @@ import { getPublicEnv } from '@/shared/config/runtimeEnv'
 export default function SystemSettings() {
   const { system, setSystemSettings } = useSettingStore()
 
-  const hasEnvToken = Boolean(getPublicEnv('OKI_TMDB_API_TOKEN'))
+  const hasEnvToken = Boolean(getPublicEnv('TGYS_TMDB_API_TOKEN'))
   const hasUserToken = Boolean(system.tmdbApiToken)
   const hasTmdbToken = hasEnvToken || hasUserToken
   const tmdbApiBaseUrlPlaceholder =
-    getPublicEnv('OKI_TMDB_API_BASE_URL') || 'https://api.themoviedb.org/3'
+    getPublicEnv('TGYS_TMDB_API_BASE_URL') || 'https://api.themoviedb.org/3'
   const tmdbImageBaseUrlPlaceholder =
-    getPublicEnv('OKI_TMDB_IMAGE_BASE_URL') || 'https://image.tmdb.org/t/p/'
+    getPublicEnv('TGYS_TMDB_IMAGE_BASE_URL') || 'https://image.tmdb.org/t/p/'
 
   return (
     <SettingsPageShell

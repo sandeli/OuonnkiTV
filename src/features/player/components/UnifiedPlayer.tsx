@@ -5,8 +5,8 @@ import Artplayer from 'artplayer'
 import type Hls from 'hls.js'
 import type { HlsConfig } from 'hls.js'
 import { ChevronDown, X } from 'lucide-react'
-import { type DetailResult } from '@ouonnki/cms-core'
-import { createM3u8Processor, createHlsLoaderClass } from '@ouonnki/cms-core/m3u8'
+import { type DetailResult } from '@tgys/cms-core'
+import { createM3u8Processor, createHlsLoaderClass } from '@tgys/cms-core/m3u8'
 import { Button } from '@/shared/components/ui/button'
 import {
   Collapsible,
@@ -797,7 +797,7 @@ export default function UnifiedPlayer() {
       const isFullscreenActive = art.fullscreen || art.fullscreenWeb
       const shouldHideMiniProgress =
         playbackRef.current.isFullscreenProgressHidden && isFullscreenActive
-      art.template.$player.classList.toggle('oki-hide-mini-progress', shouldHideMiniProgress)
+      art.template.$player.classList.toggle('tgys-hide-mini-progress', shouldHideMiniProgress)
     }
 
     const syncMobileControlBar = () => {
