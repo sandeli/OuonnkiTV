@@ -138,13 +138,13 @@ export function SearchResultsGrid({
         {/* 内容区域 */}
         <div>
           {showSkeleton ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
               {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
                 <ResultSkeleton key={index} />
               ))}
             </div>
           ) : hasResults ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
               {results.map(item => (
                 <div key={`${item.mediaType}-${item.id}`}>
                   <MediaPosterCard
@@ -217,13 +217,13 @@ export function SearchResultsGrid({
       {/* 内容区域 */}
       <div>
         {loading && !hasResults ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
             {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
               <ResultSkeleton key={index} />
             ))}
           </div>
         ) : hasResults ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
             {validResults.map((item, index) => {
               const sourceCode = item.source_code as string
               return (

@@ -110,7 +110,7 @@ export function DirectResultCard({
           <p className="text-primary line-clamp-1 text-sm font-semibold">{title}</p>
 
           {(resolution || latencyMs !== undefined) && (
-            <div className="mt-2 flex items-center justify-center gap-1.5">
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
               {resolution && (
                 <span className="rounded bg-green-500 px-1.5 py-0.5 text-[11px] font-bold text-white">
                   {resolution}
