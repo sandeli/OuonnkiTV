@@ -1,3 +1,5 @@
+// 必须最先加载：在任何 store 读取持久化数据前，把旧品牌键名下的数据搬过来
+import '@/shared/lib/legacyStorageMigration'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource/inter/400.css'
