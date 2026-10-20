@@ -9,6 +9,8 @@ export interface VideoItem {
   type_name?: string
   vod_year?: string
   vod_area?: string
+  /** 语言 */
+  vod_lang?: string
   vod_director?: string
   vod_actor?: string
   vod_content?: string

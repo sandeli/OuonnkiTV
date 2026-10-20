@@ -9,6 +9,7 @@ import { useMemo } from 'react'
 import type { SearchMode } from './SearchModeToggle'
 import { getSourceColorScheme } from '@/shared/lib/source-colors'
 import { SourceStatusBadge } from './SourceStatusBadge'
+import { DirectResultCard } from './DirectResultCard'
 import { getPosterUrl } from '@/shared/lib/tmdb'
 import { buildCmsPlayPath, buildTmdbDetailPath } from '@/shared/lib/routes'
 
@@ -42,6 +43,18 @@ interface SearchResultsGridProps {
 
 // 骨架屏数量
 const SKELETON_COUNT = 20
+
+const RESOLUTION_PATTERN = /(2160P|1440P|1080P|720P|576P|480P|4K|2K)/i
+
+/** 从播放地址/备注中提取影片规格（分辨率），提不到返回 null */
+function extractResolution(item: VideoItem): string | null {
+  for (const text of [item.vod_play_url, item.vod_remarks]) {
+    if (!text) continue
+    const match = text.match(RESOLUTION_PATTERN)
+    if (match) return match[1].toUpperCase()
+  }
+  return null
+}
 
 /**
  * ResultSkeleton - 结果骨架屏
@@ -174,6 +187,7 @@ export function SearchResultsGrid({
 
   // Direct 模式：无分页，显示所有累积结果（已按源速排序，见组件顶部）
   const results = directResultsSorted
+  const validResults = results.filter(item => item.source_code && item.vod_id)
   const hasResults = results.length > 0
   const sortedBySpeed = !!sourceLatencies && sourceLatencies.size > 0
 
@@ -210,34 +224,22 @@ export function SearchResultsGrid({
           </div>
         ) : hasResults ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
-            {results.map(item => {
-              if (!item.source_code || !item.vod_id) {
-                return null
-              }
-
-              // 根据源代码生成配色方案
-              const colorScheme = item.source_code
-                ? getSourceColorScheme(item.source_code)
-                : undefined
-
+            {validResults.map((item, index) => {
+              const sourceCode = item.source_code as string
               return (
-                <div key={`${item.source_code}-${item.vod_id}`}>
-                  <MediaPosterCard
-                    to={buildCmsPlayPath(item.source_code, item.vod_id)}
-                    posterUrl={item.vod_pic || null}
-                    title={item.vod_name}
-                    year={item.vod_year}
-                    topRightLabel={item.source_name}
-                    topRightLabelColorScheme={colorScheme}
-                    rating={
-                      item.vod_douban_score !== undefined
-                        ? typeof item.vod_douban_score === 'number'
-                          ? item.vod_douban_score
-                          : parseFloat(item.vod_douban_score)
-                        : undefined
-                    }
-                  />
-                </div>
+                <DirectResultCard
+                  key={`${sourceCode}-${item.vod_id}`}
+                  to={buildCmsPlayPath(sourceCode, item.vod_id)}
+                  rank={index + 1}
+                  title={item.vod_name}
+                  posterUrl={item.vod_pic || null}
+                  sourceName={item.source_name}
+                  sourceColorScheme={getSourceColorScheme(sourceCode)}
+                  remarks={item.vod_remarks || undefined}
+                  resolution={extractResolution(item)}
+                  latencyMs={sourceLatencies?.get(sourceCode)}
+                  lang={item.vod_lang || undefined}
+                />
               )
             })}
           </div>
