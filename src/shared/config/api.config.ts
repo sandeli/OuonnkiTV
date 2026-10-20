@@ -54,7 +54,9 @@ type VideoSourceInput = VideoSourceConfig[] | string | undefined
 export const parseVideoSources = (sources: VideoSourceConfig[]): VideoApi[] => {
   return sources
     .map((source, index) => {
-      if (!source || typeof source !== 'object' || !source.name || !source.url) {
+      // 兼容 KVideo 源格式：baseUrl（完整接口地址）等价于 url，enabled 等价于 isEnabled
+      const url = source?.url || source?.baseUrl
+      if (!source || typeof source !== 'object' || !source.name || !url) {
         console.warn(`跳过无效的视频源配置: ${JSON.stringify(source)}`)
         return null
       }
@@ -62,9 +64,9 @@ export const parseVideoSources = (sources: VideoSourceConfig[]): VideoApi[] => {
       return {
         id: source.id || `env_source_${index}`,
         name: source.name,
-        url: source.url,
-        detailUrl: source.detailUrl || source.url,
-        isEnabled: source.isEnabled ?? true,
+        url,
+        detailUrl: source.detailUrl || url,
+        isEnabled: source.isEnabled ?? source.enabled ?? true,
         updatedAt: source.updatedAt ? new Date(source.updatedAt) : new Date(),
         timeout: source.timeout ?? DEFAULT_SETTINGS.network.defaultTimeout,
         retry: source.retry ?? DEFAULT_SETTINGS.network.defaultRetry,

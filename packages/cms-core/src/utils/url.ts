@@ -19,7 +19,9 @@ export function buildApiUrl(baseUrl: string, configPath: string, queryValue: str
   // 很多源地址是 https://domain.com/api.php/provide/vod/
   if (
     url.toLowerCase().endsWith(pathPart.replace(/\/+$/, '').toLowerCase()) ||
-    url.toLowerCase().includes('/api.php/provide/vod')
+    url.toLowerCase().includes('/api.php/provide/vod') ||
+    // 兼容脚本名不同的 MacCMS 接口（如 xinlangapi.php/provide/vod，KVideo 源常见）
+    /\/provide\/vod\/?$/.test(url)
   ) {
     // 如果 baseUrl 已经包含路径，则只追加参数
     const prefix = url.includes('?') ? '&' : '?'

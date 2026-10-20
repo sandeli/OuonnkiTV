@@ -48,16 +48,20 @@ function mapToSubscriptionSources(
   rawSources: Partial<VideoSource>[],
 ): VideoSource[] {
   const { defaultTimeout, defaultRetry } = useSettingStore.getState().network
+  // 兼容 KVideo 源格式：baseUrl 等价于 url，enabled 等价于 isEnabled
+  const urlOf = (s: Partial<VideoSource>) =>
+    s.url || (s as { baseUrl?: string }).baseUrl
   return rawSources
-    .filter(s => s.name && s.url)
+    .filter(s => s.name && urlOf(s))
     .map((source, index) => ({
       id: buildSubscriptionSourceId(subscriptionId, index),
       name: source.name!,
-      url: source.url!,
-      detailUrl: source.detailUrl || source.url,
+      url: urlOf(source)!,
+      detailUrl: source.detailUrl || urlOf(source),
       timeout: source.timeout ?? defaultTimeout,
       retry: source.retry ?? defaultRetry,
-      isEnabled: source.isEnabled ?? true,
+      isEnabled:
+        source.isEnabled ?? (source as { enabled?: boolean }).enabled ?? true,
       updatedAt: new Date(),
     }))
 }

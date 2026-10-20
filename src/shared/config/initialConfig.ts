@@ -51,6 +51,10 @@ export interface VideoSourceConfig {
   updatedAt?: string | Date
   timeout?: number
   retry?: number
+  /** KVideo 源格式兼容：接口地址（等价于 url，含 /api.php/provide/vod 完整路径） */
+  baseUrl?: string
+  /** KVideo 源格式兼容：启用开关（等价于 isEnabled） */
+  enabled?: boolean
 }
 
 export interface SubscriptionConfig {
