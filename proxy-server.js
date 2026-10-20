@@ -16,11 +16,12 @@ app.get('/proxy', async (req, res) => {
 
     const targetUrl = decodeURIComponent(url)
     const response = await handleProxyRequest(targetUrl)
-    const text = await response.text()
+    // 二进制安全：图片等非文本内容不能走 text() 转手（会损坏字节）
+    const buffer = Buffer.from(await response.arrayBuffer())
     const contentType = response.headers.get('content-type') || 'application/json'
 
     res.setHeader('Content-Type', contentType)
-    res.status(response.status).send(text)
+    res.status(response.status).send(buffer)
   } catch (error) {
     const { message, cause } = parseProxyError(error)
     res.status(500).json({

@@ -28,16 +28,29 @@ const handler: Handler = async (event: HandlerEvent) => {
 
   try {
     const response = await handleProxyRequest(url)
-    const text = await response.text()
     const contentType = response.headers.get('content-type') || 'application/json'
 
+    // 文本内容（JSON 等）直传；图片等二进制走 base64，避免 text() 转手损坏字节
+    if (/json|text|xml|javascript/.test(contentType)) {
+      return {
+        statusCode: response.status,
+        headers: {
+          ...headers,
+          'Content-Type': contentType,
+        },
+        body: await response.text(),
+      }
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer())
     return {
       statusCode: response.status,
       headers: {
         ...headers,
         'Content-Type': contentType,
       },
-      body: text,
+      body: buffer.toString('base64'),
+      isBase64Encoded: true,
     }
   } catch (error) {
     const { message, cause } = parseProxyError(error)

@@ -20,12 +20,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const targetUrl = decodeURIComponent(url)
     const response = await handleProxyRequest(targetUrl)
-    const text = await response.text()
+    // 二进制安全：图片等非文本内容不能走 text() 转手（会损坏字节）
+    const buffer = Buffer.from(await response.arrayBuffer())
     const contentType = response.headers.get('content-type') || 'application/json'
 
     res.setHeader('Content-Type', contentType)
-    res.setHeader('Cache-Control', 'public, max-age=60')
-    res.status(response.status).send(text)
+    // 图片（豆瓣海报等）长缓存，其余内容短缓存（对齐 KVideo 图片代理）
+    res.setHeader(
+      'Cache-Control',
+      contentType.startsWith('image/')
+        ? 'public, max-age=15720000, s-maxage=15720000'
+        : 'public, max-age=60',
+    )
+    res.status(response.status).send(buffer)
   } catch (error) {
     const { message, cause } = parseProxyError(error)
     const timeoutMs = getProxyTimeoutMs()

@@ -97,7 +97,7 @@ export function doubanPosterUrl(cover: string): string {
   return buildProxyRequestUrl(cover, proxyUrlFromSettings())
 }
 
-/** 点击豆瓣条目 → 站内聚合搜索路径 */
+/** 点击豆瓣条目 → 站内直连聚合搜索各源（mode=direct） */
 export function buildDoubanSearchPath(title: string): string {
-  return `/search?q=${encodeURIComponent(title)}`
+  return `/search?q=${encodeURIComponent(title)}&mode=direct`
 }

@@ -5,6 +5,7 @@ import { NoResultIcon } from '@/shared/components/icons'
 import { Skeleton } from '@/shared/components/ui/skeleton'
 import { cn } from '@/shared/lib/utils'
 import { AspectRatio } from '@/shared/components/ui/aspect-ratio'
+import { useMemo } from 'react'
 import type { SearchMode } from './SearchModeToggle'
 import { getSourceColorScheme } from '@/shared/lib/source-colors'
 import { SourceStatusBadge } from './SourceStatusBadge'
@@ -24,6 +25,8 @@ interface SearchResultsGridProps {
   searchProgress?: { completed: number; total: number }
   /** 成功返回结果的源 ID 集合 */
   successfulSources?: Set<string>
+  /** 各源响应耗时（毫秒）：直连模式按源速从快到慢排序结果 */
+  sourceLatencies?: Map<string, number>
   /** 总结果数量（来自 API 分页信息） */
   totalResults?: number
   /** 是否正在搜索新查询（用于显示骨架屏） */
@@ -80,6 +83,7 @@ export function SearchResultsGrid({
   loading,
   searchProgress,
   successfulSources,
+  sourceLatencies,
   totalResults,
   isSearchingNewQuery,
   hasMore = false,
@@ -87,6 +91,16 @@ export function SearchResultsGrid({
   sentinelRef,
   className,
 }: SearchResultsGridProps) {
+  // 直连模式排序：已测得源速时按源响应耗时从快到慢（稳定排序，同源内保持原顺序，未测速排最后）
+  const directResultsSorted = useMemo(() => {
+    if (!sourceLatencies || sourceLatencies.size === 0) return directResults
+    return [...directResults].sort((a, b) => {
+      const la = a.source_code ? sourceLatencies.get(a.source_code) : undefined
+      const lb = b.source_code ? sourceLatencies.get(b.source_code) : undefined
+      return (la ?? Number.POSITIVE_INFINITY) - (lb ?? Number.POSITIVE_INFINITY)
+    })
+  }, [directResults, sourceLatencies])
+
   // TMDB 模式：显示所有结果
   if (mode === 'tmdb') {
     const results = tmdbResults
@@ -158,9 +172,10 @@ export function SearchResultsGrid({
     )
   }
 
-  // Direct 模式：无分页，显示所有累积结果
-  const results = directResults
+  // Direct 模式：无分页，显示所有累积结果（已按源速排序，见组件顶部）
+  const results = directResultsSorted
   const hasResults = results.length > 0
+  const sortedBySpeed = !!sourceLatencies && sourceLatencies.size > 0
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -170,6 +185,7 @@ export function SearchResultsGrid({
         {hasResults && (
           <div className="text-muted-foreground text-sm">
             共找到 <span className="text-primary font-medium">{results.length}</span> 个结果
+            {sortedBySpeed && <span> · 已按各源速度从快到慢排列</span>}
           </div>
         )}
         {/* 右侧：源状态徽章 */}

@@ -66,16 +66,63 @@ async function handleProxyRequest(targetUrl: string, timeoutMs: number): Promise
     throw new Error('Invalid URL format')
   }
 
-  const response = await fetch(targetUrl, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      Accept: 'application/json, text/plain, */*',
-    },
-    signal: AbortSignal.timeout(timeoutMs),
-  })
+  let hostname = ''
+  try {
+    hostname = new URL(targetUrl).hostname
+  } catch {
+    // URL 格式已在上方校验，这里忽略
+  }
+  const isDoubanImage = hostname === 'doubanio.com' || hostname.endsWith('.doubanio.com')
 
-  return response
+  // 豆瓣图片 CDN 防盗链：带上豆瓣自身 Referer + 图片 Accept 才能取图
+  const headers: Record<string, string> = isDoubanImage
+    ? {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        Accept: 'image/jpeg,image/png,image/gif,*/*;q=0.8',
+        Referer: 'https://movie.douban.com/',
+      }
+    : {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        Accept: 'application/json, text/plain, */*',
+      }
+
+  if (!isDoubanImage) {
+    return fetch(targetUrl, {
+      headers,
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+  }
+
+  // 豆瓣图片镜像线路轮换（imgN 路径相同），返回第一个成功响应
+  const hosts = ['img9.doubanio.com', 'img3.doubanio.com', 'img2.doubanio.com']
+  const candidates = [targetUrl]
+  if (/^img\d+\.doubanio\.com$/.test(hostname)) {
+    for (const host of hosts) {
+      if (host === hostname) continue
+      const alternate = new URL(targetUrl)
+      alternate.hostname = host
+      candidates.push(alternate.toString())
+    }
+  }
+
+  let lastResponse: Response | null = null
+  let lastError: unknown = null
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate, {
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+      if (response.ok) return response
+      lastResponse = response
+    } catch (error) {
+      lastError = error
+    }
+  }
+  if (lastResponse) return lastResponse
+  throw lastError || new Error('Douban image fetch failed')
 }
 
 export const onRequest = async (context: Context) => {
@@ -112,6 +159,12 @@ export const onRequest = async (context: Context) => {
 
     // Create a new response with the body from the fetch
     const newResponse = new Response(response.body, response)
+
+    // 图片（豆瓣海报等）长缓存，减少重复取图
+    const contentType = newResponse.headers.get('content-type') || ''
+    if (contentType.startsWith('image/')) {
+      newResponse.headers.set('Cache-Control', 'public, max-age=15720000, s-maxage=15720000')
+    }
 
     // Add CORS headers
     Object.entries(corsHeaders).forEach(([key, value]) => {

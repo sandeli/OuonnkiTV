@@ -28,6 +28,33 @@ export function useDirectSearch() {
   const [successfulSourcesInCurrentPage, setSuccessfulSourcesInCurrentPage] = useState<Set<string>>(new Set())
   // 新增：请求版本号，用于处理竞态条件
   const requestVersionRef = useRef(0)
+  // 各源测速：源 ID -> 本次搜索中该源的响应耗时（毫秒），用于结果按速度排序
+  const [sourceLatencies, setSourceLatencies] = useState<Map<string, number>>(new Map())
+  const sourceLatencyRef = useRef<Map<string, number>>(new Map())
+  const searchStartRef = useRef(0)
+
+  // 记录某源耗时（只记第一次，后续翻页不覆盖，保证排序稳定）
+  const recordSourceLatency = useCallback((sourceId: string) => {
+    if (!sourceId || sourceLatencyRef.current.has(sourceId)) return
+    const latency = Math.round(performance.now() - searchStartRef.current)
+    sourceLatencyRef.current.set(sourceId, latency)
+    setSourceLatencies(new Map(sourceLatencyRef.current))
+  }, [])
+
+  // 把尚未记录耗时的源统一记为当前已耗时（超时/收尾时调用，这些源自然排最后）
+  const fillMissingLatencies = useCallback(() => {
+    let changed = false
+    sourcesToFetchRef.current.forEach(source => {
+      if (!sourceLatencyRef.current.has(source.id)) {
+        sourceLatencyRef.current.set(
+          source.id,
+          Math.round(performance.now() - searchStartRef.current),
+        )
+        changed = true
+      }
+    })
+    if (changed) setSourceLatencies(new Map(sourceLatencyRef.current))
+  }, [])
 
   const { videoAPIs } = useApiStore()
   const cmsClient = useCmsClient()
@@ -48,11 +75,14 @@ export function useDirectSearch() {
     currentPageRef.current = page
 
     setDirectLoading(true)
+    searchStartRef.current = performance.now()
 
     // 第1页时清空现有结果
     if (page === 1) {
       setDirectResults([])
       sourcePaginationCacheRef.current.clear()
+      sourceLatencyRef.current.clear()
+      setSourceLatencies(new Map())
       setCompletedSourcesInCurrentPage(new Set())
       setSuccessfulSourcesInCurrentPage(new Set())
     } else {
@@ -85,6 +115,7 @@ export function useDirectSearch() {
       timeOutTimer.current = null
     }
     timeOutTimer.current = setTimeout(() => {
+      fillMissingLatencies()
       setDirectLoading(false)
       // 超时时，将所有需要请求的源标记为已完成
       // 这样可以避免因为某些源无响应而卡住
@@ -116,6 +147,8 @@ export function useDirectSearch() {
         const sourceId = event.source.id
         const isInCurrentFetch = sourcesToFetchRef.current.some(s => s.id === sourceId)
         if (isInCurrentFetch) {
+          // 源完成（成功或失败）即记下它的响应耗时
+          recordSourceLatency(sourceId)
           setCompletedSourcesInCurrentPage(prev => {
             // 避免重复添加
             if (prev.has(sourceId)) return prev
@@ -229,6 +262,7 @@ export function useDirectSearch() {
         }
       })
       .finally(() => {
+        fillMissingLatencies()
         // 强制将所有本次请求的源标记为完成，防止因某些源无响应或错误信息不完整而卡住
         setCompletedSourcesInCurrentPage(prev => {
           const newSet = new Set(prev)
@@ -253,7 +287,7 @@ export function useDirectSearch() {
       })
 
     // 移除toast提示
-  }, [selectedAPIs, cmsClient])
+  }, [selectedAPIs, cmsClient, recordSourceLatency, fillMissingLatencies])
 
   const abortDirectSearch = useCallback(() => {
     abortCtrlRef.current?.abort()
@@ -274,6 +308,8 @@ export function useDirectSearch() {
       totalResults: 0,
     })
     setHasMore(true)
+    sourceLatencyRef.current.clear()
+    setSourceLatencies(new Map())
     setCompletedSourcesInCurrentPage(new Set())
     setSuccessfulSourcesInCurrentPage(new Set())
     sourcesToFetchRef.current = []
@@ -308,6 +344,7 @@ export function useDirectSearch() {
     isCurrentPageComplete,
     canLoadMore,
     successfulSourcesInCurrentPage,
+    sourceLatencies,
     startDirectSearch: fetchDirectSearch,
     abortDirectSearch,
     clearDirectSearchState,
