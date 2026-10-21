@@ -807,11 +807,23 @@ export default function UnifiedPlayer() {
 
               if (HlsClass.isSupported()) {
                 if (artWithHls.hls) artWithHls.hls.destroy()
-                const hlsConfig: Partial<HlsConfig> = adFilteringEnabled
-                  ? {
-                      loader: getCustomHlsLoaderClass(HlsClass) as unknown as typeof HlsClass.DefaultConfig.loader,
-                    }
-                  : {}
+                // 播放缓冲调优：起播带宽估算调高（不再从最低档慢慢爬）、预缓冲加大抗源站抖动、
+                // 首片段预取与分片重试加强，减少起播等待与中途转圈
+                const hlsConfig: Partial<HlsConfig> = {
+                  maxBufferLength: 60,
+                  maxBufferSize: 100 * 1000 * 1000,
+                  backBufferLength: 30,
+                  abrEwmaDefaultEstimate: 5_000_000,
+                  startFragPrefetch: true,
+                  fragLoadingMaxRetry: 6,
+                  ...(adFilteringEnabled
+                    ? {
+                        loader: getCustomHlsLoaderClass(
+                          HlsClass,
+                        ) as unknown as typeof HlsClass.DefaultConfig.loader,
+                      }
+                    : {}),
+                }
                 const hls = new HlsClass(hlsConfig)
                 hls.loadSource(url)
                 hls.attachMedia(video)
@@ -1757,6 +1769,7 @@ export default function UnifiedPlayer() {
                 selectedSourceCode={resolvedSourceCode}
                 onSourceChange={handleAnySourceChange}
                 isWorking={sourceSpeed.isWorking}
+                matching={sourceSpeed.discovering}
               />
               <section className="space-y-3 rounded-lg border border-border/60 bg-card/55 p-3 md:p-4 xl:min-h-0 xl:flex-1">
               <div className="flex items-center justify-between">

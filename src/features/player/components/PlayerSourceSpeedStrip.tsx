@@ -1,5 +1,12 @@
-import { RadioTower } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronDown, RadioTower } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/shared/components/ui/collapsible'
+import { ScrollArea } from '@/shared/components/ui/scroll-area'
 import { cn } from '@/shared/lib/utils'
 import type { PlayerSourceOption } from '@/features/player/hooks'
 
@@ -10,12 +17,21 @@ interface PlayerSourceSpeedStripProps {
   selectedSourceCode: string
   onSourceChange: (sourceCode: string) => void
   isWorking: boolean
+  /** 正在跨源匹配候选（尚无结果时显示同款占位条，避免换源条突然蹦出） */
+  matching?: boolean
   className?: string
 }
 
+function speedDotClass(latency: number): string {
+  if (latency <= 400) return 'bg-emerald-500'
+  if (latency <= 1000) return 'bg-amber-500'
+  return 'bg-rose-500'
+}
+
 /**
- * 选集上方的换源条：候选源按播放线路测速（第一集首字节耗时）升序排列，
- * 测速结果到达后自动重排；无 CORS/超时测不出的源排最后并标注。
+ * 选集上方的换源入口，与相邻的选季/选集面板同款样式：
+ * 默认收起为一条（显示源数量与当前源），点击展开按播放速度排好的候选；
+ * 匹配阶段先以同尺寸占位条出现，避免布局突然跳动。
  */
 export function PlayerSourceSpeedStrip({
   options,
@@ -24,54 +40,95 @@ export function PlayerSourceSpeedStrip({
   selectedSourceCode,
   onSourceChange,
   isWorking,
+  matching = false,
   className,
 }: PlayerSourceSpeedStripProps) {
-  if (options.length <= 1) return null
+  const [open, setOpen] = useState(false)
+
+  if (options.length <= 1) {
+    if (!matching) return null
+    return (
+      <div
+        className={cn(
+          'flex items-center gap-1.5 overflow-hidden rounded-lg border border-border/60 bg-card/55 px-3 py-3 text-sm font-semibold md:px-4',
+          className,
+        )}
+      >
+        <RadioTower className="size-4 shrink-0" />
+        <span className="shrink-0">换源</span>
+        <span className="text-muted-foreground animate-pulse truncate text-xs font-normal">
+          正在匹配其他源…
+        </span>
+      </div>
+    )
+  }
+
+  const current = options.find(option => option.sourceCode === selectedSourceCode)
 
   return (
-    <section
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
       className={cn(
-        'space-y-2.5 rounded-lg border border-border/60 bg-card/55 p-3 md:p-4',
+        'overflow-hidden rounded-lg border border-border/60 bg-card/55 transition-all',
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <RadioTower className="size-4" />
-          换源
-        </h2>
-        <span className="text-muted-foreground text-xs">{isWorking ? '测速中…' : '按速度排序'}</span>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {options.map(option => {
-          const active = option.sourceCode === selectedSourceCode
-          const latency = latencies.get(option.sourceCode)
-          const probed = probedCodes.has(option.sourceCode)
-          return (
-            <Button
-              key={option.sourceCode}
-              size="sm"
-              variant={active ? 'default' : 'secondary'}
-              className="max-w-full min-w-0 justify-between rounded-full sm:w-auto sm:max-w-[260px]"
-              aria-current={active ? 'true' : undefined}
-              aria-label={`切换到视频源 ${option.sourceName}`}
-              onClick={() => onSourceChange(option.sourceCode)}
-            >
-              <span className="truncate">{option.sourceName}</span>
-              {latency !== undefined ? (
-                <span className="shrink-0 rounded-full bg-sky-500/15 px-1.5 py-px text-[11px] text-sky-600 dark:text-sky-400">
-                  {latency} ms
-                </span>
-              ) : probed ? (
-                <span className="shrink-0 text-[11px] opacity-60">测不出</span>
-              ) : (
-                <span className="shrink-0 text-[11px] opacity-60">测速中</span>
-              )}
-            </Button>
-          )
-        })}
-      </div>
-    </section>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          aria-label="展开或收起换源面板"
+          className="flex w-full min-w-0 items-center justify-between gap-2 px-3 py-3 text-sm font-semibold md:px-4"
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            <RadioTower className="size-4 shrink-0" />
+            <span className="shrink-0">换源</span>
+            <span className="text-muted-foreground truncate text-xs font-normal">
+              {options.length} 源{current ? ` · 当前 ${current.sourceName}` : ''}
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            {isWorking && (
+              <span className="text-muted-foreground animate-pulse text-xs font-normal">测速中</span>
+            )}
+            <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} />
+          </span>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="overflow-hidden border-t border-border/45 p-3 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 data-[state=closed]:duration-200 data-[state=open]:duration-300 md:p-4">
+        <ScrollArea className="max-h-44 sm:max-h-56">
+          <div className="flex flex-wrap gap-2 pr-2">
+            {options.map(option => {
+              const active = option.sourceCode === selectedSourceCode
+              const latency = latencies.get(option.sourceCode)
+              const probed = probedCodes.has(option.sourceCode)
+              return (
+                <Button
+                  key={option.sourceCode}
+                  size="sm"
+                  variant={active ? 'default' : 'secondary'}
+                  className="max-w-full min-w-0 justify-between gap-2 rounded-full sm:w-auto sm:max-w-[260px]"
+                  aria-current={active ? 'true' : undefined}
+                  aria-label={`切换到视频源 ${option.sourceName}`}
+                  onClick={() => onSourceChange(option.sourceCode)}
+                >
+                  <span className="truncate">{option.sourceName}</span>
+                  {latency !== undefined ? (
+                    <span className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums opacity-80">
+                      <span className={cn('size-1.5 rounded-full', speedDotClass(latency))} />
+                      {latency} ms
+                    </span>
+                  ) : probed ? (
+                    <span className="shrink-0 text-[11px] opacity-60">测不出</span>
+                  ) : (
+                    <span className="shrink-0 text-[11px] opacity-60">测速中</span>
+                  )}
+                </Button>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }

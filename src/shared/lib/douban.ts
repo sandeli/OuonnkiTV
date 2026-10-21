@@ -33,6 +33,9 @@ export interface DoubanCategory {
 export const DOUBAN_CATEGORIES: DoubanCategory[] = [
   { label: '热门电影', type: 'movie', tag: '热门' },
   { label: '热门剧集', type: 'tv', tag: '热门' },
+  { label: '韩剧', type: 'tv', tag: '韩剧' },
+  { label: '美剧', type: 'tv', tag: '美剧' },
+  { label: '日剧', type: 'tv', tag: '日剧' },
   { label: '热门综艺', type: 'tv', tag: '综艺' },
   { label: '热门动漫', type: 'tv', tag: '动画' },
   { label: '豆瓣高分', type: 'movie', tag: '豆瓣高分' },

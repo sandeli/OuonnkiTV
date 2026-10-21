@@ -23,6 +23,8 @@ interface SourceSpeedState {
   probedCodes: Set<string>
   /** 是否仍在发现/测速 */
   isWorking: boolean
+  /** 是否仍在跨源匹配候选 */
+  discovering: boolean
 }
 
 const MAX_CONCURRENT = 3
@@ -233,5 +235,5 @@ export function useSourceSpeedOptions({
 
   const isWorking = discovering || probedCodes.size < baseOptions.length
 
-  return { options, latencies, probedCodes, isWorking }
+  return { options, latencies, probedCodes, isWorking, discovering }
 }

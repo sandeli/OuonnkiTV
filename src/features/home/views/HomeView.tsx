@@ -1,6 +1,5 @@
 import { AnnouncementBar } from '../components/AnnouncementBar'
 import { AnnouncementPopup } from '../components/AnnouncementPopup'
-import { ContinueWatching } from '../components/ContinueWatching'
 import { DoubanHomeContent } from '../components/DoubanHomeContent'
 
 /**
@@ -15,8 +14,6 @@ export default function HomeView() {
       <AnnouncementBar />
       {/* 弹窗公告（管理员后台设置，每个版本只弹一次） */}
       <AnnouncementPopup />
-      {/* 继续观看 */}
-      <ContinueWatching />
       {/* 豆瓣分类墙 */}
       <DoubanHomeContent />
     </div>

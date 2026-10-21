@@ -57,6 +57,38 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.13',
+    title: '首页去掉继续观看',
+    date: formatDate('2026-10-21'),
+    features: [],
+    fixes: ['首页移除「继续观看」区块（播放进度与历史记录功能不受影响，照常记录）。'],
+    breaking: [],
+  },
+  {
+    version: '2.1.12',
+    title: '首页新增韩剧/美剧/日剧目录',
+    date: formatDate('2026-10-21'),
+    features: ['首页豆瓣分类墙新增三个目录：韩剧、美剧、日剧（排在热门剧集之后），点击海报照常按片名搜索播放。'],
+    fixes: [],
+    breaking: [],
+  },
+  {
+    version: '2.1.11',
+    title: '播放缓冲优化',
+    date: formatDate('2026-10-21'),
+    features: [],
+    fixes: ['优化播放器缓冲：起播带宽估算由 0.5 Mbps 提高到 5 Mbps（不再从最低画质慢慢爬升）、预缓冲 30 秒加大到 60 秒、开启首片段预取与分片重试加强，减少起播等待和播放中途转圈。'],
+    breaking: [],
+  },
+  {
+    version: '2.1.10',
+    title: '换源改为点击展开',
+    date: formatDate('2026-10-21'),
+    features: ['播放页换源改为收起状态：选集上方只显示一条与相邻面板同款的「换源」入口（带源数量与当前源），点击才展开按速度排好的候选列表；匹配阶段先以同款占位条出现，不再突然蹦出，速度以圆点+毫秒轻量标注。'],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.1.9',
     title: '修复换源条不显示',
     date: formatDate('2026-10-21'),
