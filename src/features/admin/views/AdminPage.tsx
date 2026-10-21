@@ -343,7 +343,19 @@ export default function AdminPage() {
             <span className="text-muted-foreground text-sm">启用</span>
             <Switch
               checked={announcementEnabled}
-              onCheckedChange={checked => setAnnouncementEnabled(checked)}
+              disabled={announcementSaving}
+              onCheckedChange={checked => {
+                setAnnouncementEnabled(checked)
+                if (!token) return
+                setAnnouncementSaving(true)
+                adminUpdateSettings(token, { announcementEnabled: checked })
+                  .then(() => toast.success(checked ? '弹窗公告已启用' : '弹窗公告已关闭'))
+                  .catch(() => {
+                    toast.error('保存失败')
+                    setAnnouncementEnabled(!checked)
+                  })
+                  .finally(() => setAnnouncementSaving(false))
+              }}
             />
           </span>
         </div>

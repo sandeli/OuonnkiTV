@@ -20,6 +20,11 @@ export function AnnouncementPopup() {
   const announcement = useAuthStore(state => state.authConfig?.announcement ?? null)
   const [open, setOpen] = useState(false)
 
+  // 每次进首页都重拉一次公开配置：管理员刚改的公告在站内跳转时也能立刻生效
+  useEffect(() => {
+    void useAuthStore.getState().probeConfig()
+  }, [])
+
   useEffect(() => {
     if (!announcement || !announcement.enabled || !announcement.content.trim()) return
     const seen = Number.parseInt(localStorage.getItem(SEEN_VERSION_KEY) ?? '0', 10) || 0

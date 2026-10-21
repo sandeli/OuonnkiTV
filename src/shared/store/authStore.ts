@@ -50,6 +50,8 @@ interface AuthActions {
   login: (password: string) => Promise<boolean>
   logout: () => Promise<void>
   validateSession: () => Promise<boolean>
+  /** 定时复查：ok 正常 / invalid 会话已失效（被踢、禁用、到期）/ error 网络异常（不清会话） */
+  revalidateSession: () => Promise<'ok' | 'invalid' | 'error'>
 }
 
 type AuthStore = AuthState & AuthActions
@@ -151,6 +153,22 @@ export const useAuthStore = create<AuthStore>()(
           await logoutAccount(token)
         }
         set({ token: null, user: null, sessionToken: null, salt: null, isInitialized: true })
+      },
+
+      revalidateSession: async () => {
+        const state = get()
+        if (state.authMode !== 'server' || !state.token) return 'ok'
+        try {
+          const user = await fetchMe(state.token)
+          set({ user })
+          return 'ok'
+        } catch (error) {
+          if (error instanceof AuthApiError && error.status === 401) {
+            set({ token: null, user: null })
+            return 'invalid'
+          }
+          return 'error'
+        }
       },
 
       validateSession: async () => {

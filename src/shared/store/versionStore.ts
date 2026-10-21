@@ -57,6 +57,17 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.5',
+    title: '公告弹窗与踢下线修复',
+    date: formatDate('2026-10-21'),
+    features: [],
+    fixes: [
+      '修复首页弹窗公告不弹出：进入首页时重新拉取最新公告配置，管理员修改后站内跳转即可生效；后台公告开关改为即时保存。',
+      '修复踢下线无感知：页面每 30 秒复查一次会话，被踢下线、被禁用或已到期的用户会在 30 秒内被弹回登录页（播放中同样生效）。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.1.4',
     title: '首页弹窗公告（管理员设置）',
     date: formatDate('2026-10-21'),
