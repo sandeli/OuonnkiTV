@@ -57,6 +57,14 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.16',
+    title: '项目仓库更名 TGYSTV',
+    date: formatDate('2026-10-21'),
+    features: ['项目 GitHub 仓库由 OuonnkiTV 正式更名为 TGYSTV，向独立项目迈进。'],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.1.15',
     title: '公告弹窗自适应大小',
     date: formatDate('2026-10-21'),
