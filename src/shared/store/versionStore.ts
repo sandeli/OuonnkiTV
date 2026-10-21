@@ -57,6 +57,14 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.17',
+    title: 'README 重写（含搭建教程）',
+    date: formatDate('2026-10-21'),
+    features: ['项目 README 全面重写：补齐功能清单与 Cloudflare Pages 完整搭建教程（构建设置、环境变量、D1 账号系统绑定、Turnstile 与自定义域名），并附本地开发与 Docker 部署说明。'],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.1.16',
     title: '项目仓库更名 TGYSTV',
     date: formatDate('2026-10-21'),
