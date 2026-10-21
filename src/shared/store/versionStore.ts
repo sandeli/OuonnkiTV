@@ -57,6 +57,14 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.9',
+    title: '修复换源条不显示',
+    date: formatDate('2026-10-21'),
+    features: [],
+    fixes: ['修复播放页换源条在直连播放时不出现的问题（候选发现与测速状态被重置逻辑误清）。'],
+    breaking: [],
+  },
+  {
     version: '2.1.8',
     title: '播放页选集上方换源（按速度排列）',
     date: formatDate('2026-10-21'),

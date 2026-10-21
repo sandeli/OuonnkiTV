@@ -33,6 +33,9 @@ const PROBE_TIMEOUT_MS = 6000
  * - TMDB 路由直接使用已匹配的源；直连路由按片名跨源搜索同名资源（标题匹配档位 ≤2 才入选）
  * - 对每个候选源探测其第一集地址的首字节耗时（浏览器直连，与直连搜索卡片同一口径）
  * - 返回按耗时升序排列的候选列表，测速结果到达后自动重排
+ *
+ * 注意副作用顺序：重置必须最先声明（标题/路由变化时先清状态），
+ * 之后发现与探速才不会被随后的重置误伤。
  */
 export function useSourceSpeedOptions({
   isTmdbRoute,
@@ -44,41 +47,40 @@ export function useSourceSpeedOptions({
   const cmsClientRef = useRef(cmsClient)
   cmsClientRef.current = cmsClient
   const { videoAPIs } = useApiStore()
+  const videoApisRef = useRef(videoAPIs)
+  videoApisRef.current = videoAPIs
 
   const [discovered, setDiscovered] = useState<PlayerSourceOption[]>([])
   const [discovering, setDiscovering] = useState(false)
   const [latencies, setLatencies] = useState<Map<string, number>>(new Map())
   const [probedCodes, setProbedCodes] = useState<Set<string>>(new Set())
   const latencyRef = useRef<Map<string, number>>(new Map())
-  const probedRef = useRef<Set<string>>(new Set())
+  const doneRef = useRef<Set<string>>(new Set())
+  const enqueuedRef = useRef<Set<string>>(new Set())
   const queueRef = useRef<PlayerSourceOption[]>([])
   const activeRef = useRef(0)
-  const runIdRef = useRef(0)
+  const discoverRunRef = useRef(0)
 
-  // 候选集合：TMDB 用传入的；直连用 当前源 + 搜索发现的源
-  const baseOptions = useMemo(() => {
-    if (isTmdbRoute) return tmdbOptions
-    const list: PlayerSourceOption[] = []
-    if (currentOption) list.push(currentOption)
-    for (const option of discovered) {
-      if (!list.some(o => o.sourceCode === option.sourceCode)) list.push(option)
-    }
-    return list
-  }, [isTmdbRoute, tmdbOptions, currentOption, discovered])
-
-  // 直连路由：跨源搜索同名资源（标题变化时重做）
+  // ① 重置：标题或路由类型变化时清空上一部影片的候选与测速（必须最先声明）
   useEffect(() => {
-    if (isTmdbRoute || !discoverTitle || !currentOption) {
-      setDiscovered([])
-      setDiscovering(false)
-      return
-    }
-    let cancelled = false
+    latencyRef.current = new Map()
+    doneRef.current = new Set()
+    enqueuedRef.current = new Set()
+    queueRef.current = []
+    setLatencies(new Map())
+    setProbedCodes(new Set())
     setDiscovered([])
-    setDiscovering(true)
-    const runId = ++runIdRef.current
+    setDiscovering(false)
+  }, [isTmdbRoute, discoverTitle])
 
-    const candidates = videoAPIs.filter(
+  // ② 直连路由：跨源搜索同名资源（标题变化时重做）
+  useEffect(() => {
+    if (isTmdbRoute || !discoverTitle || !currentOption) return
+    let cancelled = false
+    const runId = ++discoverRunRef.current
+    setDiscovering(true)
+
+    const candidates = videoApisRef.current.filter(
       api => api.isEnabled && api.id !== currentOption.sourceCode,
     )
     let index = 0
@@ -88,7 +90,7 @@ export function useSourceSpeedOptions({
         index += 1
         try {
           const result = await cmsClientRef.current.search(discoverTitle, source)
-          if (cancelled || runId !== runIdRef.current || !result.success) continue
+          if (cancelled || runId !== discoverRunRef.current || !result.success) continue
           let best: { vodId: string; tier: number } | null = null
           for (const item of result.items ?? []) {
             const tier = getTitleMatchTier(item.vod_name ?? '', discoverTitle)
@@ -119,7 +121,7 @@ export function useSourceSpeedOptions({
     }
     const workers = Array.from({ length: Math.min(4, candidates.length) }, () => worker())
     void Promise.all(workers).then(() => {
-      if (!cancelled && runId === runIdRef.current) setDiscovering(false)
+      if (!cancelled && runId === discoverRunRef.current) setDiscovering(false)
     })
     return () => {
       cancelled = true
@@ -128,98 +130,93 @@ export function useSourceSpeedOptions({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTmdbRoute, discoverTitle, currentOption?.sourceCode])
 
-  // 播放线路探测：取详情第一集地址，浏览器直连计时到响应头
-  const runProbe = useCallback(
-    async (option: PlayerSourceOption, runId: number) => {
-      const finish = (latency: number | null) => {
-        if (runId !== runIdRef.current) return
-        probedRef.current.add(option.sourceCode)
-        setProbedCodes(new Set(probedRef.current))
-        if (latency !== null) {
-          latencyRef.current.set(option.sourceCode, latency)
-          setLatencies(new Map(latencyRef.current))
-        }
+  // 候选集合：TMDB 用传入的；直连用 当前源 + 搜索发现的源
+  const baseOptions = useMemo(() => {
+    if (isTmdbRoute) return tmdbOptions
+    const list: PlayerSourceOption[] = []
+    if (currentOption) list.push(currentOption)
+    for (const option of discovered) {
+      if (!list.some(o => o.sourceCode === option.sourceCode)) list.push(option)
+    }
+    return list
+  }, [isTmdbRoute, tmdbOptions, currentOption, discovered])
+
+  // 播放线路探测：取详情第一集地址，浏览器直连计时到响应头（结果按源 code 记录，幂等）
+  const runProbe = useCallback(async (option: PlayerSourceOption) => {
+    const finish = (latency: number | null) => {
+      doneRef.current.add(option.sourceCode)
+      setProbedCodes(new Set(doneRef.current))
+      if (latency !== null) {
+        latencyRef.current.set(option.sourceCode, latency)
+        setLatencies(new Map(latencyRef.current))
       }
-      const source: VideoSource | undefined = videoAPIs.find(api => api.id === option.sourceCode)
-      if (!source || !option.bestVodId) {
+    }
+    const source: VideoSource | undefined = videoApisRef.current.find(
+      api => api.id === option.sourceCode,
+    )
+    if (!source || !option.bestVodId) {
+      finish(null)
+      return
+    }
+    try {
+      const detail = await cmsClientRef.current.getDetail(option.bestVodId, source)
+      const episodeUrl = detail.episodes?.[0]
+      if (!detail.success || !episodeUrl) {
         finish(null)
         return
       }
+      let parsed: URL
       try {
-        const detail = await cmsClientRef.current.getDetail(option.bestVodId, source)
-        const episodeUrl = detail.episodes?.[0]
-        if (!detail.success || !episodeUrl) {
-          finish(null)
-          return
-        }
-        let parsed: URL
-        try {
-          parsed = new URL(episodeUrl)
-        } catch {
-          finish(null)
-          return
-        }
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-          finish(null)
-          return
-        }
-        const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
-        const start = performance.now()
-        try {
-          const response = await fetch(episodeUrl, {
-            method: 'GET',
-            cache: 'no-store',
-            signal: controller.signal,
-          })
-          const latency = Math.round(performance.now() - start)
-          void response.body?.cancel().catch(() => {})
-          finish(latency)
-        } finally {
-          clearTimeout(timer)
-        }
+        parsed = new URL(episodeUrl)
       } catch {
         finish(null)
+        return
       }
-    },
-    // videoAPIs 只用于查源地址，引用变化不重建探测器
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  )
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        finish(null)
+        return
+      }
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
+      const start = performance.now()
+      try {
+        const response = await fetch(episodeUrl, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        const latency = Math.round(performance.now() - start)
+        void response.body?.cancel().catch(() => {})
+        finish(latency)
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch {
+      finish(null)
+    }
+  }, [])
 
   const pumpQueue = useCallback(() => {
     while (activeRef.current < MAX_CONCURRENT && queueRef.current.length > 0) {
       const option = queueRef.current.shift()
       if (!option) break
       activeRef.current += 1
-      const runId = runIdRef.current
-      void runProbe(option, runId).finally(() => {
+      void runProbe(option).finally(() => {
         activeRef.current -= 1
         pumpQueue()
       })
     }
   }, [runProbe])
 
-  // 候选出现后排队探测（每个源只测一次）
+  // ③ 候选出现后排队探测（每个源只测一次）
   useEffect(() => {
     for (const option of baseOptions) {
-      if (probedRef.current.has(option.sourceCode)) continue
-      if (queueRef.current.some(o => o.sourceCode === option.sourceCode)) continue
-      probedRef.current.add(option.sourceCode) // 占位防重复入队，完成后 finish 会再次确认
+      if (enqueuedRef.current.has(option.sourceCode)) continue
+      enqueuedRef.current.add(option.sourceCode)
       queueRef.current.push(option)
     }
     pumpQueue()
   }, [baseOptions, pumpQueue])
-
-  // 标题/路由切换时重置测速状态
-  useEffect(() => {
-    runIdRef.current += 1
-    latencyRef.current = new Map()
-    probedRef.current = new Set()
-    queueRef.current = []
-    setLatencies(new Map())
-    setProbedCodes(new Set())
-  }, [isTmdbRoute, discoverTitle])
 
   const options = useMemo(() => {
     const sorted = [...baseOptions]
@@ -234,8 +231,7 @@ export function useSourceSpeedOptions({
     return sorted
   }, [baseOptions, latencies])
 
-  const isWorking =
-    discovering || probedCodes.size < baseOptions.length || queueRef.current.length > 0
+  const isWorking = discovering || probedCodes.size < baseOptions.length
 
   return { options, latencies, probedCodes, isWorking }
 }
