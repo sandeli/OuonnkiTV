@@ -11,7 +11,10 @@ import {
   getEnabledSources,
   importSources,
 } from '@tgys/cms-core/source'
-import { getInitialVideoSources } from '@/shared/config/api.config'
+import {
+  getInitialVideoSources,
+  getManagedSourceEnabled,
+} from '@/shared/config/api.config'
 import { DEFAULT_SETTINGS } from '@/shared/config/settings.config'
 import { v4 as uuidv4 } from 'uuid'
 import { useSettingStore } from './settingStore'
@@ -25,6 +28,9 @@ interface ApiState {
   videoAPIs: VideoSource[]
   // 广告过滤开关
   adFilteringEnabled: boolean
+  // 管理员统一提供的源（环境变量/管理员后台设置的初始源）的 id 集合：
+  // 这些源对所有用户生效，但普通用户的「视频源管理」列表中不显示，只能看到自己添加的源
+  managedSourceIds: string[]
 }
 
 interface ApiActions {
@@ -42,6 +48,8 @@ interface ApiActions {
   deselectAllAPIs: () => void
   // 初始化环境变量中的视频源
   initializeEnvSources: () => Promise<number>
+  // 按 id 批量设置启用状态（普通用户在管理页对自己可见的源做全选/全不选）
+  setVideoSourcesEnabled: (ids: string[], enabled: boolean) => void
   // 批量导入视频源
   importVideoAPIs: (apis: VideoSource[]) => void
   // 获取选中的视频源
@@ -81,6 +89,7 @@ export const useApiStore = create<ApiStore>()(
       immer<ApiStore>((set, get) => ({
         videoAPIs: [],
         adFilteringEnabled: true,
+        managedSourceIds: [],
 
         // Actions - 使用cms-core纯函数
         setApiEnabled: (apiId: string, enabled: boolean) => {
@@ -160,9 +169,26 @@ export const useApiStore = create<ApiStore>()(
                 skipInvalid: true,
               })
               state.videoAPIs = fromSourceStore(newStore)
+              // 更新托管标记：此前由管理员提供、但新列表里已没有的源一并移除；
+              // 用户自己添加的源（不在旧托管集合里）不受影响。拉取失败返回空时不更新，
+              // 避免把托管源误清（见上方 return 的计数约定）。
+              const nextManaged = new Set(envSources.map(s => s.id))
+              state.videoAPIs = state.videoAPIs.filter(
+                s => !state.managedSourceIds.includes(s.id) || nextManaged.has(s.id),
+              )
+              state.managedSourceIds = [...nextManaged]
             }
           })
           return envSources.length
+        },
+
+        setVideoSourcesEnabled: (ids: string[], enabled: boolean) => {
+          set(state => {
+            const idSet = new Set(ids)
+            state.videoAPIs = state.videoAPIs.map(s =>
+              idSet.has(s.id) ? { ...s, isEnabled: enabled } : s,
+            )
+          })
         },
 
         importVideoAPIs: (apis: VideoSource[]) => {
@@ -184,7 +210,19 @@ export const useApiStore = create<ApiStore>()(
 
         getSelectedAPIs: () => {
           const store = toSourceStore(get())
-          return getEnabledSources(store)
+          const enabled = getEnabledSources(store)
+          // 管理员显式开关表优先：托管源只要被管理员动过开关，全站（含本人）按表执行，
+          // 不受各浏览器本地开关影响；未入表的托管源与自加源仍按本地/文件默认开关
+          const overrides = getManagedSourceEnabled()
+          if (Object.keys(overrides).length === 0) return enabled
+          const managed = new Set(get().managedSourceIds)
+          const enabledIds = new Set(enabled.map(s => s.id))
+          return get().videoAPIs.filter(s => {
+            if (managed.has(s.id) && Object.prototype.hasOwnProperty.call(overrides, s.id)) {
+              return overrides[s.id]
+            }
+            return enabledIds.has(s.id)
+          })
         },
 
         resetVideoSources: async () => {
@@ -253,6 +291,10 @@ export const useApiStore = create<ApiStore>()(
 
           if (version < 4) {
             state.videoAPIs = []
+          }
+
+          if (!Array.isArray(state.managedSourceIds)) {
+            state.managedSourceIds = []
           }
 
           if (version < 5) {

@@ -122,6 +122,15 @@ export const loadVideoSources = async (input: VideoSourceInput): Promise<VideoAp
 
 // 初始视频源优先级：管理员后台设置 > TGYS_INITIAL_CONFIG > TGYS_INITIAL_VIDEO_SOURCES 环境变量。
 // 管理员值经公开配置下发，与环境变量同格式（远程 JSON 地址或内联 JSON）；留空表示回退环境变量。
+/** 管理员对托管源的显式开关表（公开配置下发）：表中源全站按此开关使用，未入表按源文件默认开关 */
+export const getManagedSourceEnabled = (): Record<string, boolean> => {
+  const map = useAuthStore.getState().authConfig?.managedSourceEnabled
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return {}
+  return Object.fromEntries(
+    Object.entries(map).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'),
+  )
+}
+
 export const getInitialVideoSources = async (): Promise<VideoApi[]> => {
   try {
     const adminSources = useAuthStore.getState().authConfig?.initialVideoSources

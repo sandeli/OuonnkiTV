@@ -3,6 +3,10 @@ import { Badge } from '@/shared/components/ui/badge'
 import { Switch } from '@/shared/components/ui/switch'
 import { Button } from '@/shared/components/ui/button'
 import { useApiStore } from '@/shared/store/apiStore'
+import { useAuthStore } from '@/shared/store/authStore'
+import { adminUpdateSettings } from '@/shared/lib/authApi'
+import { getManagedSourceEnabled } from '@/shared/config/api.config'
+import { toast } from 'sonner'
 import {
   isSubscriptionSource,
   extractSubscriptionId,
@@ -21,6 +25,29 @@ export default function VideoSourceCard({ source, onEdit }: VideoSourceCardProps
   const { setApiEnabled } = useApiStore()
   const isSub = isSubscriptionSource(source.id)
 
+  // 托管源（管理员统一提供）的开关显示以全站显式开关表为准（管理员可能在别的设备上改过）
+  const managedIds = useApiStore(state => state.managedSourceIds)
+  const siteOverrides = useAuthStore(state => state.authConfig?.managedSourceEnabled)
+  const isManaged = managedIds.includes(source.id)
+  const siteOverride =
+    isManaged && siteOverrides && Object.prototype.hasOwnProperty.call(siteOverrides, source.id)
+      ? siteOverrides[source.id]
+      : undefined
+  const effectiveEnabled = siteOverride ?? source.isEnabled
+
+  const handleToggle = (checked: boolean) => {
+    setApiEnabled(source.id, checked)
+    // 站长在服务器账号模式下开关托管源：同步写入全站开关表，所有用户随即按此执行；
+    // 自加源与订阅源只改本地，不走这里
+    const { authMode, user, token } = useAuthStore.getState()
+    if (isManaged && authMode === 'server' && user?.role === 'admin' && token) {
+      const next = { ...getManagedSourceEnabled(), [source.id]: checked }
+      void adminUpdateSettings(token, { managedSourceEnabled: next })
+        .then(() => useAuthStore.getState().probeConfig())
+        .catch(() => toast.error('全站开关同步失败，请稍后重试'))
+    }
+  }
+
   return (
     <div className="bg-muted/35 space-y-2.5 rounded-lg px-4 py-3">
       {/* 第一行：名称 + 测速(桌面端) + 操作区 */}
@@ -36,8 +63,8 @@ export default function VideoSourceCard({ source, onEdit }: VideoSourceCardProps
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <Switch
-            checked={source.isEnabled}
-            onCheckedChange={checked => setApiEnabled(source.id, checked)}
+            checked={effectiveEnabled}
+            onCheckedChange={handleToggle}
             onClick={e => e.stopPropagation()}
           />
           <Button

@@ -4,6 +4,7 @@ import {
   getSetting,
   isRegistrationOpen,
   json,
+  readManagedSourceEnabled,
   readDoubanProxySettings,
   type PagesContext,
 } from '../../_lib/auth'
@@ -20,16 +21,19 @@ export const onRequest = async (context: PagesContext) => {
       announcementBar: '',
       doubanProxy: DEFAULT_DOUBAN_PROXY,
       initialVideoSources: '',
+      managedSourceEnabled: {} as Record<string, boolean>,
     })
   }
   await ensureSchema(db)
-  const [enabled, content, version, barContent, doubanProxy, videoSources] = await Promise.all([
+  const [enabled, content, version, barContent, doubanProxy, videoSources, managedSourceEnabled] =
+    await Promise.all([
     getSetting(db, 'announcement_popup_enabled'),
     getSetting(db, 'announcement_popup_content'),
     getSetting(db, 'announcement_popup_version'),
     getSetting(db, 'announcement_bar_content'),
     readDoubanProxySettings(db),
     getSetting(db, 'initial_video_sources'),
+    readManagedSourceEnabled(db),
   ])
   return json({
     authEnabled: true,
@@ -43,5 +47,6 @@ export const onRequest = async (context: PagesContext) => {
     announcementBar: barContent ?? '',
     doubanProxy,
     initialVideoSources: videoSources ?? '',
+    managedSourceEnabled,
   })
 }

@@ -85,7 +85,7 @@ export function hashConfigValue(value: string): string {
 }
 
 /** 标识会初始化本地视频源和订阅的配置；环境变量变化后触发一次重新初始化。 */
-export function getInitialContentConfigId(schemaVersion = '2'): string {
+export function getInitialContentConfigId(schemaVersion = '3'): string {
   const initialConfig = getPublicEnv('TGYS_INITIAL_CONFIG')?.trim() ?? ''
   const initialSources = getPublicEnv('TGYS_INITIAL_VIDEO_SOURCES')?.trim() ?? ''
   return `${schemaVersion}:${hashConfigValue(`${initialConfig}\u0000${initialSources}`)}`

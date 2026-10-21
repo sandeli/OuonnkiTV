@@ -4,9 +4,11 @@ import {
   getSetting,
   isRegistrationOpen,
   json,
+  readManagedSourceEnabled,
   readDoubanProxySettings,
   readJson,
   requireAdmin,
+  sanitizeManagedSourceEnabled,
   setSetting,
   type D1Database,
   type PagesContext,
@@ -38,6 +40,7 @@ export const onRequest = async (context: PagesContext) => {
       announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
       doubanProxy: await readDoubanProxySettings(db),
       videoSources: (await getSetting(db, 'initial_video_sources')) ?? '',
+      managedSourceEnabled: await readManagedSourceEnabled(db),
     })
   }
 
@@ -52,6 +55,7 @@ export const onRequest = async (context: PagesContext) => {
       doubanImageProxyType?: unknown
       doubanImageProxyUrl?: unknown
       videoSources?: unknown
+      managedSourceEnabled?: unknown
     }>(context.request)
 
     if (typeof body?.registrationOpen === 'boolean') {
@@ -100,6 +104,13 @@ export const onRequest = async (context: PagesContext) => {
       await setSetting(db, 'initial_video_sources', body.videoSources.trim().slice(0, 512000))
     }
 
+    if (body?.managedSourceEnabled !== undefined) {
+      const sanitized = sanitizeManagedSourceEnabled(body.managedSourceEnabled)
+      if (sanitized) {
+        await setSetting(db, 'managed_source_enabled', JSON.stringify(sanitized))
+      }
+    }
+
     return json({
       ok: true,
       registrationOpen: await isRegistrationOpen(db, context.env),
@@ -107,6 +118,7 @@ export const onRequest = async (context: PagesContext) => {
       announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
       doubanProxy: await readDoubanProxySettings(db),
       videoSources: (await getSetting(db, 'initial_video_sources')) ?? '',
+      managedSourceEnabled: await readManagedSourceEnabled(db),
     })
   }
 

@@ -102,7 +102,7 @@ const adminModule = {
   name: '管理员后台',
   shortName: '管理员',
   icon: ShieldCheck,
-  path: '/admin',
+  path: '/settings/admin',
   description: '管理站点级设置：注册开关、首页公告与豆瓣代理。',
   badges: ['注册开关', '站点公告', '豆瓣代理'],
   showGuide: true,

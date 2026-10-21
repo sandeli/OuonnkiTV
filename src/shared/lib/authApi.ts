@@ -43,6 +43,8 @@ export interface AuthPublicConfig {
   doubanProxy: DoubanProxyConfig
   /** 管理员后台设置的视频源（与 TGYS_INITIAL_VIDEO_SOURCES 同格式）；非空时优先于环境变量 */
   initialVideoSources?: string
+  /** 管理员对托管源的显式开关表（id→布尔）：表中源全站按此开关使用，未入表按源文件默认 */
+  managedSourceEnabled?: Record<string, boolean>
 }
 
 export class AuthApiError extends Error {
@@ -108,6 +110,16 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
           : DEFAULT_DOUBAN_PROXY,
       initialVideoSources:
         typeof data.initialVideoSources === 'string' ? data.initialVideoSources : '',
+      managedSourceEnabled:
+        data.managedSourceEnabled &&
+        typeof data.managedSourceEnabled === 'object' &&
+        !Array.isArray(data.managedSourceEnabled)
+          ? Object.fromEntries(
+              Object.entries(data.managedSourceEnabled as Record<string, unknown>).filter(
+                (entry): entry is [string, boolean] => typeof entry[1] === 'boolean',
+              ),
+            )
+          : {},
     }
   } catch {
     return {
@@ -270,6 +282,8 @@ export interface AdminSettings {
   doubanProxy: DoubanProxyConfig
   /** 管理员视频源（与 TGYS_INITIAL_VIDEO_SOURCES 同格式）；空串表示使用环境变量 */
   videoSources: string
+  /** 管理员对托管源的显式开关表（id→布尔） */
+  managedSourceEnabled: Record<string, boolean>
 }
 
 export function adminGetSettings(token: string): Promise<AdminSettings> {
@@ -288,6 +302,7 @@ export function adminUpdateSettings(
     doubanImageProxyType?: string
     doubanImageProxyUrl?: string
     videoSources?: string
+    managedSourceEnabled?: Record<string, boolean>
   },
 ): Promise<{ ok: boolean } & AdminSettings> {
   return request('/api/admin/settings', { method: 'POST', body: JSON.stringify(patch) }, token)

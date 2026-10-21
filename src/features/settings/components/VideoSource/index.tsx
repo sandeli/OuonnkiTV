@@ -11,6 +11,9 @@ import {
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApiStore } from '@/shared/store/apiStore'
+import { useAuthStore } from '@/shared/store/authStore'
+import { adminUpdateSettings } from '@/shared/lib/authApi'
+import { getManagedSourceEnabled } from '@/shared/config/api.config'
 import { useHealthStore } from '@/shared/store/healthStore'
 import { isSubscriptionSource } from '@/shared/store/subscriptionStore'
 import { useSettingStore } from '@/shared/store/settingStore'
@@ -46,10 +49,29 @@ export default function VideoSource() {
     selectAllAPIs,
     deselectAllAPIs,
     videoAPIs,
-    getSelectedAPIs,
     importVideoAPIs,
     reorderVideoAPIs,
+    managedSourceIds,
+    setVideoSourcesEnabled,
   } = useApiStore()
+
+  // 管理员统一提供的源：站长（及旧单密码模式的机主）可见可管；
+  // 普通用户只管理自己添加的源，托管源照常参与搜索播放但不在此列表显示
+  const authMode = useAuthStore(state => state.authMode)
+  const authRole = useAuthStore(state => state.user?.role)
+  const canSeeManaged = authMode === 'legacy' || (authMode === 'server' && authRole === 'admin')
+  const managedIdSet = new Set(managedSourceIds)
+  const visibleAPIs = canSeeManaged
+    ? videoAPIs
+    : videoAPIs.filter(s => !managedIdSet.has(s.id))
+  const visibleEnabledCount = visibleAPIs.filter(s => s.isEnabled).length
+
+  // 把「可见列表的新顺序」合并回完整列表：托管源保持原位，可见源按新序填回自己的槽位
+  const mergeVisibleOrder = (newVisibleIds: string[]): string[] => {
+    const visibleIdSet = new Set(visibleAPIs.map(s => s.id))
+    let cursor = 0
+    return videoAPIs.map(s => (visibleIdSet.has(s.id) ? newVisibleIds[cursor++] : s.id))
+  }
 
   const { results } = useHealthStore()
   const hasResults = Object.keys(results).length > 0
@@ -58,8 +80,30 @@ export default function VideoSource() {
   const [isTesting, setIsTesting] = useState(false)
   const [testProgress, setTestProgress] = useState({ completed: 0, total: 0 })
 
-  // 全选逻辑
-  const isAllSelected = videoAPIs.length > 0 && getSelectedAPIs().length === videoAPIs.length
+  // 全选逻辑（按当前可见列表判断）
+  const isAllSelected = visibleAPIs.length > 0 && visibleEnabledCount === visibleAPIs.length
+
+  const handleToggleSelectAll = () => {
+    const target = !isAllSelected
+    if (canSeeManaged) {
+      if (target) selectAllAPIs()
+      else deselectAllAPIs()
+      // 站长全选/全不选：托管源部分同步写入全站开关表，所有用户随即按此执行
+      const { authMode, user, token } = useAuthStore.getState()
+      if (authMode === 'server' && user?.role === 'admin' && token && managedSourceIds.length > 0) {
+        const next = { ...getManagedSourceEnabled() }
+        for (const id of managedSourceIds) next[id] = target
+        void adminUpdateSettings(token, { managedSourceEnabled: next })
+          .then(() => useAuthStore.getState().probeConfig())
+          .catch(() => toast.error('全站开关同步失败，请稍后重试'))
+      }
+    } else {
+      setVideoSourcesEnabled(
+        visibleAPIs.map(s => s.id),
+        !isAllSelected,
+      )
+    }
+  }
 
   // 编辑弹窗状态
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -85,21 +129,21 @@ export default function VideoSource() {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    const oldIndex = videoAPIs.findIndex(s => s.id === active.id)
-    const newIndex = videoAPIs.findIndex(s => s.id === over.id as string)
+    const oldIndex = visibleAPIs.findIndex(s => s.id === active.id)
+    const newIndex = visibleAPIs.findIndex(s => s.id === over.id as string)
     if (oldIndex === -1 || newIndex === -1) return
 
-    const newOrder = [...videoAPIs]
-    const [moved] = newOrder.splice(oldIndex, 1)
-    newOrder.splice(newIndex, 0, moved)
-    reorderVideoAPIs(newOrder.map(s => s.id))
+    const newVisibleOrder = [...visibleAPIs]
+    const [moved] = newVisibleOrder.splice(oldIndex, 1)
+    newVisibleOrder.splice(newIndex, 0, moved)
+    reorderVideoAPIs(mergeVisibleOrder(newVisibleOrder.map(s => s.id)))
   }
 
   // 批量测速
   const handleBatchTest = async () => {
     setIsTesting(true)
-    setTestProgress({ completed: 0, total: videoAPIs.length })
-    await batchCheckVideoSources(videoAPIs, (completed, total) => {
+    setTestProgress({ completed: 0, total: visibleAPIs.length })
+    await batchCheckVideoSources(visibleAPIs, (completed, total) => {
       setTestProgress({ completed, total })
     })
     setIsTesting(false)
@@ -115,7 +159,7 @@ export default function VideoSource() {
       if (s === 'offline' || s === 'error') return 2
       return 3
     }
-    const sortedIds = [...videoAPIs]
+    const sortedVisibleIds = [...visibleAPIs]
       .sort((a, b) => {
         const pa = statusPriority(a.id)
         const pb = statusPriority(b.id)
@@ -125,7 +169,7 @@ export default function VideoSource() {
         return la - lb
       })
       .map(s => s.id)
-    reorderVideoAPIs(sortedIds)
+    reorderVideoAPIs(mergeVisibleOrder(sortedVisibleIds))
   }
 
   // 添加视频源
@@ -184,7 +228,7 @@ export default function VideoSource() {
   // 导出为文件（排除订阅源）
   const handleExportToFile = () => {
     try {
-      const manualAPIs = videoAPIs.filter(s => !isSubscriptionSource(s.id))
+      const manualAPIs = visibleAPIs.filter(s => !isSubscriptionSource(s.id))
       const data = JSON.stringify(manualAPIs, null, 2)
       const blob = new Blob([data], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -205,7 +249,7 @@ export default function VideoSource() {
   // 导出为文本（排除订阅源）
   const handleExportToText = async () => {
     try {
-      const manualAPIs = videoAPIs.filter(s => !isSubscriptionSource(s.id))
+      const manualAPIs = visibleAPIs.filter(s => !isSubscriptionSource(s.id))
       const data = JSON.stringify(manualAPIs, null, 2)
       await navigator.clipboard.writeText(data)
       toast.success('已复制到剪贴板')
@@ -232,12 +276,16 @@ export default function VideoSource() {
 
       <SettingsSection
         title="视频源列表"
-        description="在这里添加、编辑、导入、导出并控制视频源启用状态。"
+        description={
+          canSeeManaged
+            ? '在这里添加、编辑、导入、导出并控制视频源启用状态。'
+            : '管理员统一提供的源不在此显示（照常参与搜索与播放）；这里只管理你自己添加的源。'
+        }
         icon={<Database className="size-4" />}
         tone="sky"
         action={
           <div className="flex flex-wrap items-center gap-2">
-            {videoAPIs.length > 0 && (
+            {visibleAPIs.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -255,7 +303,7 @@ export default function VideoSource() {
                   : '测速'}
               </Button>
             )}
-            {videoAPIs.length > 0 && hasResults && !isTesting && (
+            {visibleAPIs.length > 0 && hasResults && !isTesting && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -266,12 +314,12 @@ export default function VideoSource() {
                 按延迟排序
               </Button>
             )}
-            {videoAPIs.length > 0 && (
+            {visibleAPIs.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-8 px-3"
-                onClick={() => (isAllSelected ? deselectAllAPIs() : selectAllAPIs())}
+                onClick={handleToggleSelectAll}
               >
                 {isAllSelected ? (
                   <CircleX className="mr-1 size-3.5" />
@@ -325,7 +373,7 @@ export default function VideoSource() {
           </div>
         }
       >
-        {videoAPIs.length === 0 ? (
+        {visibleAPIs.length === 0 ? (
           <div className="text-muted-foreground flex h-20 items-center justify-center text-sm">
             暂无视频源，点击右上角「添加源」开始使用。
           </div>
@@ -334,7 +382,7 @@ export default function VideoSource() {
             {/* 已启用统计 + 拖拽排序提示 */}
             <div className="flex items-center justify-between gap-2">
               <Badge variant="secondary" className="bg-sky-500/14 text-sky-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-                已启用 {getSelectedAPIs().length}/{videoAPIs.length}
+                已启用 {visibleEnabledCount}/{visibleAPIs.length}
               </Badge>
               <div className="text-muted-foreground/60 flex items-center gap-1.5 text-xs">
                 <GripVertical className="size-3" />
@@ -348,11 +396,11 @@ export default function VideoSource() {
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={videoAPIs.map(s => s.id)}
+                items={visibleAPIs.map(s => s.id)}
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-2">
-                  {videoAPIs.map(source => (
+                  {visibleAPIs.map(source => (
                     <SortableVideoSourceCard
                       key={source.id}
                       source={source}

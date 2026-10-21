@@ -26,6 +26,21 @@ describe('fetchAuthConfig', () => {
     expect(config.initialVideoSources).toBe('https://example.com/sources.json')
   })
 
+  it('透传管理员托管源开关表 managedSourceEnabled（只保留布尔条目）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          authEnabled: true,
+          managedSourceEnabled: { a: false, b: true, bad: 'yes' },
+        }),
+      }),
+    )
+    const config = await fetchAuthConfig()
+    expect(config.managedSourceEnabled).toEqual({ a: false, b: true })
+  })
+
   it('缺失 initialVideoSources 时默认为空串（回退环境变量）', async () => {
     vi.stubGlobal(
       'fetch',

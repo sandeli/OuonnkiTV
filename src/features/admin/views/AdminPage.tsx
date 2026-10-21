@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, ShieldAlert, Users } from 'lucide-react'
+import { ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
@@ -174,23 +174,14 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:py-10">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="mb-4 h-8 px-2 text-xs md:h-9 md:px-3 md:text-sm"
-        onClick={() => navigate('/')}
-      >
-        <ArrowLeft />
-        返回
-      </Button>
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <Users className="size-6" />
-          <h1 className="text-xl font-bold md:text-2xl">管理员后台</h1>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-muted-foreground text-sm">开放注册</span>
+    <div className="mx-auto w-full max-w-5xl">
+      {/* 注册设置（原页头开关收进卡片，本页已并入设置中心） */}
+      <div className="border-border bg-card mb-6 flex flex-wrap items-center gap-2 rounded-xl border p-4">
+        <span className="font-semibold">开放注册</span>
+        <span className="text-muted-foreground text-xs">
+          开启后访客可在登录页自助注册账号；关闭后仅已有账号与站长可登录
+        </span>
+        <div className="ml-auto shrink-0">
           <Switch
             checked={registrationOpen}
             disabled={switchSaving}

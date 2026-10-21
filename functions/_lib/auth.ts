@@ -400,6 +400,42 @@ export async function readDoubanProxySettings(db: D1Database): Promise<DoubanPro
   }
 }
 
+/**
+ * 管理员对托管源（环境变量/管理员后台设置的初始源）的显式开关表
+ * （settings 键 managed_source_enabled，JSON 对象 id→布尔）。
+ * 表中有的源：全站所有用户按表中的开关使用；表里没有的源：按源文件自身的默认开关。
+ * 用户自己添加的源不在此列，仍归各人本地控制。
+ */
+export async function readManagedSourceEnabled(db: D1Database): Promise<Record<string, boolean>> {
+  const raw = await getSetting(db, 'managed_source_enabled')
+  if (!raw) return {}
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const result: Record<string, boolean> = {}
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === 'boolean' && key) result[key] = value
+      if (Object.keys(result).length >= 500) break
+    }
+    return result
+  } catch {
+    return {}
+  }
+}
+
+/** 校验并规整待保存的开关表：只留布尔值条目、键限长、限条数 */
+export function sanitizeManagedSourceEnabled(value: unknown): Record<string, boolean> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const result: Record<string, boolean> = {}
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof val !== 'boolean') continue
+    const id = key.trim().slice(0, 128)
+    if (id) result[id] = val
+    if (Object.keys(result).length >= 500) break
+  }
+  return result
+}
+
 export async function getSetting(db: D1Database, key: string): Promise<string | null> {
   const row = await db
     .prepare('SELECT value FROM settings WHERE key = ?')

@@ -104,12 +104,9 @@ const router = createBrowserRouter([
         ),
       },
       {
+        // 管理员后台已并入设置中心，旧地址保留跳转
         path: 'admin',
-        element: (
-          <SuspenseWrapper>
-            <AdminPage />
-          </SuspenseWrapper>
-        ),
+        element: <Navigate to="/settings/admin" replace />,
       },
       {
         path: 'media/:type/:tmdbId',
@@ -169,6 +166,14 @@ const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <PersonalConfigSettings />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'admin',
+            element: (
+              <SuspenseWrapper>
+                <AdminPage />
               </SuspenseWrapper>
             ),
           },
