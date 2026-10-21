@@ -9,7 +9,7 @@ on:
 
 env:
   GITHUB_REGISTRY: ghcr.io
-  IMAGE_NAME: ouonnkitv
+  IMAGE_NAME: tgystv
 
 permissions:
   contents: read
