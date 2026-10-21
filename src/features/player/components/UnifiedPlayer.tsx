@@ -44,8 +44,14 @@ import {
   PlayerHeroSection,
   PlayerInfoAndRecommendations,
   PlayerLoadingSkeleton,
+  PlayerSourceSpeedStrip,
 } from '@/features/player/components'
-import { useEpisodePagination, useMobilePlayerGestures, useTmdbPlayback } from '@/features/player/hooks'
+import {
+  useEpisodePagination,
+  useMobilePlayerGestures,
+  useSourceSpeedOptions,
+  useTmdbPlayback,
+} from '@/features/player/hooks'
 import {
   buildTmdbSelectionScopeKey,
   computeMiniPlayerRect,
@@ -1352,6 +1358,31 @@ export default function UnifiedPlayer() {
     return sourceOptions.reduce((best, option) => (option.bestScore > best.bestScore ? option : best), sourceOptions[0])
   }, [isTmdbRoute, sourceOptions])
 
+  // 选集上方换源条：候选源 + 播放线路测速（按速度排序）
+  const sourceSpeed = useSourceSpeedOptions({
+    isTmdbRoute,
+    tmdbOptions: tmdbPlayback.sourceOptions,
+    discoverTitle: isCmsRoute ? (detail?.videoInfo?.title ?? null) : null,
+    currentOption: isTmdbRoute ? null : (sourceOptions[0] ?? null),
+  })
+
+  const handleAnySourceChange = useCallback(
+    (sourceCode: string) => {
+      if (isTmdbRoute) {
+        handleSourceChange(sourceCode)
+        return
+      }
+      const nextOption = sourceSpeed.options.find(option => option.sourceCode === sourceCode)
+      if (!nextOption || !nextOption.bestVodId) return
+      pendingSeekRef.current = playerRef.current?.currentTime || null
+      navigate(buildCmsPlayPath(nextOption.sourceCode, nextOption.bestVodId, selectedEpisode), {
+        replace: true,
+      })
+      showPlayerNotice(`已切换到 ${nextOption.sourceName}`)
+    },
+    [handleSourceChange, isTmdbRoute, navigate, selectedEpisode, showPlayerNotice, sourceSpeed.options],
+  )
+
   const betterSourceNoticeKey = useMemo(() => {
     if (!isTmdbRoute || !bestSourceOption) return ''
 
@@ -1718,7 +1749,16 @@ export default function UnifiedPlayer() {
 
         <aside className="min-w-0 xl:sticky xl:top-20 xl:h-[clamp(240px,56vw,74vh)] xl:min-h-[220px] xl:pr-1">
           {isCmsRoute ? (
-            <section className="space-y-3 rounded-lg border border-border/60 bg-card/55 p-3 md:p-4 xl:h-full xl:min-h-0">
+            <div className="flex flex-col gap-3 xl:h-full">
+              <PlayerSourceSpeedStrip
+                options={sourceSpeed.options}
+                latencies={sourceSpeed.latencies}
+                probedCodes={sourceSpeed.probedCodes}
+                selectedSourceCode={resolvedSourceCode}
+                onSourceChange={handleAnySourceChange}
+                isWorking={sourceSpeed.isWorking}
+              />
+              <section className="space-y-3 rounded-lg border border-border/60 bg-card/55 p-3 md:p-4 xl:min-h-0 xl:flex-1">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">选集</h2>
                 <span className="text-muted-foreground text-xs">共 {detail.episodes.length} 集</span>
@@ -1739,7 +1779,8 @@ export default function UnifiedPlayer() {
                 hideHeader
                 className="border-0 bg-transparent p-0 md:p-0"
               />
-            </section>
+              </section>
+            </div>
           ) : (
             <div className="space-y-3 xl:flex xl:h-full xl:flex-col xl:gap-3 xl:space-y-0">
               <Collapsible
@@ -1843,6 +1884,15 @@ export default function UnifiedPlayer() {
                 </CollapsibleContent>
               </Collapsible>
             )}
+            <PlayerSourceSpeedStrip
+              options={sourceSpeed.options}
+              latencies={sourceSpeed.latencies}
+              probedCodes={sourceSpeed.probedCodes}
+              selectedSourceCode={resolvedSourceCode}
+              onSourceChange={handleAnySourceChange}
+              isWorking={sourceSpeed.isWorking}
+              className="shrink-0"
+            />
             {episodes.length > 0 && (
                 <Collapsible
                   open={activeRightPanel === 'episode'}

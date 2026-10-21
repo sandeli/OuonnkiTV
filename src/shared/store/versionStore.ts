@@ -57,6 +57,17 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.8',
+    title: '播放页选集上方换源（按速度排列）',
+    date: formatDate('2026-10-21'),
+    features: [
+      '播放页选集上方新增换源条：候选源按播放线路实测速度（第一集首字节耗时）从快到慢排列，每个源旁标注毫秒数，测不出的源排最后。',
+      '直连播放时会自动按片名在其他源中搜索同名资源作为换源候选（此前直连播放页没有换源入口）。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.1.7',
     title: '品牌 Logo 换新：狮子头',
     date: formatDate('2026-10-21'),
