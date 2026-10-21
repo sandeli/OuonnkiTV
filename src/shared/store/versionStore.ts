@@ -57,6 +57,17 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.18',
+    title: '播放器返回按钮与设置中心顺序优化',
+    date: formatDate('2026-10-21'),
+    features: [
+      '播放页播放器左上角新增「返回」按钮，点一下回到上一页（直接打开播放链接时则回首页）。',
+      '设置中心里「管理员后台」标签移到了「关于项目」前面。',
+    ],
+    fixes: ['修复「关于项目」里项目仓库链接写错地址导致 404 的问题。'],
+    breaking: [],
+  },
+  {
     version: '2.1.17',
     title: 'README 重写（含搭建教程）',
     date: formatDate('2026-10-21'),
@@ -241,11 +252,11 @@ const VERSION_UPDATES: VersionUpdate[] = [
     links: [
       {
         label: '查看部署指南',
-        href: 'https://github.com/Tgys/TGYSTV/blob/main/docs/deployment.md',
+        href: 'https://github.com/sandeli/TGYSTV/blob/main/docs/deployment.md',
       },
       {
         label: '查看配置说明',
-        href: 'https://github.com/Tgys/TGYSTV/blob/main/docs/configuration.md',
+        href: 'https://github.com/sandeli/TGYSTV/blob/main/docs/configuration.md',
       },
     ],
   },

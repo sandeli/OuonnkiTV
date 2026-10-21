@@ -5,7 +5,7 @@ import Artplayer from 'artplayer'
 import artplayerPluginDanmuku from 'artplayer-plugin-danmuku'
 import type Hls from 'hls.js'
 import type { HlsConfig } from 'hls.js'
-import { ChevronDown, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, X } from 'lucide-react'
 import { type DetailResult } from '@tgys/cms-core'
 import { createM3u8Processor, createHlsLoaderClass } from '@tgys/cms-core/m3u8'
 import { Button } from '@/shared/components/ui/button'
@@ -1667,6 +1667,15 @@ export default function UnifiedPlayer() {
           )}
 
           <section className="relative overflow-hidden rounded-lg border border-border/60 bg-black/95 shadow-lg">
+            <button
+              type="button"
+              aria-label="返回上一页"
+              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
+              className="absolute top-3 left-3 z-40 flex items-center gap-1 rounded-full bg-black/45 py-1.5 pr-3.5 pl-2.5 text-sm text-white backdrop-blur-sm transition-colors hover:bg-black/65"
+            >
+              <ArrowLeft className="size-4" />
+              返回
+            </button>
             <div
               id="player"
               ref={containerRef}

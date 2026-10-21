@@ -64,7 +64,7 @@ export default function AboutProject() {
       <SettingsSection title="项目资源" description="查看仓库代码与版本更新记录。" tone="violet">
         <div className="grid gap-3 md:grid-cols-2">
           <a
-            href="https://github.com/tgys/TGYSTV"
+            href="https://github.com/sandeli/TGYSTV"
             target="_blank"
             rel="noopener noreferrer"
             className="border-border/70 bg-muted/35 hover:bg-muted/55 rounded-xl border px-4 py-4 transition-colors"

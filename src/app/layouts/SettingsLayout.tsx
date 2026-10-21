@@ -107,7 +107,9 @@ export default function SettingsLayout() {
   const authMode = useAuthStore(state => state.authMode)
 
   const isServerAdmin = authMode === 'server' && authUser?.role === 'admin'
-  const modules = isServerAdmin ? [...settingsModules, adminModule] : settingsModules
+  const modules = isServerAdmin
+    ? [...settingsModules.slice(0, -1), adminModule, settingsModules[settingsModules.length - 1]]
+    : settingsModules
 
   const activeModule =
     modules.find(module => location.pathname.startsWith(module.path)) || settingsModules[0]
