@@ -1,0 +1,66 @@
+import {
+  createSession,
+  ensureSchema,
+  hashPassword,
+  isRegistrationOpen,
+  json,
+  nowSeconds,
+  randomHex,
+  readJson,
+  validatePassword,
+  validateUsername,
+  verifyTurnstile,
+  type PagesContext,
+} from '../../_lib/auth'
+
+interface RegisterBody {
+  username?: unknown
+  password?: unknown
+  turnstileToken?: string
+}
+
+export const onRequest = async (context: PagesContext) => {
+  if (context.request.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405)
+  const db = context.env.TGYS_DB
+  if (!db) return json({ error: '账号系统未配置' }, 503)
+  await ensureSchema(db)
+
+  if (!(await isRegistrationOpen(db, context.env))) {
+    return json({ error: '注册已关闭' }, 403)
+  }
+
+  const body = await readJson<RegisterBody>(context.request)
+  const username = validateUsername(body?.username)
+  const password = validatePassword(body?.password)
+  if (!username) return json({ error: '用户名需 3-24 位，仅限文字、数字、下划线、连字符' }, 400)
+  if (!password) return json({ error: '密码需 6-64 位' }, 400)
+
+  if (!(await verifyTurnstile(context.env, body?.turnstileToken))) {
+    return json({ error: '人机验证未通过，请重试' }, 400)
+  }
+
+  const salt = randomHex(16)
+  const passwordHash = await hashPassword(password, salt)
+  const createdAt = nowSeconds()
+
+  let userId: number
+  try {
+    const result = (await db
+      .prepare(
+        'INSERT INTO users (username, password_hash, password_salt, role, disabled, created_at) VALUES (?, ?, ?, ?, 0, ?)',
+      )
+      .bind(username, passwordHash, salt, 'user', createdAt)
+      .run()) as { meta?: { last_row_id?: number } }
+    userId = result.meta?.last_row_id ?? 0
+  } catch {
+    return json({ error: '用户名已被注册' }, 409)
+  }
+
+  const { token, expiresAt } = await createSession(db, {
+    userId,
+    username,
+    role: 'user',
+    isMaster: false,
+  })
+  return json({ token, expiresAt, user: { id: userId, username, role: 'user' } })
+}

@@ -15,6 +15,7 @@ const SearchHubView = lazy(() => import('@/features/search/views/SearchHubView')
 const FavoritesView = lazy(() => import('@/features/favorites/views/FavoritesView'))
 const HistoryView = lazy(() => import('@/features/history/views/HistoryView'))
 const TmdbDetailView = lazy(() => import('@/features/media/views/TmdbDetailView'))
+const AdminPage = lazy(() => import('@/features/admin/views/AdminPage'))
 
 // Settings sub-routes
 const SourceSettings = lazy(() => import('@/features/settings/views/SourceSettings'))
@@ -96,6 +97,14 @@ const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <HistoryView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: 'admin',
+        element: (
+          <SuspenseWrapper>
+            <AdminPage />
           </SuspenseWrapper>
         ),
       },

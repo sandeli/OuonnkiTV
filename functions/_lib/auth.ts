@@ -1,0 +1,372 @@
+/**
+ * TGYS 账号系统共享库（Cloudflare Pages Functions 专用）。
+ * 数据存 D1（绑定名 TGYS_DB），首次调用时自动建表。
+ * 密码 PBKDF2-SHA256 加盐哈希；会话令牌只存 SHA-256 摘要。
+ * 站长：用户名 admin + 环境变量 TGYS_ACCESS_PASSWORD，不占 users 表（user_id = 0）。
+ */
+
+export interface D1PreparedStatement {
+  bind: (...values: unknown[]) => D1PreparedStatement
+  run: () => Promise<unknown>
+  first: <T = Record<string, unknown>>() => Promise<T | null>
+  all: <T = Record<string, unknown>>() => Promise<{ results: T[] }>
+}
+
+export interface D1Database {
+  prepare: (query: string) => D1PreparedStatement
+  batch: (statements: D1PreparedStatement[]) => Promise<unknown>
+}
+
+export interface AuthEnv {
+  TGYS_DB?: D1Database
+  TGYS_ACCESS_PASSWORD?: string
+  TGYS_REGISTRATION_OPEN?: string
+  TGYS_TURNSTILE_SECRET?: string
+  TGYS_TURNSTILE_SITE_KEY?: string
+}
+
+export interface PagesContext {
+  request: Request
+  env: AuthEnv
+  params: Record<string, string | string[]>
+}
+
+export interface SessionUser {
+  userId: number
+  username: string
+  role: 'admin' | 'user'
+  isMaster: boolean
+}
+
+export const MASTER_USER_ID = 0
+export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+
+export function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+  })
+}
+
+export function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000)
+}
+
+// ---------- 建表（幂等，进程内只跑一次） ----------
+
+let schemaPromise: Promise<void> | null = null
+
+export function ensureSchema(db: D1Database): Promise<void> {
+  if (!schemaPromise) {
+    schemaPromise = (async () => {
+      await db.batch([
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            password_hash TEXT NOT NULL,
+            password_salt TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            disabled INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            last_login_at INTEGER
+          )`,
+        ),
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS sessions (
+            token_hash TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+          )`,
+        ),
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS login_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            ip TEXT,
+            user_agent TEXT,
+            created_at INTEGER NOT NULL
+          )`,
+        ),
+        db.prepare(
+          `CREATE INDEX IF NOT EXISTS idx_login_logs_user ON login_logs (user_id, created_at DESC)`,
+        ),
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS watch_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            source_code TEXT NOT NULL DEFAULT '',
+            source_name TEXT NOT NULL DEFAULT '',
+            vod_id TEXT NOT NULL DEFAULT '',
+            episode_index INTEGER NOT NULL DEFAULT 0,
+            episode_name TEXT NOT NULL DEFAULT '',
+            progress REAL NOT NULL DEFAULT 0,
+            duration REAL NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            UNIQUE (user_id, source_code, vod_id, episode_index)
+          )`,
+        ),
+        db.prepare(
+          `CREATE INDEX IF NOT EXISTS idx_watch_user ON watch_records (user_id, updated_at DESC)`,
+        ),
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+          )`,
+        ),
+      ])
+    })().catch(error => {
+      schemaPromise = null
+      throw error
+    })
+  }
+  return schemaPromise
+}
+
+// ---------- 加密工具 ----------
+
+function toHex(buffer: ArrayBuffer | Uint8Array): string {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+function fromHex(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  }
+  return bytes
+}
+
+export function randomHex(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength)
+  crypto.getRandomValues(bytes)
+  return toHex(bytes)
+}
+
+export async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return toHex(digest)
+}
+
+const PBKDF2_ITERATIONS = 100000
+
+export async function hashPassword(password: string, saltHex: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  )
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: fromHex(saltHex) as BufferSource,
+      iterations: PBKDF2_ITERATIONS,
+      hash: 'SHA-256',
+    },
+    key,
+    256,
+  )
+  return toHex(bits)
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return diff === 0
+}
+
+export async function verifyPassword(
+  password: string,
+  saltHex: string,
+  expectedHashHex: string,
+): Promise<boolean> {
+  const actual = await hashPassword(password, saltHex)
+  return timingSafeEqualHex(actual, expectedHashHex)
+}
+
+// ---------- 输入校验 ----------
+
+export function validateUsername(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const username = raw.trim()
+  if (username.length < 3 || username.length > 24) return null
+  if (!/^[\p{L}\p{N}_-]+$/u.test(username)) return null
+  if (username.toLowerCase() === 'admin') return null
+  return username
+}
+
+export function validatePassword(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  if (raw.length < 6 || raw.length > 64) return null
+  return raw
+}
+
+export async function readJson<T>(request: Request): Promise<T | null> {
+  try {
+    return (await request.json()) as T
+  } catch {
+    return null
+  }
+}
+
+export function clampText(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string') return ''
+  return value.slice(0, maxLength)
+}
+
+export function clampNumber(value: unknown, min: number, max: number): number {
+  const num = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(num)) return min
+  return Math.min(max, Math.max(min, num))
+}
+
+// ---------- 会话 ----------
+
+export async function createSession(
+  db: D1Database,
+  user: SessionUser,
+): Promise<{ token: string; expiresAt: number }> {
+  const token = randomHex(32)
+  const tokenHash = await sha256Hex(token)
+  const createdAt = nowSeconds()
+  const expiresAt = createdAt + SESSION_TTL_SECONDS
+  await db
+    .prepare(
+      'INSERT INTO sessions (token_hash, user_id, username, role, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+    .bind(tokenHash, user.userId, user.username, user.role, createdAt, expiresAt)
+    .run()
+  return { token, expiresAt }
+}
+
+export async function getSessionUser(
+  db: D1Database,
+  request: Request,
+): Promise<SessionUser | null> {
+  const auth = request.headers.get('Authorization') ?? ''
+  const match = auth.match(/^Bearer\s+(.+)$/i)
+  if (!match) return null
+  const tokenHash = await sha256Hex(match[1].trim())
+  const row = await db
+    .prepare(
+      `SELECT s.user_id AS userId, s.username AS username, s.role AS role, s.expires_at AS expiresAt,
+              u.disabled AS disabled, u.id AS realUserId
+       FROM sessions s LEFT JOIN users u ON u.id = s.user_id
+       WHERE s.token_hash = ?`,
+    )
+    .bind(tokenHash)
+    .first<{
+      userId: number
+      username: string
+      role: string
+      expiresAt: number
+      disabled: number | null
+      realUserId: number | null
+    }>()
+  if (!row) return null
+  if (row.expiresAt < nowSeconds()) {
+    await db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(tokenHash).run()
+    return null
+  }
+  const isMaster = row.userId === MASTER_USER_ID
+  if (!isMaster) {
+    // 账号被删或被禁用时会话立即失效
+    if (row.realUserId === null || row.disabled === 1) return null
+  }
+  return {
+    userId: row.userId,
+    username: row.username,
+    role: row.role === 'admin' ? 'admin' : 'user',
+    isMaster,
+  }
+}
+
+export async function deleteSession(db: D1Database, request: Request): Promise<void> {
+  const auth = request.headers.get('Authorization') ?? ''
+  const match = auth.match(/^Bearer\s+(.+)$/i)
+  if (!match) return
+  const tokenHash = await sha256Hex(match[1].trim())
+  await db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(tokenHash).run()
+}
+
+export async function requireUser(
+  context: PagesContext,
+): Promise<{ db: D1Database; user: SessionUser } | Response> {
+  const db = context.env.TGYS_DB
+  if (!db) return json({ error: '账号系统未配置' }, 503)
+  await ensureSchema(db)
+  const user = await getSessionUser(db, context.request)
+  if (!user) return json({ error: '未登录或登录已过期' }, 401)
+  return { db, user }
+}
+
+export async function requireAdmin(
+  context: PagesContext,
+): Promise<{ db: D1Database; user: SessionUser } | Response> {
+  const result = await requireUser(context)
+  if (result instanceof Response) return result
+  if (result.user.role !== 'admin') return json({ error: '无管理员权限' }, 403)
+  return result
+}
+
+// ---------- 站点设置（注册开关） ----------
+
+export async function getSetting(db: D1Database, key: string): Promise<string | null> {
+  const row = await db
+    .prepare('SELECT value FROM settings WHERE key = ?')
+    .bind(key)
+    .first<{ value: string }>()
+  return row?.value ?? null
+}
+
+export async function setSetting(db: D1Database, key: string, value: string): Promise<void> {
+  await db
+    .prepare(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    )
+    .bind(key, value)
+    .run()
+}
+
+/** 注册是否开放：后台设置优先，其次环境变量 TGYS_REGISTRATION_OPEN，默认开放 */
+export async function isRegistrationOpen(db: D1Database, env: AuthEnv): Promise<boolean> {
+  const stored = await getSetting(db, 'registration_open')
+  if (stored === '1') return true
+  if (stored === '0') return false
+  const envValue = (env.TGYS_REGISTRATION_OPEN ?? '').trim().toLowerCase()
+  return envValue !== '0' && envValue !== 'false'
+}
+
+// ---------- Turnstile（可选：配置了 Secret 才校验） ----------
+
+export async function verifyTurnstile(env: AuthEnv, token: string | undefined): Promise<boolean> {
+  const secret = env.TGYS_TURNSTILE_SECRET
+  if (!secret) return true
+  if (!token) return false
+  try {
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret, response: token }),
+    })
+    const data = (await response.json()) as { success?: boolean }
+    return data.success === true
+  } catch {
+    return false
+  }
+}

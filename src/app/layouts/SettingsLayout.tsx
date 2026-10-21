@@ -2,7 +2,18 @@ import { useLocation, useNavigate } from 'react-router'
 import { cn } from '@/shared/lib'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
-import { ArrowLeft, Compass, FolderCog, Info, ListVideo, Play, Settings2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  Compass,
+  FolderCog,
+  Info,
+  ListVideo,
+  LogOut,
+  Play,
+  Settings2,
+  ShieldCheck,
+} from 'lucide-react'
+import { useAuthStore } from '@/shared/store/authStore'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CustomAnimatedOutlet } from '@/shared/components/AnimatedOutlet'
 import { animationPresets } from '@/shared/lib/animationVariants'
@@ -72,6 +83,20 @@ const settingsModules = [
   },
 ]
 
+const adminModule = {
+  id: 'admin',
+  name: '管理员后台',
+  shortName: '管理员',
+  icon: ShieldCheck,
+  path: '/admin',
+  description: '查看注册用户的登录与观看记录，管理账号状态与注册开关。',
+  badges: ['用户管理', '观看记录', '注册开关'],
+  showGuide: true,
+  dotClass: 'bg-red-500',
+  iconClass: 'text-red-700 dark:text-red-300',
+  badgeClass: 'border-red-500/28 text-red-700 dark:text-red-300',
+}
+
 /**
  * SettingsLayout - 设置页面布局
  * 带粘性页头与模块导航的子路由布局
@@ -79,10 +104,17 @@ const settingsModules = [
 export default function SettingsLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const activeModule =
-    settingsModules.find(module => location.pathname.startsWith(module.path)) || settingsModules[0]
+  const authUser = useAuthStore(state => state.user)
+  const authMode = useAuthStore(state => state.authMode)
+  const logout = useAuthStore(state => state.logout)
 
-  const tabOptions = settingsModules.map(module => ({
+  const isServerAdmin = authMode === 'server' && authUser?.role === 'admin'
+  const modules = isServerAdmin ? [...settingsModules, adminModule] : settingsModules
+
+  const activeModule =
+    modules.find(module => location.pathname.startsWith(module.path)) || settingsModules[0]
+
+  const tabOptions = modules.map(module => ({
     key: module.id,
     label: (
       <>
@@ -113,12 +145,32 @@ export default function SettingsLayout() {
               <p className="text-muted-foreground hidden text-xs md:block">管理播放与系统偏好</p>
             </div>
 
+            {authMode === 'server' && authUser && (
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="text-muted-foreground hidden text-xs sm:block">
+                  {authUser.username}
+                  {authUser.isMaster ? '（站长）' : ''}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  onClick={() => {
+                    void logout().then(() => navigate('/'))
+                  }}
+                >
+                  <LogOut className="size-3.5" />
+                  退出
+                </Button>
+              </div>
+            )}
+
             <div className="order-3 w-full md:order-none md:ml-auto md:flex md:w-[min(58vw,760px)] md:justify-end md:pr-3">
               <UnderlineTabs
                 options={tabOptions}
                 activeKey={activeModule.id}
                 onChange={nextId => {
-                  const targetModule = settingsModules.find(module => module.id === nextId)
+                  const targetModule = modules.find(module => module.id === nextId)
                   if (targetModule && targetModule.path !== location.pathname) {
                     navigate(targetModule.path)
                   }

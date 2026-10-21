@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { getHistoryItemKey, getHistorySeriesKey } from '@/shared/lib/viewingHistory'
+import { reportWatchActivity } from '@/shared/lib/activityReport'
 import type { ViewingHistoryItem } from '@/shared/types'
 import { useSettingStore } from './settingStore'
 
@@ -36,6 +37,9 @@ export const useViewingHistoryStore = create<ViewingHistoryStore>()(
           if (!useSettingStore.getState().playback.isViewingHistoryEnabled) {
             return
           }
+
+          // 顺带上报服务器（账号模式下供管理员后台查看，内部自带节流与静默失败）
+          reportWatchActivity(item)
 
           set(state => {
             if (item.duration <= 0) return

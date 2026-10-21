@@ -14,7 +14,10 @@ TGYSTV 支持通过环境变量预定义应用的默认配置。当用户点击 
 | `TGYS_TMDB_API_TOKEN`        | 否   | TMDB API Token，启用 [TMDB 智能模式](#-tmdb-配置建议启用)获取影片元数据     |
 | `TGYS_TMDB_API_BASE_URL`     | 否   | TMDB API 基础地址（默认 `https://api.themoviedb.org/3`）                    |
 | `TGYS_TMDB_IMAGE_BASE_URL`   | 否   | TMDB 图片基础地址（默认 `https://image.tmdb.org/t/p/`）                     |
-| `TGYS_ACCESS_PASSWORD`       | 否   | 访问密码（留空则公开访问）                                                  |
+| `TGYS_ACCESS_PASSWORD`       | 否   | 访问密码（留空则公开访问）。启用账号系统后，此值即站长密码（用户名 admin 登录） |
+| `TGYS_REGISTRATION_OPEN`     | 否   | 账号注册初始开关（`0` 关闭，默认开放）。管理员后台修改后以数据库设置为准。仅 Pages + D1 部署有效 |
+| `TGYS_TURNSTILE_SITE_KEY`    | 否   | Cloudflare Turnstile 站点密钥，与 SECRET 成对配置后注册需过人机验证          |
+| `TGYS_TURNSTILE_SECRET`      | 否   | Cloudflare Turnstile 密钥（服务端使用，不要公开）                            |
 | `TGYS_ANNOUNCEMENT`         | 否   | 首页滚动公告内容（留空则不显示公告栏）                                      |
 | `TGYS_DANMAKU_API_URL`      | 否   | 弹幕接口默认地址（弹弹play 兼容）。用户在播放设置填了自有地址时以用户的为准 |
 | `TGYS_DISABLE_ANALYTICS`     | 否   | 设为 `true` 禁用 Vercel Analytics（Docker 等非 Vercel 部署建议设为 `true`） |
@@ -70,6 +73,22 @@ TGYS_INITIAL_CONFIG='{"settings":{...},"videoSources":"https://example.com/sourc
 4. **恢复默认**：执行「恢复默认配置」，应用将加载该 JSON 中的状态
 
 ---
+
+## 账号系统（可选，仅 Cloudflare Pages 部署）
+
+站点支持用户注册/登录与管理员后台，数据存 Cloudflare D1。启用步骤：
+
+1. 在 Cloudflare 后台创建一个 D1 数据库（名称任意）。
+2. 在 Pages 项目「设置 → 绑定」中添加 D1 绑定，绑定名必须为 `TGYS_DB`，指向刚创建的数据库。
+3. 重新部署一次。表结构会在接口首次被调用时自动创建，无需手动执行 SQL。
+
+启用后：
+
+- 登录页切换为账号登录（用户名 + 密码），访客可自助注册（可在管理员后台关闭注册）。
+- 原 `TGYS_ACCESS_PASSWORD` 成为站长密码：以用户名 `admin` + 该密码登录即为站长，可进入「设置中心 → 管理员后台」。
+- 管理员后台可查看每个用户的登录时间/IP、观看影片明细，并可禁用、踢下线、删除账号。
+- 用户观看记录在播放时自动上报（同一影片同一集只保留一行，更新进度与最后观看时间）。
+- 未绑定 D1 或非 Pages 部署时，站点自动回退到单密码（或公开）模式，行为与之前一致。
 
 ## TMDB 配置（建议启用）
 
