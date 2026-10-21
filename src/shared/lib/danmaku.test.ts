@@ -101,7 +101,7 @@ describe('parseDanmakuComments', () => {
 })
 
 describe('loadDanmakuForEpisode 清晰化处理', () => {
-  it('每条弹幕带描边、字重 500 与默认清晰黑体；可指定字体覆盖', async () => {
+  it('每条弹幕带文字描边、字重 700 与默认清晰黑体；可指定字体覆盖', async () => {
     const { loadDanmakuForEpisode, DANMAKU_DEFAULT_FONT_FAMILY } = await import('./danmaku')
     const { vi } = await import('vitest')
 
@@ -122,9 +122,9 @@ describe('loadDanmakuForEpisode 清晰化处理', () => {
 
     const items = await loadDanmakuForEpisode('https://danmu.test', '嫁金钗', '第01集', 0)
     expect(items).toHaveLength(1)
-    expect(items[0].border).toBe(true)
-    expect(items[0].style?.fontWeight).toBe('500')
+    expect(items[0].style?.fontWeight).toBe('700')
     expect(items[0].style?.fontFamily).toBe(DANMAKU_DEFAULT_FONT_FAMILY)
+    expect(items[0].style?.textShadow).toContain('rgba(0,0,0')
 
     call = 0
     const custom = await loadDanmakuForEpisode('https://danmu.test', '嫁金钗', '第01集', 0, 'SimHei')

@@ -17,10 +17,12 @@ export interface DanmakuItem {
   time: number
   mode: 0 | 1 | 2
   color?: string
-  /** 是否描边（深色描边让弹幕在复杂画面上保持清晰） */
-  border?: boolean
-  style?: { fontFamily?: string; fontWeight?: string }
+  style?: { fontFamily?: string; fontWeight?: string; textShadow?: string }
 }
+
+/** 弹幕文字描边（多向文字阴影模拟描边，无边框，复杂画面上也清晰） */
+export const DANMAKU_TEXT_SHADOW =
+  '1px 0 0 rgba(0,0,0,0.85), -1px 0 0 rgba(0,0,0,0.85), 0 1px 0 rgba(0,0,0,0.85), 0 -1px 0 rgba(0,0,0,0.85), 1px 1px 0 rgba(0,0,0,0.85), -1px -1px 0 rgba(0,0,0,0.85), -1px 1px 0 rgba(0,0,0,0.85), 1px -1px 0 rgba(0,0,0,0.85)'
 
 /** 默认弹幕字体：清晰优先的黑体栈（各系统取可用的第一种） */
 export const DANMAKU_DEFAULT_FONT_FAMILY =
@@ -254,8 +256,7 @@ export async function loadDanmakuForEpisode(
     const items = parseDanmakuComments(commentsData)
     const family = (fontFamily ?? '').trim() || DANMAKU_DEFAULT_FONT_FAMILY
     for (const item of items) {
-      item.border = true
-      item.style = { fontFamily: family, fontWeight: '500' }
+      item.style = { fontFamily: family, fontWeight: '700', textShadow: DANMAKU_TEXT_SHADOW }
     }
     return items
   } catch {
