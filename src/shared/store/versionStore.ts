@@ -57,6 +57,14 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.14',
+    title: '换源列表排版整齐化',
+    date: formatDate('2026-10-21'),
+    features: [],
+    fixes: ['换源候选列表改用等宽两列网格排版（此前按内容定宽流式换行显得参差不齐），源名展示时自动去掉开头结尾的表情、横线等装饰字符。'],
+    breaking: [],
+  },
+  {
     version: '2.1.13',
     title: '首页去掉继续观看',
     date: formatDate('2026-10-21'),

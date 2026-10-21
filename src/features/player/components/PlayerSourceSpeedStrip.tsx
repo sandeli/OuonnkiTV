@@ -22,6 +22,12 @@ interface PlayerSourceSpeedStripProps {
   className?: string
 }
 
+/** 源名展示清洗：去掉开头/结尾的表情、横线等装饰字符（共享源清单里名字常带 🎬 前缀） */
+function displaySourceName(name: string): string {
+  const cleaned = name.replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}]+$/u, '')
+  return cleaned || name
+}
+
 function speedDotClass(latency: number): string {
   if (latency <= 400) return 'bg-emerald-500'
   if (latency <= 1000) return 'bg-amber-500'
@@ -64,6 +70,7 @@ export function PlayerSourceSpeedStrip({
   }
 
   const current = options.find(option => option.sourceCode === selectedSourceCode)
+  const currentLabel = current ? displaySourceName(current.sourceName) : ''
 
   return (
     <Collapsible
@@ -84,7 +91,7 @@ export function PlayerSourceSpeedStrip({
             <RadioTower className="size-4 shrink-0" />
             <span className="shrink-0">换源</span>
             <span className="text-muted-foreground truncate text-xs font-normal">
-              {options.length} 源{current ? ` · 当前 ${current.sourceName}` : ''}
+              {options.length} 源{current ? ` · 当前 ${currentLabel}` : ''}
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
@@ -97,22 +104,23 @@ export function PlayerSourceSpeedStrip({
       </CollapsibleTrigger>
       <CollapsibleContent className="overflow-hidden border-t border-border/45 p-3 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 data-[state=closed]:duration-200 data-[state=open]:duration-300 md:p-4">
         <ScrollArea className="max-h-44 sm:max-h-56">
-          <div className="flex flex-wrap gap-2 pr-2">
+          <div className="grid grid-cols-2 gap-2 pr-2 sm:flex sm:flex-wrap">
             {options.map(option => {
               const active = option.sourceCode === selectedSourceCode
               const latency = latencies.get(option.sourceCode)
               const probed = probedCodes.has(option.sourceCode)
+              const label = displaySourceName(option.sourceName)
               return (
                 <Button
                   key={option.sourceCode}
                   size="sm"
                   variant={active ? 'default' : 'secondary'}
-                  className="max-w-full min-w-0 justify-between gap-2 rounded-full sm:w-auto sm:max-w-[260px]"
+                  className="w-full min-w-0 justify-between gap-2 rounded-full sm:w-auto sm:max-w-[260px]"
                   aria-current={active ? 'true' : undefined}
-                  aria-label={`切换到视频源 ${option.sourceName}`}
+                  aria-label={`切换到视频源 ${label}`}
                   onClick={() => onSourceChange(option.sourceCode)}
                 >
-                  <span className="truncate">{option.sourceName}</span>
+                  <span className="truncate">{label}</span>
                   {latency !== undefined ? (
                     <span className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums opacity-80">
                       <span className={cn('size-1.5 rounded-full', speedDotClass(latency))} />
