@@ -10,6 +10,7 @@ export const PUBLIC_ENV_KEYS = [
   'TGYS_ACCESS_PASSWORD',
   'TGYS_DISABLE_ANALYTICS',
   'TGYS_INITIAL_CONFIG',
+  'TGYS_ANNOUNCEMENT',
 ]
 
 export function collectRuntimeConfig(environment = process.env) {

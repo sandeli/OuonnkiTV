@@ -6,6 +6,7 @@ export const PUBLIC_ENV_KEYS = [
   'TGYS_ACCESS_PASSWORD',
   'TGYS_DISABLE_ANALYTICS',
   'TGYS_INITIAL_CONFIG',
+  'TGYS_ANNOUNCEMENT',
 ] as const
 
 export type PublicEnvKey = (typeof PUBLIC_ENV_KEYS)[number]
@@ -31,6 +32,7 @@ function getBuildTimeEnv(key: PublicEnvKey): string | undefined {
     TGYS_ACCESS_PASSWORD: import.meta.env.TGYS_ACCESS_PASSWORD,
     TGYS_DISABLE_ANALYTICS: import.meta.env.TGYS_DISABLE_ANALYTICS,
     TGYS_INITIAL_CONFIG: import.meta.env.TGYS_INITIAL_CONFIG,
+    TGYS_ANNOUNCEMENT: import.meta.env.TGYS_ANNOUNCEMENT,
   }
   const value = buildTimeConfig[key]
   if (value !== undefined) return value

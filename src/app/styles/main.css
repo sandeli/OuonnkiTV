@@ -224,6 +224,22 @@
   }
 }
 
+/* 公告栏横向滚动动画（内容复制两份，-50% 无缝循环） */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation-name: marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
 /* 收缩动画 - 从外向中心 */
 @keyframes theme-contract {
   from {

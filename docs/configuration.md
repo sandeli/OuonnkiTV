@@ -15,6 +15,7 @@ TGYSTV 支持通过环境变量预定义应用的默认配置。当用户点击 
 | `TGYS_TMDB_API_BASE_URL`     | 否   | TMDB API 基础地址（默认 `https://api.themoviedb.org/3`）                    |
 | `TGYS_TMDB_IMAGE_BASE_URL`   | 否   | TMDB 图片基础地址（默认 `https://image.tmdb.org/t/p/`）                     |
 | `TGYS_ACCESS_PASSWORD`       | 否   | 访问密码（留空则公开访问）                                                  |
+| `TGYS_ANNOUNCEMENT`         | 否   | 首页滚动公告内容（留空则不显示公告栏）                                      |
 | `TGYS_DISABLE_ANALYTICS`     | 否   | 设为 `true` 禁用 Vercel Analytics（Docker 等非 Vercel 部署建议设为 `true`） |
 | `TGYS_INITIAL_CONFIG`        | 否   | 完整 JSON 配置（包含设置、视频源、订阅等导出数据）                          |
 

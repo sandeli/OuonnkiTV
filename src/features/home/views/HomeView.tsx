@@ -1,3 +1,4 @@
+import { AnnouncementBar } from '../components/AnnouncementBar'
 import { ContinueWatching } from '../components/ContinueWatching'
 import { DoubanHomeContent } from '../components/DoubanHomeContent'
 
@@ -9,6 +10,8 @@ import { DoubanHomeContent } from '../components/DoubanHomeContent'
 export default function HomeView() {
   return (
     <div className="flex flex-col gap-6">
+      {/* 滚动公告（环境变量 TGYS_ANNOUNCEMENT，未设置不显示） */}
+      <AnnouncementBar />
       {/* 继续观看 */}
       <ContinueWatching />
       {/* 豆瓣分类墙 */}
