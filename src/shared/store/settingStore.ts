@@ -44,6 +44,8 @@ interface PlaybackSettings {
   danmakuOpacity: number
   /** 弹幕字号（px，14 - 32） */
   danmakuFontSize: number
+  /** 弹幕字体（CSS font-family 值，空 = 播放器默认） */
+  danmakuFontFamily: string
 }
 
 interface SystemSettings {
@@ -136,7 +138,7 @@ export const useSettingStore = create<SettingStore>()(
       })),
       {
         name: 'tgys-tv-setting-store',
-        version: 15,
+        version: 16,
         migrate: (persistedState: unknown, version: number) => {
           const state = persistedState as Record<string, unknown>
           if (version < 2 && state.playback) {
@@ -218,6 +220,11 @@ export const useSettingStore = create<SettingStore>()(
             const playback = (state.playback ?? {}) as Record<string, unknown>
             playback.isFullscreenProgressHidden ??=
               DEFAULT_SETTINGS.playback.isFullscreenProgressHidden
+            state.playback = playback
+          }
+          if (version < 16) {
+            const playback = (state.playback ?? {}) as Record<string, unknown>
+            playback.danmakuFontFamily ??= DEFAULT_SETTINGS.playback.danmakuFontFamily
             state.playback = playback
           }
           if (version < 15) {

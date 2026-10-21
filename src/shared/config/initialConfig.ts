@@ -34,6 +34,7 @@ export interface SettingsConfig {
     danmakuSpeed?: number
     danmakuOpacity?: number
     danmakuFontSize?: number
+    danmakuFontFamily?: string
   }
   system?: {
     tmdbEnabled?: boolean

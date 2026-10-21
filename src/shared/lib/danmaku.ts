@@ -17,7 +17,14 @@ export interface DanmakuItem {
   time: number
   mode: 0 | 1 | 2
   color?: string
+  /** 是否描边（深色描边让弹幕在复杂画面上保持清晰） */
+  border?: boolean
+  style?: { fontFamily?: string; fontWeight?: string }
 }
+
+/** 默认弹幕字体：清晰优先的黑体栈（各系统取可用的第一种） */
+export const DANMAKU_DEFAULT_FONT_FAMILY =
+  '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif'
 
 export interface DanmakuEpisode {
   episodeId: string
@@ -227,6 +234,7 @@ export async function loadDanmakuForEpisode(
   title: string,
   episodeName: string,
   episodeIndex: number,
+  fontFamily?: string,
 ): Promise<DanmakuItem[]> {
   const base = apiUrl.trim().replace(/\/+$/, '')
   if (!base || !title) return []
@@ -243,7 +251,13 @@ export async function loadDanmakuForEpisode(
     const commentsData = await fetchDanmakuJson(
       `${base}/api/v2/comment/${encodeURIComponent(episode.episodeId)}?withRelated=true`,
     )
-    return parseDanmakuComments(commentsData)
+    const items = parseDanmakuComments(commentsData)
+    const family = (fontFamily ?? '').trim() || DANMAKU_DEFAULT_FONT_FAMILY
+    for (const item of items) {
+      item.border = true
+      item.style = { fontFamily: family, fontWeight: '500' }
+    }
+    return items
   } catch {
     return []
   }

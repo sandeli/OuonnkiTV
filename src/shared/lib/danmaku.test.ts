@@ -99,3 +99,37 @@ describe('parseDanmakuComments', () => {
     expect(items[0]).toMatchObject({ text: 'hi', mode: 1, color: '#00ff00' })
   })
 })
+
+describe('loadDanmakuForEpisode 清晰化处理', () => {
+  it('每条弹幕带描边、字重 500 与默认清晰黑体；可指定字体覆盖', async () => {
+    const { loadDanmakuForEpisode, DANMAKU_DEFAULT_FONT_FAMILY } = await import('./danmaku')
+    const { vi } = await import('vitest')
+
+    const searchJson = {
+      animes: [
+        { animeId: 1, animeTitle: '嫁金钗', episodes: [{ episodeId: 1001, episodeTitle: '第01集' }] },
+      ],
+    }
+    const commentsJson = { count: 1, comments: [{ p: '1.0,1,16777215', m: '测试弹幕' }] }
+    let call = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        call += 1
+        return { ok: true, json: async () => (call === 1 ? searchJson : commentsJson) }
+      }),
+    )
+
+    const items = await loadDanmakuForEpisode('https://danmu.test', '嫁金钗', '第01集', 0)
+    expect(items).toHaveLength(1)
+    expect(items[0].border).toBe(true)
+    expect(items[0].style?.fontWeight).toBe('500')
+    expect(items[0].style?.fontFamily).toBe(DANMAKU_DEFAULT_FONT_FAMILY)
+
+    call = 0
+    const custom = await loadDanmakuForEpisode('https://danmu.test', '嫁金钗', '第01集', 0, 'SimHei')
+    expect(custom[0].style?.fontFamily).toBe('SimHei')
+
+    vi.unstubAllGlobals()
+  })
+})

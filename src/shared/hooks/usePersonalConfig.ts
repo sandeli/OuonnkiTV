@@ -66,8 +66,9 @@ const personalConfigSchema = z.object({
         isDanmakuEnabled: z.boolean().optional(),
         danmakuApiUrl: z.string().optional(),
         danmakuSpeed: z.number().min(0.5).max(2).optional(),
-        danmakuOpacity: z.number().min(0.3).max(1).optional(),
+        danmakuOpacity: z.number().min(0).max(1).optional(),
         danmakuFontSize: z.number().min(14).max(32).optional(),
+        danmakuFontFamily: z.string().optional(),
         // 向后兼容：旧版配置可能在 playback 中包含 adFilteringEnabled
         adFilteringEnabled: z.boolean().optional(),
       })

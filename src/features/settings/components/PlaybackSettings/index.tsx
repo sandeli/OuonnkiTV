@@ -420,19 +420,19 @@ export default function PlaybackSettings() {
         />
         <SettingsItem
           title="弹幕不透明度"
-          description="弹幕文字的不透明度（0.3 ~ 1），下次打开播放页生效。"
+          description="弹幕文字的不透明度（0 ~ 1），下次打开播放页生效。"
           control={
             <div className="w-full sm:w-48">
               <Input
                 type="number"
-                min={0.3}
+                min={0}
                 max={1}
                 step={0.05}
                 value={playback.danmakuOpacity}
                 onChange={e => {
                   const val = Number.parseFloat(e.target.value)
                   if (!Number.isNaN(val)) {
-                    setPlaybackSettings({ danmakuOpacity: Math.min(1, Math.max(0.3, val)) })
+                    setPlaybackSettings({ danmakuOpacity: Math.min(1, Math.max(0, val)) })
                   }
                 }}
               />
@@ -457,6 +457,37 @@ export default function PlaybackSettings() {
                   }
                 }}
               />
+            </div>
+          }
+        />
+        <SettingsItem
+          title="弹幕字体"
+          description="弹幕统一带深色描边保证清晰；字体以黑体系为主（能不能显示取决于设备装没装），下次打开播放页生效。"
+          control={
+            <div className="w-full sm:w-[220px]">
+              <Select
+                value={playback.danmakuFontFamily || '__default__'}
+                onValueChange={value =>
+                  setPlaybackSettings({
+                    danmakuFontFamily: value === '__default__' ? '' : value,
+                  })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择字体" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">默认（清晰黑体）</SelectItem>
+                  <SelectItem value="Microsoft YaHei, PingFang SC, sans-serif">
+                    微软雅黑 / 苹方
+                  </SelectItem>
+                  <SelectItem value="SimHei, Microsoft YaHei, sans-serif">黑体（更粗）</SelectItem>
+                  <SelectItem value="Noto Sans CJK SC, Microsoft YaHei, sans-serif">
+                    思源黑体
+                  </SelectItem>
+                  <SelectItem value="ui-monospace, Menlo, Consolas, monospace">等宽</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           }
         />

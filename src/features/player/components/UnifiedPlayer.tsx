@@ -769,6 +769,7 @@ export default function UnifiedPlayer() {
                   danmakuTitle,
                   danmakuEpisodeName,
                   selectedEpisode,
+                  playbackRef.current.danmakuFontFamily,
                 ),
               // 插件 speed 为弹幕停留时长（1-10，越大越慢）：设置里是速度倍率，换算为 5 / 倍率
               speed: Math.min(10, Math.max(1, 5 / (playbackRef.current.danmakuSpeed || 1))),
@@ -820,6 +821,41 @@ export default function UnifiedPlayer() {
 
     playerRef.current = art
     setActiveArt(art)
+
+    if (danmakuActive) {
+      // 播放器内调整的弹幕参数实时写回设置存储，退出再进入播放页不丢失
+      const onPluginEvent = (
+        art as unknown as {
+          on: (name: string, handler: (option: Record<string, unknown>) => void) => void
+        }
+      ).on.bind(art)
+      onPluginEvent('artplayerPluginDanmuku:config', option => {
+        const patch: {
+          danmakuOpacity?: number
+          danmakuSpeed?: number
+          danmakuFontSize?: number
+        } = {}
+        if (typeof option.opacity === 'number' && Number.isFinite(option.opacity)) {
+          patch.danmakuOpacity = Math.min(1, Math.max(0, option.opacity))
+        }
+        if (typeof option.speed === 'number' && option.speed > 0) {
+          // 插件 speed 是停留时长，设置里是速度倍率：倍率 = 5 / 时长
+          patch.danmakuSpeed = Math.min(2, Math.max(0.5, 5 / option.speed))
+        }
+        if (typeof option.fontSize === 'number' && Number.isFinite(option.fontSize)) {
+          patch.danmakuFontSize = Math.min(32, Math.max(14, Math.round(option.fontSize)))
+        }
+        if (Object.keys(patch).length > 0) {
+          useSettingStore.getState().setPlaybackSettings(patch)
+        }
+      })
+      onPluginEvent('artplayerPluginDanmuku:hide', () => {
+        useSettingStore.getState().setPlaybackSettings({ isDanmakuEnabled: false })
+      })
+      onPluginEvent('artplayerPluginDanmuku:show', () => {
+        useSettingStore.getState().setPlaybackSettings({ isDanmakuEnabled: true })
+      })
+    }
 
     const syncFullscreenMiniProgressBar = () => {
       const isFullscreenActive = art.fullscreen || art.fullscreenWeb
