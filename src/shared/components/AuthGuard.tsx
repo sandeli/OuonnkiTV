@@ -146,12 +146,16 @@ export default function AuthGuard({ children }: AuthGuardProps) {
           fill: 'forwards',
         },
       )
-      animation.onfinish = () => setIsAuthenticated(true)
+      animation.onfinish = () => {
+        setIsAuthenticated(true)
+        setIsDismissing(false)
+      }
 
       return () => animation.cancel()
     }
 
     setIsAuthenticated(true)
+    setIsDismissing(false)
   }, [isDismissing])
 
   const handleSuccess = useCallback(() => {

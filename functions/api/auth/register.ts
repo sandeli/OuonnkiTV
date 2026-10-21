@@ -42,6 +42,8 @@ export const onRequest = async (context: PagesContext) => {
   const salt = randomHex(16)
   const passwordHash = await hashPassword(password, salt)
   const createdAt = nowSeconds()
+  const ip = context.request.headers.get('CF-Connecting-IP') ?? ''
+  const userAgent = context.request.headers.get('User-Agent') ?? ''
 
   let userId: number
   try {
@@ -55,6 +57,18 @@ export const onRequest = async (context: PagesContext) => {
   } catch {
     return json({ error: '用户名已被注册' }, 409)
   }
+
+  // 注册即登录：同步记一条登录日志与最近登录时间，后台登录记录才完整
+  await db
+    .prepare('UPDATE users SET last_login_at = ? WHERE id = ?')
+    .bind(createdAt, userId)
+    .run()
+  await db
+    .prepare(
+      'INSERT INTO login_logs (user_id, username, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .bind(userId, username, ip, userAgent, createdAt)
+    .run()
 
   const { token, expiresAt } = await createSession(db, {
     userId,

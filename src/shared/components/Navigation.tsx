@@ -3,12 +3,13 @@ import { TgysLogo } from '@/shared/components/icons'
 import { SidebarTrigger } from '@/shared/components/ui/sidebar'
 import { NavLink, useLocation } from 'react-router'
 import { useState } from 'react'
-import { Moon, Sun, Laptop } from 'lucide-react'
+import { LogOut, Moon, Sun, Laptop } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 import { Button } from '@/shared/components/ui/button'
 import { ThemeToggle, useThemeState } from './theme'
 import SearchBox from './SearchBox'
+import { useAuthStore } from '@/shared/store/authStore'
 import { cn } from '@/shared/lib'
 
 interface NavigationProps {
@@ -20,6 +21,13 @@ export default function Navigation({ hidden = false, enableScrollAnimation = fal
   const { mode } = useThemeState()
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
   const location = useLocation()
+  const authUser = useAuthStore(state => state.user)
+  const authMode = useAuthStore(state => state.authMode)
+  const hasLegacySession = useAuthStore(state => !!state.sessionToken)
+  const authLogout = useAuthStore(state => state.logout)
+
+  const showAccount = authMode === 'server' && !!authUser
+  const showLogout = showAccount || (authMode === 'legacy' && hasLegacySession)
 
   // 在搜索页面隐藏导航栏搜索框
   const isSearchPage = location.pathname === '/search'
@@ -103,6 +111,26 @@ export default function Navigation({ hidden = false, enableScrollAnimation = fal
                   : '',
               )}
             >
+              {/* 账号与退出（桌面端顶栏；手机端布局不变，退出入口在设置中心） */}
+              {showLogout && (
+                <div className="hidden items-center gap-1 pr-1 sm:gap-2 md:flex">
+                  {showAccount && authUser && (
+                    <span className="text-muted-foreground hidden max-w-28 truncate text-sm lg:block">
+                      {authUser.username}
+                      {authUser.isMaster ? '（站长）' : ''}
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 gap-1 px-2 text-xs"
+                    onClick={() => void authLogout()}
+                  >
+                    <LogOut className="size-3.5" />
+                    退出
+                  </Button>
+                </div>
+              )}
               <ThemeToggle>
                 <Button size="icon" variant="ghost" className="size-7">
                   {mode === 'dark' && <Moon />}
