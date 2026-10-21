@@ -35,6 +35,7 @@ export interface SettingsConfig {
     danmakuOpacity?: number
     danmakuFontSize?: number
     danmakuFontFamily?: string
+    danmakuMargin?: [number | string, number | string]
   }
   system?: {
     tmdbEnabled?: boolean

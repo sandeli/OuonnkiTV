@@ -133,3 +133,22 @@ describe('loadDanmakuForEpisode 清晰化处理', () => {
     vi.unstubAllGlobals()
   })
 })
+
+describe('弹幕速度换算', () => {
+  it('倍率 -> 时长：1 倍 = 5 秒，0.2 倍 = 25 秒（突破插件 10 秒上限靠这个值）', async () => {
+    const { danmakuDurationFromMultiplier } = await import('./danmaku')
+    expect(danmakuDurationFromMultiplier(1)).toBe(5)
+    expect(danmakuDurationFromMultiplier(0.2)).toBe(25)
+    expect(danmakuDurationFromMultiplier(2)).toBe(2.5)
+    expect(danmakuDurationFromMultiplier(0)).toBe(5)
+  })
+
+  it('时长 -> 倍率：钳制在 0.2 ~ 2', async () => {
+    const { danmakuMultiplierFromDuration } = await import('./danmaku')
+    expect(danmakuMultiplierFromDuration(25)).toBe(0.2)
+    expect(danmakuMultiplierFromDuration(10)).toBe(0.5)
+    expect(danmakuMultiplierFromDuration(5)).toBe(1)
+    expect(danmakuMultiplierFromDuration(1)).toBe(2)
+    expect(danmakuMultiplierFromDuration(0)).toBe(1)
+  })
+})

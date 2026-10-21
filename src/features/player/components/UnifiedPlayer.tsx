@@ -23,7 +23,12 @@ import { useDocumentTitle, useCmsClient } from '@/shared/hooks'
 import { useTmdbEnabled } from '@/shared/hooks/useTmdbMode'
 import { cn } from '@/shared/lib/utils'
 import { buildCmsPlayPath, buildTmdbDetailPath, buildTmdbPlayPath } from '@/shared/lib/routes'
-import { loadDanmakuForEpisode, resolveDanmakuApiUrl } from '@/shared/lib/danmaku'
+import {
+  danmakuDurationFromMultiplier,
+  danmakuMultiplierFromDuration,
+  loadDanmakuForEpisode,
+  resolveDanmakuApiUrl,
+} from '@/shared/lib/danmaku'
 import { isTmdbHistoryItem } from '@/shared/lib/viewingHistory'
 import { getBackdropUrl } from '@/shared/lib/tmdb'
 import { useFavoritesStore } from '@/features/favorites/store/favoritesStore'
@@ -717,6 +722,7 @@ export default function UnifiedPlayer() {
     const danmakuActive = playbackRef.current.isDanmakuEnabled && danmakuApiUrl.length > 0
     const danmakuTitle = detail.videoInfo?.title ?? ''
     const danmakuEpisodeName = episodes[selectedEpisode] ?? ''
+    const danmakuDuration = danmakuDurationFromMultiplier(playbackRef.current.danmakuSpeed)
 
     const nextEpisode = () => {
       if (!playbackRef.current.isAutoPlayEnabled) return
@@ -771,10 +777,14 @@ export default function UnifiedPlayer() {
                   selectedEpisode,
                   playbackRef.current.danmakuFontFamily,
                 ),
-              // 插件 speed 为弹幕停留时长（1-10，越大越慢）：设置里是速度倍率，换算为 5 / 倍率
-              speed: Math.min(10, Math.max(1, 5 / (playbackRef.current.danmakuSpeed || 1))),
+              // 插件 speed 为弹幕停留时长（越大越慢），插件自身钳制在 1~10；超过 10 的目标时长在创建后绕过钳制写入
+              speed: Math.min(10, Math.max(1, danmakuDuration)),
               opacity: playbackRef.current.danmakuOpacity,
               fontSize: playbackRef.current.danmakuFontSize,
+              margin: playbackRef.current.danmakuMargin as [
+                number | `${number}%`,
+                number | `${number}%`,
+              ],
               emitter: false,
               antiOverlap: true,
               synchronousPlayback: true,
@@ -823,6 +833,13 @@ export default function UnifiedPlayer() {
     setActiveArt(art)
 
     if (danmakuActive) {
+      const danmukuPlugin = art.plugins.artplayerPluginDanmuku as unknown as
+        | { option: { speed: number } }
+        | undefined
+      // 目标时长超过插件上限 10 时，直接改插件内部值绕过它的钳制
+      if (danmukuPlugin && danmakuDuration > 10) {
+        danmukuPlugin.option.speed = danmakuDuration
+      }
       // 播放器内调整的弹幕参数实时写回设置存储，退出再进入播放页不丢失
       const onPluginEvent = (
         art as unknown as {
@@ -834,16 +851,33 @@ export default function UnifiedPlayer() {
           danmakuOpacity?: number
           danmakuSpeed?: number
           danmakuFontSize?: number
+          danmakuMargin?: [number | string, number | string]
         } = {}
         if (typeof option.opacity === 'number' && Number.isFinite(option.opacity)) {
           patch.danmakuOpacity = Math.min(1, Math.max(0, option.opacity))
         }
         if (typeof option.speed === 'number' && option.speed > 0) {
-          // 插件 speed 是停留时长，设置里是速度倍率：倍率 = 5 / 时长
-          patch.danmakuSpeed = Math.min(2, Math.max(0.5, 5 / option.speed))
+          const storedDuration = danmakuDurationFromMultiplier(
+            useSettingStore.getState().playback.danmakuSpeed,
+          )
+          if (option.speed === 10 && storedDuration > 10) {
+            // 事件中的 10 是插件把超限时长钳制后的假值：不回写倍率，并把插件内部值补回目标时长
+            if (danmukuPlugin) danmukuPlugin.option.speed = storedDuration
+          } else {
+            patch.danmakuSpeed = danmakuMultiplierFromDuration(option.speed)
+          }
         }
         if (typeof option.fontSize === 'number' && Number.isFinite(option.fontSize)) {
           patch.danmakuFontSize = Math.min(32, Math.max(14, Math.round(option.fontSize)))
+        }
+        if (Array.isArray(option.margin) && option.margin.length === 2) {
+          const [marginTop, marginBottom] = option.margin as Array<number | string>
+          if (
+            (typeof marginTop === 'number' || typeof marginTop === 'string') &&
+            (typeof marginBottom === 'number' || typeof marginBottom === 'string')
+          ) {
+            patch.danmakuMargin = [marginTop, marginBottom]
+          }
         }
         if (Object.keys(patch).length > 0) {
           useSettingStore.getState().setPlaybackSettings(patch)

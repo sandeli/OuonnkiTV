@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS = {
     danmakuOpacity: envSettings?.playback?.danmakuOpacity ?? 1,
     danmakuFontSize: envSettings?.playback?.danmakuFontSize ?? 20,
     danmakuFontFamily: envSettings?.playback?.danmakuFontFamily ?? '',
+    danmakuMargin: envSettings?.playback?.danmakuMargin ?? [10, 10],
   },
   system: {
     tmdbEnabled:

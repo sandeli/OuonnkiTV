@@ -65,10 +65,13 @@ const personalConfigSchema = z.object({
         isFullscreenProgressHidden: z.boolean().optional(),
         isDanmakuEnabled: z.boolean().optional(),
         danmakuApiUrl: z.string().optional(),
-        danmakuSpeed: z.number().min(0.5).max(2).optional(),
+        danmakuSpeed: z.number().min(0.2).max(2).optional(),
         danmakuOpacity: z.number().min(0).max(1).optional(),
         danmakuFontSize: z.number().min(14).max(32).optional(),
         danmakuFontFamily: z.string().optional(),
+        danmakuMargin: z
+          .tuple([z.union([z.number(), z.string()]), z.union([z.number(), z.string()])])
+          .optional(),
         // 向后兼容：旧版配置可能在 playback 中包含 adFilteringEnabled
         adFilteringEnabled: z.boolean().optional(),
       })

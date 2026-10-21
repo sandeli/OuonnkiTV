@@ -24,6 +24,20 @@ export interface DanmakuItem {
 export const DANMAKU_TEXT_SHADOW =
   '1px 0 0 rgba(0,0,0,0.85), -1px 0 0 rgba(0,0,0,0.85), 0 1px 0 rgba(0,0,0,0.85), 0 -1px 0 rgba(0,0,0,0.85), 1px 1px 0 rgba(0,0,0,0.85), -1px -1px 0 rgba(0,0,0,0.85), -1px 1px 0 rgba(0,0,0,0.85), 1px -1px 0 rgba(0,0,0,0.85)'
 
+/**
+ * 速度倍率 -> 插件停留时长（秒穿屏）：倍率 1 对应 5 秒。
+ * 插件自身把时长钳制在 1~10，超过 10 的部分由播放器绕过钳制直接写入插件实例。
+ */
+export function danmakuDurationFromMultiplier(multiplier: number): number {
+  return 5 / (multiplier || 1)
+}
+
+/** 插件停留时长 -> 速度倍率（钳制到设置允许的 0.2 ~ 2） */
+export function danmakuMultiplierFromDuration(duration: number): number {
+  if (!duration || duration <= 0) return 1
+  return Math.min(2, Math.max(0.2, 5 / duration))
+}
+
 /** 默认弹幕字体：清晰优先的黑体栈（各系统取可用的第一种） */
 export const DANMAKU_DEFAULT_FONT_FAMILY =
   '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif'

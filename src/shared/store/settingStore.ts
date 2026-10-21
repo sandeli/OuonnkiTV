@@ -38,7 +38,7 @@ interface PlaybackSettings {
   isDanmakuEnabled: boolean
   /** 用户自有弹幕接口地址（为空时用部署变量 TGYS_DANMAKU_API_URL） */
   danmakuApiUrl: string
-  /** 弹幕速度倍率（0.5 - 2） */
+  /** 弹幕速度倍率（0.2 - 2，越小越慢） */
   danmakuSpeed: number
   /** 弹幕不透明度（0.3 - 1） */
   danmakuOpacity: number
@@ -46,6 +46,8 @@ interface PlaybackSettings {
   danmakuFontSize: number
   /** 弹幕字体（CSS font-family 值，空 = 播放器默认） */
   danmakuFontFamily: string
+  /** 弹幕显示区域 [上边距, 下边距]（插件 margin：数字 px 或百分比如 '50%'） */
+  danmakuMargin: [number | string, number | string]
 }
 
 interface SystemSettings {
@@ -138,7 +140,7 @@ export const useSettingStore = create<SettingStore>()(
       })),
       {
         name: 'tgys-tv-setting-store',
-        version: 16,
+        version: 17,
         migrate: (persistedState: unknown, version: number) => {
           const state = persistedState as Record<string, unknown>
           if (version < 2 && state.playback) {
@@ -220,6 +222,11 @@ export const useSettingStore = create<SettingStore>()(
             const playback = (state.playback ?? {}) as Record<string, unknown>
             playback.isFullscreenProgressHidden ??=
               DEFAULT_SETTINGS.playback.isFullscreenProgressHidden
+            state.playback = playback
+          }
+          if (version < 17) {
+            const playback = (state.playback ?? {}) as Record<string, unknown>
+            playback.danmakuMargin ??= DEFAULT_SETTINGS.playback.danmakuMargin
             state.playback = playback
           }
           if (version < 16) {

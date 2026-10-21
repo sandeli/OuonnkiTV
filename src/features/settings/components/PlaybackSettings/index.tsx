@@ -399,19 +399,19 @@ export default function PlaybackSettings() {
         />
         <SettingsItem
           title="弹幕速度"
-          description="滚动速度倍率（0.5 ~ 2），越大滚动越快，下次打开播放页生效。"
+          description="滚动速度倍率（0.2 ~ 2），越小滚动越慢，下次打开播放页生效。"
           control={
             <div className="w-full sm:w-48">
               <Input
                 type="number"
-                min={0.5}
+                min={0.2}
                 max={2}
                 step={0.1}
                 value={playback.danmakuSpeed}
                 onChange={e => {
                   const val = Number.parseFloat(e.target.value)
                   if (!Number.isNaN(val)) {
-                    setPlaybackSettings({ danmakuSpeed: Math.min(2, Math.max(0.5, val)) })
+                    setPlaybackSettings({ danmakuSpeed: Math.min(2, Math.max(0.2, val)) })
                   }
                 }}
               />
