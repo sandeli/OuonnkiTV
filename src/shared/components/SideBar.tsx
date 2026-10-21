@@ -14,9 +14,10 @@ import {
 } from '@/shared/components/ui/sidebar'
 import { NavLink } from 'react-router'
 import { motion } from 'framer-motion'
-import { Home, Search, Star, History, Settings } from 'lucide-react'
+import { Home, Search, Star, History, Settings, LogOut } from 'lucide-react'
 import { TgysLogo } from '@/shared/components/icons'
 import { useVersionStore } from '../store'
+import { useAuthStore } from '@/shared/store/authStore'
 import { cn } from '@/shared/lib'
 
 interface SideBarProps {
@@ -34,6 +35,19 @@ export default function SideBar({
 }: SideBarProps) {
   const location = useLocation()
   const { isMobile, setOpenMobile } = useSidebar()
+  const authUser = useAuthStore(state => state.user)
+  const authMode = useAuthStore(state => state.authMode)
+  const hasLegacySession = useAuthStore(state => !!state.sessionToken)
+  const authLogout = useAuthStore(state => state.logout)
+  const showLogout =
+    (authMode === 'server' && !!authUser) || (authMode === 'legacy' && hasLegacySession)
+
+  const handleLogoutClick = () => {
+    void authLogout()
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
 
   const handleNavLinkClick = () => {
     if (isMobile) {
@@ -143,6 +157,16 @@ export default function SideBar({
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          {showLogout && isMobile && (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <button type="button" onClick={handleLogoutClick} className="w-full">
+                  <LogOut />
+                  <span>退出登录</span>
+                </button>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           {items.footer.map(item => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild>

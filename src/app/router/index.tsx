@@ -25,6 +25,9 @@ const PersonalConfigSettings = lazy(
   () => import('@/features/settings/views/PersonalConfigSettings'),
 )
 const AboutSettings = lazy(() => import('@/features/settings/views/AboutSettings'))
+const UserManagementSettings = lazy(
+  () => import('@/features/settings/views/UserManagementSettings'),
+)
 
 // Player views
 const UnifiedPlayer = lazy(() => import('@/features/player/components/UnifiedPlayer'))
@@ -166,6 +169,14 @@ const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <PersonalConfigSettings />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'users',
+            element: (
+              <SuspenseWrapper>
+                <UserManagementSettings />
               </SuspenseWrapper>
             ),
           },

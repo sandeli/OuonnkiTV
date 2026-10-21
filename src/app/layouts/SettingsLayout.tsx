@@ -8,10 +8,10 @@ import {
   FolderCog,
   Info,
   ListVideo,
-  LogOut,
   Play,
   Settings2,
   ShieldCheck,
+  Users,
 } from 'lucide-react'
 import { useAuthStore } from '@/shared/store/authStore'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -83,14 +83,28 @@ const settingsModules = [
   },
 ]
 
+const userModule = {
+  id: 'users',
+  name: '用户管理',
+  shortName: '用户',
+  icon: Users,
+  path: '/settings/users',
+  description: '查看注册用户的登录与观看明细，管理账号状态与可用天数。',
+  badges: ['用户列表', '登录明细', '观看记录'],
+  showGuide: true,
+  dotClass: 'bg-orange-500 dark:bg-orange-700',
+  iconClass: 'text-orange-700 dark:text-orange-300',
+  badgeClass: 'border-orange-500/28 text-orange-700 dark:text-orange-300',
+}
+
 const adminModule = {
   id: 'admin',
   name: '管理员后台',
   shortName: '管理员',
   icon: ShieldCheck,
   path: '/admin',
-  description: '查看注册用户的登录与观看记录，管理账号状态与注册开关。',
-  badges: ['用户管理', '观看记录', '注册开关'],
+  description: '管理站点级设置：注册开关、首页公告与豆瓣代理。',
+  badges: ['注册开关', '站点公告', '豆瓣代理'],
   showGuide: true,
   dotClass: 'bg-red-500',
   iconClass: 'text-red-700 dark:text-red-300',
@@ -106,15 +120,15 @@ export default function SettingsLayout() {
   const location = useLocation()
   const authUser = useAuthStore(state => state.user)
   const authMode = useAuthStore(state => state.authMode)
-  const hasLegacySession = useAuthStore(state => !!state.sessionToken)
-  const authLogout = useAuthStore(state => state.logout)
-
-  const showAccount = authMode === 'server' && !!authUser
-  const showLogout = showAccount || (authMode === 'legacy' && hasLegacySession)
 
   const isServerAdmin = authMode === 'server' && authUser?.role === 'admin'
   const modules = isServerAdmin
-    ? [...settingsModules.slice(0, -1), adminModule, settingsModules[settingsModules.length - 1]]
+    ? [
+        ...settingsModules.slice(0, -1),
+        adminModule,
+        userModule,
+        settingsModules[settingsModules.length - 1],
+      ]
     : settingsModules
 
   const activeModule =
@@ -172,31 +186,6 @@ export default function SettingsLayout() {
       </header>
 
       <main className="w-full px-0 pt-2 md:px-4 md:pt-4">
-        {showLogout && (
-          <div className="border-border bg-card mb-4 flex items-center gap-2 rounded-xl border px-3 py-2.5 md:px-4">
-            <span className="text-muted-foreground min-w-0 flex-1 truncate text-sm">
-              {showAccount && authUser ? (
-                <>
-                  当前账号：
-                  <span className="text-foreground font-medium">{authUser.username}</span>
-                  {authUser.isMaster ? '（站长）' : ''}
-                </>
-              ) : (
-                '当前已登录'
-              )}
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0 gap-1.5"
-              onClick={() => void authLogout()}
-            >
-              <LogOut className="size-3.5" />
-              退出登录
-            </Button>
-          </div>
-        )}
-
         <AnimatePresence initial={false} mode="wait">
           {activeModule.showGuide !== false ? (
             <motion.section
