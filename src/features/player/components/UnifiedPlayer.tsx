@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { createPortal } from 'react-dom'
 import Artplayer from 'artplayer'
+import artplayerPluginDanmuku from 'artplayer-plugin-danmuku'
 import type Hls from 'hls.js'
 import type { HlsConfig } from 'hls.js'
 import { ChevronDown, X } from 'lucide-react'
@@ -22,6 +23,7 @@ import { useDocumentTitle, useCmsClient } from '@/shared/hooks'
 import { useTmdbEnabled } from '@/shared/hooks/useTmdbMode'
 import { cn } from '@/shared/lib/utils'
 import { buildCmsPlayPath, buildTmdbDetailPath, buildTmdbPlayPath } from '@/shared/lib/routes'
+import { loadDanmakuForEpisode, resolveDanmakuApiUrl } from '@/shared/lib/danmaku'
 import { isTmdbHistoryItem } from '@/shared/lib/viewingHistory'
 import { getBackdropUrl } from '@/shared/lib/tmdb'
 import { useFavoritesStore } from '@/features/favorites/store/favoritesStore'
@@ -710,6 +712,12 @@ export default function UnifiedPlayer() {
 
     const isMobileDevice = isTouchDevice()
 
+    // 弹幕：开关开启且能解析出接口地址（用户自有地址 > 部署变量）时才挂载插件
+    const danmakuApiUrl = resolveDanmakuApiUrl(playbackRef.current.danmakuApiUrl)
+    const danmakuActive = playbackRef.current.isDanmakuEnabled && danmakuApiUrl.length > 0
+    const danmakuTitle = detail.videoInfo?.title ?? ''
+    const danmakuEpisodeName = episodes[selectedEpisode] ?? ''
+
     const nextEpisode = () => {
       if (!playbackRef.current.isAutoPlayEnabled) return
 
@@ -752,6 +760,26 @@ export default function UnifiedPlayer() {
       moreVideoAttr: {
         crossOrigin: 'anonymous',
       },
+      plugins: danmakuActive
+        ? [
+            artplayerPluginDanmuku({
+              danmuku: () =>
+                loadDanmakuForEpisode(
+                  danmakuApiUrl,
+                  danmakuTitle,
+                  danmakuEpisodeName,
+                  selectedEpisode,
+                ),
+              // 插件 speed 为弹幕停留时长（1-10，越大越慢）：设置里是速度倍率，换算为 5 / 倍率
+              speed: Math.min(10, Math.max(1, 5 / (playbackRef.current.danmakuSpeed || 1))),
+              opacity: playbackRef.current.danmakuOpacity,
+              fontSize: playbackRef.current.danmakuFontSize,
+              emitter: false,
+              antiOverlap: true,
+              synchronousPlayback: true,
+            }),
+          ]
+        : [],
       customType: {
         m3u8: function (video: HTMLMediaElement, url: string, art: Artplayer) {
           const artWithHls = art as ArtplayerWithHls

@@ -34,6 +34,11 @@ export const DEFAULT_SETTINGS = {
     isMobileGestureEnabled: envSettings?.playback?.isMobileGestureEnabled ?? true,
     longPressPlaybackRate: envSettings?.playback?.longPressPlaybackRate ?? 2,
     isFullscreenProgressHidden: envSettings?.playback?.isFullscreenProgressHidden ?? false,
+    isDanmakuEnabled: envSettings?.playback?.isDanmakuEnabled ?? true,
+    danmakuApiUrl: envSettings?.playback?.danmakuApiUrl ?? '',
+    danmakuSpeed: envSettings?.playback?.danmakuSpeed ?? 1,
+    danmakuOpacity: envSettings?.playback?.danmakuOpacity ?? 1,
+    danmakuFontSize: envSettings?.playback?.danmakuFontSize ?? 20,
   },
   system: {
     tmdbEnabled:

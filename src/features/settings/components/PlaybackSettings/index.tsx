@@ -18,6 +18,7 @@ import {
   Database,
   Gauge,
   ListFilter,
+  MessagesSquare,
   Monitor,
   Palette,
   PlaySquare,
@@ -26,6 +27,7 @@ import {
   Trash2,
   Volume2,
 } from 'lucide-react'
+import { getPublicEnv } from '@/shared/config/runtimeEnv'
 import { Button } from '@/shared/components/ui/button'
 import { SettingsItem, SettingsPageShell, SettingsSection } from '../common'
 
@@ -34,6 +36,7 @@ export default function PlaybackSettings() {
   const { adFilteringEnabled, setAdFilteringEnabled } = useApiStore()
   const tmdbEnabled = useTmdbEnabled()
   const [confirmClearCacheOpen, setConfirmClearCacheOpen] = useState(false)
+  const danmakuEnvUrl = (getPublicEnv('TGYS_DANMAKU_API_URL') ?? '').trim()
 
   return (
     <SettingsPageShell
@@ -130,7 +133,7 @@ export default function PlaybackSettings() {
               <Palette className="text-muted-foreground size-4" />
               <input
                 type="color"
-                className="size-9 cursor-pointer rounded-md border border-border bg-transparent p-0.5"
+                className="border-border size-9 cursor-pointer rounded-md border bg-transparent p-0.5"
                 value={playback.playerThemeColor}
                 onChange={e => setPlaybackSettings({ playerThemeColor: e.target.value })}
               />
@@ -239,7 +242,9 @@ export default function PlaybackSettings() {
           control={
             <Switch
               checked={playback.isFullscreenProgressHidden}
-              onCheckedChange={checked => setPlaybackSettings({ isFullscreenProgressHidden: checked })}
+              onCheckedChange={checked =>
+                setPlaybackSettings({ isFullscreenProgressHidden: checked })
+              }
             />
           }
         />
@@ -353,6 +358,105 @@ export default function PlaybackSettings() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          }
+        />
+      </SettingsSection>
+      <SettingsSection
+        title="弹幕"
+        description="播放时按片名与集数自动匹配弹幕。接口地址留空时使用站点默认接口（部署变量 TGYS_DANMAKU_API_URL），都没有则不启用。"
+        icon={<MessagesSquare className="size-4" />}
+        tone="emerald"
+      >
+        <SettingsItem
+          title="启用弹幕"
+          description="打开后，播放页自动加载匹配到的弹幕，修改后下次打开播放页生效。"
+          controlClassName="self-end mt-1"
+          control={
+            <Switch
+              checked={playback.isDanmakuEnabled}
+              onCheckedChange={checked => setPlaybackSettings({ isDanmakuEnabled: checked })}
+            />
+          }
+        />
+        <SettingsItem
+          title="弹幕接口地址"
+          description={
+            danmakuEnvUrl
+              ? `留空时使用站点默认接口：${danmakuEnvUrl}`
+              : '填你自己的弹弹play 兼容接口地址；站点未配置默认接口，不填则无弹幕。'
+          }
+          control={
+            <div className="w-full sm:w-72">
+              <Input
+                type="text"
+                placeholder="https://danmaku.example.com"
+                value={playback.danmakuApiUrl}
+                onChange={e => setPlaybackSettings({ danmakuApiUrl: e.target.value })}
+              />
+            </div>
+          }
+        />
+        <SettingsItem
+          title="弹幕速度"
+          description="滚动速度倍率（0.5 ~ 2），越大滚动越快，下次打开播放页生效。"
+          control={
+            <div className="w-full sm:w-48">
+              <Input
+                type="number"
+                min={0.5}
+                max={2}
+                step={0.1}
+                value={playback.danmakuSpeed}
+                onChange={e => {
+                  const val = Number.parseFloat(e.target.value)
+                  if (!Number.isNaN(val)) {
+                    setPlaybackSettings({ danmakuSpeed: Math.min(2, Math.max(0.5, val)) })
+                  }
+                }}
+              />
+            </div>
+          }
+        />
+        <SettingsItem
+          title="弹幕不透明度"
+          description="弹幕文字的不透明度（0.3 ~ 1），下次打开播放页生效。"
+          control={
+            <div className="w-full sm:w-48">
+              <Input
+                type="number"
+                min={0.3}
+                max={1}
+                step={0.05}
+                value={playback.danmakuOpacity}
+                onChange={e => {
+                  const val = Number.parseFloat(e.target.value)
+                  if (!Number.isNaN(val)) {
+                    setPlaybackSettings({ danmakuOpacity: Math.min(1, Math.max(0.3, val)) })
+                  }
+                }}
+              />
+            </div>
+          }
+        />
+        <SettingsItem
+          title="弹幕字号"
+          description="弹幕文字大小（14 ~ 32 px），下次打开播放页生效。"
+          control={
+            <div className="w-full sm:w-48">
+              <Input
+                type="number"
+                min={14}
+                max={32}
+                step={1}
+                value={playback.danmakuFontSize}
+                onChange={e => {
+                  const val = Number.parseInt(e.target.value, 10)
+                  if (!Number.isNaN(val)) {
+                    setPlaybackSettings({ danmakuFontSize: Math.min(32, Math.max(14, val)) })
+                  }
+                }}
+              />
             </div>
           }
         />

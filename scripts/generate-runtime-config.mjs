@@ -11,6 +11,7 @@ export const PUBLIC_ENV_KEYS = [
   'TGYS_DISABLE_ANALYTICS',
   'TGYS_INITIAL_CONFIG',
   'TGYS_ANNOUNCEMENT',
+  'TGYS_DANMAKU_API_URL',
 ]
 
 export function collectRuntimeConfig(environment = process.env) {

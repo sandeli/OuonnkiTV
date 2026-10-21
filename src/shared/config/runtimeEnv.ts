@@ -7,6 +7,7 @@ export const PUBLIC_ENV_KEYS = [
   'TGYS_DISABLE_ANALYTICS',
   'TGYS_INITIAL_CONFIG',
   'TGYS_ANNOUNCEMENT',
+  'TGYS_DANMAKU_API_URL',
 ] as const
 
 export type PublicEnvKey = (typeof PUBLIC_ENV_KEYS)[number]
@@ -33,6 +34,7 @@ function getBuildTimeEnv(key: PublicEnvKey): string | undefined {
     TGYS_DISABLE_ANALYTICS: import.meta.env.TGYS_DISABLE_ANALYTICS,
     TGYS_INITIAL_CONFIG: import.meta.env.TGYS_INITIAL_CONFIG,
     TGYS_ANNOUNCEMENT: import.meta.env.TGYS_ANNOUNCEMENT,
+    TGYS_DANMAKU_API_URL: import.meta.env.TGYS_DANMAKU_API_URL,
   }
   const value = buildTimeConfig[key]
   if (value !== undefined) return value

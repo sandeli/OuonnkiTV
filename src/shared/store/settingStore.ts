@@ -34,6 +34,16 @@ interface PlaybackSettings {
   isMobileGestureEnabled: boolean
   longPressPlaybackRate: number
   isFullscreenProgressHidden: boolean
+  /** 是否启用弹幕（需配置弹幕接口地址才生效） */
+  isDanmakuEnabled: boolean
+  /** 用户自有弹幕接口地址（为空时用部署变量 TGYS_DANMAKU_API_URL） */
+  danmakuApiUrl: string
+  /** 弹幕速度倍率（0.5 - 2） */
+  danmakuSpeed: number
+  /** 弹幕不透明度（0.3 - 1） */
+  danmakuOpacity: number
+  /** 弹幕字号（px，14 - 32） */
+  danmakuFontSize: number
 }
 
 interface SystemSettings {
@@ -126,7 +136,7 @@ export const useSettingStore = create<SettingStore>()(
       })),
       {
         name: 'tgys-tv-setting-store',
-        version: 14,
+        version: 15,
         migrate: (persistedState: unknown, version: number) => {
           const state = persistedState as Record<string, unknown>
           if (version < 2 && state.playback) {
@@ -208,6 +218,15 @@ export const useSettingStore = create<SettingStore>()(
             const playback = (state.playback ?? {}) as Record<string, unknown>
             playback.isFullscreenProgressHidden ??=
               DEFAULT_SETTINGS.playback.isFullscreenProgressHidden
+            state.playback = playback
+          }
+          if (version < 15) {
+            const playback = (state.playback ?? {}) as Record<string, unknown>
+            playback.isDanmakuEnabled ??= DEFAULT_SETTINGS.playback.isDanmakuEnabled
+            playback.danmakuApiUrl ??= DEFAULT_SETTINGS.playback.danmakuApiUrl
+            playback.danmakuSpeed ??= DEFAULT_SETTINGS.playback.danmakuSpeed
+            playback.danmakuOpacity ??= DEFAULT_SETTINGS.playback.danmakuOpacity
+            playback.danmakuFontSize ??= DEFAULT_SETTINGS.playback.danmakuFontSize
             state.playback = playback
           }
           if (version < 14) {
