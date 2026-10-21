@@ -673,6 +673,8 @@ export default function UnifiedPlayer() {
   ])
 
   const playerRef = useRef<Artplayer | null>(null)
+  // 播放器控制栏显隐（artplayer 'control' 事件驱动），返回键与底部控制栏同步淡入淡出
+  const [controlsVisible, setControlsVisible] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
   const handleVolumeGestureChange = useCallback((volume: number) => {
     if (gestureVolumeTimerRef.current) {
@@ -791,6 +793,18 @@ export default function UnifiedPlayer() {
                 number | `${number}%`,
                 number | `${number}%`,
               ],
+              // 显示区域档位：插件默认最小 1/4，按需求扩到最低 1/5（下边距 80%）
+              MARGIN: {
+                min: 0,
+                max: 4,
+                steps: [
+                  { name: '1/5', value: [10, '80%'] },
+                  { name: '1/4', value: [10, '75%'] },
+                  { name: '半屏', value: [10, '50%'] },
+                  { name: '3/4', value: [10, '25%'] },
+                  { name: '满屏', value: [10, 10] },
+                ],
+              } as unknown as { min: number; max: number; steps: { name: string; value: number | string }[] },
               emitter: false,
               antiOverlap: true,
               synchronousPlayback: true,
@@ -951,6 +965,7 @@ export default function UnifiedPlayer() {
 
     art.on('fullscreen', syncMobileControlBar)
     art.on('fullscreenWeb', syncMobileControlBar)
+    art.on('control', (visible: boolean) => setControlsVisible(visible))
     window.addEventListener('resize', handleControlViewportChange, { passive: true })
     window.addEventListener('orientationchange', handleControlViewportChange)
 
@@ -1671,7 +1686,9 @@ export default function UnifiedPlayer() {
               type="button"
               aria-label="返回上一页"
               onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
-              className="absolute top-3 left-3 z-40 flex items-center gap-1 rounded-full bg-black/45 py-1.5 pr-3.5 pl-2.5 text-sm text-white backdrop-blur-sm transition-colors hover:bg-black/65"
+              className={`absolute top-3 left-3 z-40 flex items-center gap-1 rounded-full border border-white/20 bg-black/20 py-1.5 pr-3.5 pl-2.5 text-sm text-white backdrop-blur-sm transition-[opacity,background-color] duration-300 hover:bg-black/35 ${
+                controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
+              }`}
             >
               <ArrowLeft className="size-4" />
               返回

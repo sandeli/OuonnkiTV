@@ -57,6 +57,37 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.26',
+    title: '弹幕显示区域可调至五分之一',
+    date: formatDate('2026-10-21'),
+    features: [
+      '弹幕显示区域新增「1/5」档：播放器弹幕设置里可把显示区域调得更小（插件原本最低只到 1/4），现在五档为 1/5、1/4、半屏、3/4、满屏。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
+    version: '2.1.25',
+    title: '播放页返回键优化',
+    date: formatDate('2026-10-21'),
+    features: [
+      '播放页左上角「返回」按钮底色调淡，并与播放器控制栏联动：播放时底部状态栏自动隐去，返回键同步淡出，鼠标移动/触摸唤出控制栏时一同恢复。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
+    version: '2.1.24',
+    title: '修复管理员视频源不生效',
+    date: formatDate('2026-10-21'),
+    features: [],
+    fixes: [
+      '修复管理员后台填写的视频源保存后不生效的问题：公开配置接收时漏传了该字段，客户端一直读不到；现已补齐。',
+      '管理员视频源远程拉取失败时不再误记为已初始化，下次打开站点会自动重试拉取。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.1.23',
     title: '管理员后台可设置视频源',
     date: formatDate('2026-10-21'),

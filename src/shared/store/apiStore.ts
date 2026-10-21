@@ -41,7 +41,7 @@ interface ApiActions {
   // 取消全选
   deselectAllAPIs: () => void
   // 初始化环境变量中的视频源
-  initializeEnvSources: () => void
+  initializeEnvSources: () => Promise<number>
   // 批量导入视频源
   importVideoAPIs: (apis: VideoSource[]) => void
   // 获取选中的视频源
@@ -162,6 +162,7 @@ export const useApiStore = create<ApiStore>()(
               state.videoAPIs = fromSourceStore(newStore)
             }
           })
+          return envSources.length
         },
 
         importVideoAPIs: (apis: VideoSource[]) => {

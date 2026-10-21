@@ -106,6 +106,8 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
                 typeof data.doubanProxy.imageUrl === 'string' ? data.doubanProxy.imageUrl : '',
             }
           : DEFAULT_DOUBAN_PROXY,
+      initialVideoSources:
+        typeof data.initialVideoSources === 'string' ? data.initialVideoSources : '',
     }
   } catch {
     return {

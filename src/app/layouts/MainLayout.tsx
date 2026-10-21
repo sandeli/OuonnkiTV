@@ -50,9 +50,12 @@ export default function MainLayout() {
       localStorage.getItem('initialContentConfigId') !== initialContentConfigId
     if (needsInitialization) {
       const initialize = async () => {
-        await initializeEnvSources()
+        const importedCount = await initializeEnvSources()
         await initializeEnvSubscriptions()
-        localStorage.setItem('initialContentConfigId', initialContentConfigId)
+        // 管理员视频源已配置却拉到 0 条（多半是远程地址临时拉取失败）：不写指纹，下次打开自动重试
+        if (!(adminVideoSources.trim() && importedCount === 0)) {
+          localStorage.setItem('initialContentConfigId', initialContentConfigId)
+        }
       }
       void initialize()
     }
