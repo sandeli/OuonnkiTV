@@ -42,7 +42,7 @@ export const onRequest = async (context: PagesContext) => {
   } else {
     const row = await db
       .prepare(
-        'SELECT id, username, password_hash AS passwordHash, password_salt AS passwordSalt, role, disabled FROM users WHERE username = ?',
+        'SELECT id, username, password_hash AS passwordHash, password_salt AS passwordSalt, role, disabled, expires_at AS expiresAt FROM users WHERE username = ?',
       )
       .bind(username)
       .first<{
@@ -52,11 +52,15 @@ export const onRequest = async (context: PagesContext) => {
         passwordSalt: string
         role: string
         disabled: number
+        expiresAt: number | null
       }>()
     if (!row) return json({ error: '用户名或密码错误' }, 401)
     const ok = await verifyPassword(password, row.passwordSalt, row.passwordHash)
     if (!ok) return json({ error: '用户名或密码错误' }, 401)
     if (row.disabled === 1) return json({ error: '账号已被禁用' }, 403)
+    if (row.expiresAt !== null && row.expiresAt < loginAt) {
+      return json({ error: '账号已到期，请联系管理员' }, 403)
+    }
 
     sessionUser = {
       userId: row.id,
@@ -73,9 +77,9 @@ export const onRequest = async (context: PagesContext) => {
   const geo = getRequestGeo(context.request)
   await db
     .prepare(
-      'INSERT INTO login_logs (user_id, username, ip, user_agent, country, city, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO login_logs (user_id, username, ip, user_agent, country, region, city, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     )
-    .bind(sessionUser.userId, sessionUser.username, ip, userAgent, geo.country, geo.city, loginAt)
+    .bind(sessionUser.userId, sessionUser.username, ip, userAgent, geo.country, geo.region, geo.city, loginAt)
     .run()
 
   const { token, expiresAt } = await createSession(db, sessionUser)

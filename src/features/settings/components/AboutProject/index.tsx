@@ -2,11 +2,15 @@ import { TgysLogo } from '@/shared/components/icons'
 import { Badge } from '@/shared/components/ui/badge'
 import { Github, History, Sparkles } from 'lucide-react'
 import { useVersionStore } from '@/shared/store/versionStore'
+import { useAuthStore } from '@/shared/store/authStore'
 import { SettingsPageShell, SettingsSection } from '../common'
 
 export default function AboutProject() {
   const currentYear = new Date().getFullYear()
   const { setShowUpdateModal, currentVersion, updateHistory } = useVersionStore()
+  const canViewChangelog = useAuthStore(
+    state => state.authMode === 'server' && state.user?.role === 'admin',
+  )
   const latestUpdate = updateHistory[0]
 
   return (
@@ -76,6 +80,7 @@ export default function AboutProject() {
             </div>
           </a>
 
+          {canViewChangelog && (
           <button
             type="button"
             onClick={() => setShowUpdateModal(true)}
@@ -91,6 +96,7 @@ export default function AboutProject() {
               </div>
             </div>
           </button>
+          )}
         </div>
       </SettingsSection>
 

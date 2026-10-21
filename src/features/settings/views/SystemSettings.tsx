@@ -2,6 +2,7 @@ import NetworkSettings from '../components/NetworkSettings'
 import SearchSettings from '../components/SearchSettings'
 import ThemeSettings from '../components/ThemeSettings'
 import { useSettingStore } from '@/shared/store/settingStore'
+import { useAuthStore } from '@/shared/store/authStore'
 import { Switch } from '@/shared/components/ui/switch'
 import { Input } from '@/shared/components/ui/input'
 import {
@@ -17,6 +18,9 @@ import { getPublicEnv } from '@/shared/config/runtimeEnv'
 
 export default function SystemSettings() {
   const { system, setSystemSettings } = useSettingStore()
+  const canViewChangelog = useAuthStore(
+    state => state.authMode === 'server' && state.user?.role === 'admin',
+  )
 
   const hasEnvToken = Boolean(getPublicEnv('TGYS_TMDB_API_TOKEN'))
   const hasUserToken = Boolean(system.tmdbApiToken)
@@ -41,17 +45,19 @@ export default function SystemSettings() {
         icon={<Cog className="size-4" />}
         tone="cyan"
       >
-        <SettingsItem
-          title="自动显示更新日志"
-          description="检测到新版本时自动弹出更新说明窗口。"
-          controlClassName="self-end mt-1"
-          control={
-            <Switch
-              checked={system.isUpdateLogEnabled}
-              onCheckedChange={checked => setSystemSettings({ isUpdateLogEnabled: checked })}
-            />
-          }
-        />
+        {canViewChangelog && (
+          <SettingsItem
+            title="自动显示更新日志"
+            description="检测到新版本时自动弹出更新说明窗口（更新日志仅管理员可见）。"
+            controlClassName="self-end mt-1"
+            control={
+              <Switch
+                checked={system.isUpdateLogEnabled}
+                onCheckedChange={checked => setSystemSettings({ isUpdateLogEnabled: checked })}
+              />
+            }
+          />
+        )}
         <SettingsItem
           title="滚动收起导航动画"
           description={

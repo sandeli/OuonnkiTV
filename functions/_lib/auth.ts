@@ -52,10 +52,10 @@ export function nowSeconds(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-/** Cloudflare 边缘在请求上附带的地理信息（国家代码 + 城市），本地/非 CF 环境为空 */
-export function getRequestGeo(request: Request): { country: string; city: string } {
-  const cf = (request as Request & { cf?: { country?: string; city?: string } }).cf
-  return { country: cf?.country ?? '', city: cf?.city ?? '' }
+/** Cloudflare 边缘在请求上附带的地理信息（国家代码/省份/城市），本地/非 CF 环境为空 */
+export function getRequestGeo(request: Request): { country: string; region: string; city: string } {
+  const cf = (request as Request & { cf?: { country?: string; region?: string; city?: string } }).cf
+  return { country: cf?.country ?? '', region: cf?.region ?? '', city: cf?.city ?? '' }
 }
 
 // ---------- 建表（幂等，进程内只跑一次） ----------
@@ -128,10 +128,17 @@ export function ensureSchema(db: D1Database): Promise<void> {
           )`,
         ),
       ])
-      // 老表补列：login_logs 的国家/城市（列已存在时 ALTER 会报错，忽略即可）
-      for (const column of ['country', 'city']) {
+      // 老表补列（列已存在时 ALTER 会报错，忽略即可）
+      const columnAdditions: Array<[string, string, string]> = [
+        ['login_logs', 'country', 'TEXT'],
+        ['login_logs', 'region', 'TEXT'],
+        ['login_logs', 'city', 'TEXT'],
+        // 用户到期时间（unix 秒，NULL = 无限制），由管理员在后台设置
+        ['users', 'expires_at', 'INTEGER'],
+      ]
+      for (const [table, column, type] of columnAdditions) {
         try {
-          await db.prepare(`ALTER TABLE login_logs ADD COLUMN ${column} TEXT`).run()
+          await db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`).run()
         } catch {
           // 列已存在
         }
@@ -279,7 +286,7 @@ export async function getSessionUser(
   const row = await db
     .prepare(
       `SELECT s.user_id AS userId, s.username AS username, s.role AS role, s.expires_at AS expiresAt,
-              u.disabled AS disabled, u.id AS realUserId
+              u.disabled AS disabled, u.id AS realUserId, u.expires_at AS userExpiresAt
        FROM sessions s LEFT JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?`,
     )
@@ -291,6 +298,7 @@ export async function getSessionUser(
       expiresAt: number
       disabled: number | null
       realUserId: number | null
+      userExpiresAt: number | null
     }>()
   if (!row) return null
   if (row.expiresAt < nowSeconds()) {
@@ -299,8 +307,9 @@ export async function getSessionUser(
   }
   const isMaster = row.userId === MASTER_USER_ID
   if (!isMaster) {
-    // 账号被删或被禁用时会话立即失效
+    // 账号被删、被禁用或已到期 时会话立即失效
     if (row.realUserId === null || row.disabled === 1) return null
+    if (row.userExpiresAt !== null && row.userExpiresAt < nowSeconds()) return null
   }
   return {
     userId: row.userId,

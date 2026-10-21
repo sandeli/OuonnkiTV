@@ -10,10 +10,17 @@ export interface AuthUser {
   isMaster?: boolean
 }
 
+export interface AnnouncementConfig {
+  enabled: boolean
+  content: string
+  version: number
+}
+
 export interface AuthPublicConfig {
   authEnabled: boolean
   registrationOpen: boolean
   turnstileSiteKey: string
+  announcement: AnnouncementConfig | null
 }
 
 export class AuthApiError extends Error {
@@ -47,13 +54,22 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
     const response = await fetch('/api/auth/config')
     if (!response.ok) throw new Error('bad status')
     const data = (await response.json()) as Partial<AuthPublicConfig>
+    const announcement =
+      data.announcement && typeof data.announcement === 'object'
+        ? {
+            enabled: data.announcement.enabled === true,
+            content: typeof data.announcement.content === 'string' ? data.announcement.content : '',
+            version: typeof data.announcement.version === 'number' ? data.announcement.version : 0,
+          }
+        : null
     return {
       authEnabled: data.authEnabled === true,
       registrationOpen: data.registrationOpen === true,
       turnstileSiteKey: typeof data.turnstileSiteKey === 'string' ? data.turnstileSiteKey : '',
+      announcement,
     }
   } catch {
-    return { authEnabled: false, registrationOpen: false, turnstileSiteKey: '' }
+    return { authEnabled: false, registrationOpen: false, turnstileSiteKey: '', announcement: null }
   }
 }
 
@@ -114,6 +130,7 @@ export interface AdminUserRow {
   disabled: number
   createdAt: number
   lastLoginAt: number | null
+  expiresAt: number | null
   loginCount: number
   watchCount: number
   lastWatchAt: number | null
@@ -125,6 +142,7 @@ export interface AdminLoginLog {
   ip: string | null
   userAgent: string | null
   country: string | null
+  region: string | null
   city: string | null
   createdAt: number
 }
@@ -151,6 +169,7 @@ export interface AdminUserDetail {
     disabled: number
     createdAt: number
     lastLoginAt: number | null
+    expiresAt: number | null
   }
   loginLogs: AdminLoginLog[]
   watchRecords: AdminWatchRecord[]
@@ -176,6 +195,18 @@ export function adminSetUserDisabled(
   }, token)
 }
 
+export function adminSetUserExpiry(
+  token: string,
+  userId: number,
+  days: number,
+): Promise<{ ok: boolean; expiresAt: number | null }> {
+  return request(
+    `/api/admin/users/${userId}/expiry`,
+    { method: 'POST', body: JSON.stringify({ days }) },
+    token,
+  )
+}
+
 export function adminKickUser(token: string, userId: number): Promise<{ ok: boolean }> {
   return request(`/api/admin/users/${userId}/kick`, { method: 'POST' }, token)
 }
@@ -184,17 +215,22 @@ export function adminDeleteUser(token: string, userId: number): Promise<{ ok: bo
   return request(`/api/admin/users/${userId}`, { method: 'DELETE' }, token)
 }
 
-export async function adminGetSettings(token: string): Promise<{ registrationOpen: boolean }> {
-  return request<{ registrationOpen: boolean }>('/api/admin/settings', undefined, token)
+export interface AdminSettings {
+  registrationOpen: boolean
+  announcement: AnnouncementConfig
+}
+
+export function adminGetSettings(token: string): Promise<AdminSettings> {
+  return request<AdminSettings>('/api/admin/settings', undefined, token)
 }
 
 export function adminUpdateSettings(
   token: string,
-  registrationOpen: boolean,
-): Promise<{ ok: boolean; registrationOpen: boolean }> {
-  return request(
-    '/api/admin/settings',
-    { method: 'POST', body: JSON.stringify({ registrationOpen }) },
-    token,
-  )
+  patch: {
+    registrationOpen?: boolean
+    announcementEnabled?: boolean
+    announcementContent?: string
+  },
+): Promise<{ ok: boolean } & AdminSettings> {
+  return request('/api/admin/settings', { method: 'POST', body: JSON.stringify(patch) }, token)
 }

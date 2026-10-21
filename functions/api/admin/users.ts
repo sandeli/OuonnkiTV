@@ -10,7 +10,7 @@ export const onRequest = async (context: PagesContext) => {
   const { results } = await db
     .prepare(
       `SELECT u.id AS id, u.username AS username, u.role AS role, u.disabled AS disabled,
-              u.created_at AS createdAt, u.last_login_at AS lastLoginAt,
+              u.created_at AS createdAt, u.last_login_at AS lastLoginAt, u.expires_at AS expiresAt,
               (SELECT COUNT(*) FROM login_logs l WHERE l.user_id = u.id) AS loginCount,
               (SELECT COUNT(*) FROM watch_records w WHERE w.user_id = u.id) AS watchCount,
               (SELECT MAX(w.updated_at) FROM watch_records w WHERE w.user_id = u.id) AS lastWatchAt,

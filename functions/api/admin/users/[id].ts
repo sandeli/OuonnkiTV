@@ -17,7 +17,7 @@ export const onRequest = async (context: PagesContext) => {
   if (context.request.method === 'GET') {
     const user = await db
       .prepare(
-        'SELECT id, username, role, disabled, created_at AS createdAt, last_login_at AS lastLoginAt FROM users WHERE id = ?',
+        'SELECT id, username, role, disabled, created_at AS createdAt, last_login_at AS lastLoginAt, expires_at AS expiresAt FROM users WHERE id = ?',
       )
       .bind(userId)
       .first()
@@ -25,7 +25,7 @@ export const onRequest = async (context: PagesContext) => {
 
     const loginLogs = await db
       .prepare(
-        'SELECT id, ip, user_agent AS userAgent, country, city, created_at AS createdAt FROM login_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
+        'SELECT id, ip, user_agent AS userAgent, country, region, city, created_at AS createdAt FROM login_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 10',
       )
       .bind(userId)
       .all()
@@ -34,7 +34,7 @@ export const onRequest = async (context: PagesContext) => {
         `SELECT id, title, source_code AS sourceCode, source_name AS sourceName, vod_id AS vodId,
                 episode_index AS episodeIndex, episode_name AS episodeName, progress, duration,
                 created_at AS createdAt, updated_at AS updatedAt
-         FROM watch_records WHERE user_id = ? ORDER BY updated_at DESC LIMIT 100`,
+         FROM watch_records WHERE user_id = ? ORDER BY updated_at DESC LIMIT 10`,
       )
       .bind(userId)
       .all()

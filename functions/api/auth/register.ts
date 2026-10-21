@@ -67,9 +67,9 @@ export const onRequest = async (context: PagesContext) => {
   const geo = getRequestGeo(context.request)
   await db
     .prepare(
-      'INSERT INTO login_logs (user_id, username, ip, user_agent, country, city, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO login_logs (user_id, username, ip, user_agent, country, region, city, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     )
-    .bind(userId, username, ip, userAgent, geo.country, geo.city, createdAt)
+    .bind(userId, username, ip, userAgent, geo.country, geo.region, geo.city, createdAt)
     .run()
 
   const { token, expiresAt } = await createSession(db, {

@@ -6,6 +6,7 @@ import { CustomAnimatedOutlet } from '@/shared/components/AnimatedOutlet'
 import BackToTopButton from '@/shared/components/BackToTopButton'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useVersionStore } from '@/shared/store/versionStore'
+import { useAuthStore } from '@/shared/store/authStore'
 import { useSettingStore } from '@/shared/store/settingStore'
 import { useApiStore } from '@/shared/store/apiStore'
 import { useSubscriptionStore } from '@/shared/store/subscriptionStore'
@@ -18,6 +19,10 @@ const UpdateModal = lazy(() => import('@/shared/components/UpdateModal'))
 
 export default function MainLayout() {
   const { hasNewVersion, setShowUpdateModal } = useVersionStore()
+  // 更新日志仅管理员可见（账号模式下的站长）
+  const canViewChangelog = useAuthStore(
+    state => state.authMode === 'server' && state.user?.role === 'admin',
+  )
   const { system } = useSettingStore()
   const { initializeEnvSources } = useApiStore()
   const { initializeEnvSubscriptions } = useSubscriptionStore()
@@ -47,12 +52,12 @@ export default function MainLayout() {
     }
   }, [initializeEnvSources, initializeEnvSubscriptions])
 
-  // 版本更新检查
+  // 版本更新检查（仅管理员：普通用户不弹更新日志）
   useEffect(() => {
-    if (hasNewVersion() && system.isUpdateLogEnabled) {
+    if (canViewChangelog && hasNewVersion() && system.isUpdateLogEnabled) {
       setShowUpdateModal(true)
     }
-  }, [hasNewVersion, setShowUpdateModal, system.isUpdateLogEnabled])
+  }, [canViewChangelog, hasNewVersion, setShowUpdateModal, system.isUpdateLogEnabled])
 
   return (
     <SidebarProvider
@@ -85,9 +90,11 @@ export default function MainLayout() {
                       : pathname
                   }
                 />
-                <Suspense fallback={null}>
-                  <UpdateModal />
-                </Suspense>
+                {canViewChangelog && (
+                  <Suspense fallback={null}>
+                    <UpdateModal />
+                  </Suspense>
+                )}
               </ScrollArea>
               <BackToTopButton scrollRootSelector="[data-main-scroll-area]" />
             </div>
