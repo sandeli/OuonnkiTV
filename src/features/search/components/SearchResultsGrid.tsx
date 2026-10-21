@@ -111,25 +111,35 @@ export function SearchResultsGrid({
   sentinelRef,
   className,
 }: SearchResultsGridProps) {
-  // 直连模式排序：先按标题与搜索词的匹配度分档（精准的在前），同档内按源速从快到慢，未测速排最后
+  // 直连模式排序：先按标题匹配度分档（精准的在前），同档内按播放测速从快到慢；
+  // 播放速度未测到时先用接口速度代替，测到后自动归位；都未测到的排最后
   const directResultsSorted = useMemo(() => {
     const query = directQuery?.trim() ?? ''
-    if (!query && (!sourceLatencies || sourceLatencies.size === 0)) return directResults
+    const hasAnySpeed =
+      (sourceLatencies && sourceLatencies.size > 0) ||
+      (playbackLatencies && playbackLatencies.size > 0)
+    if (!query && !hasAnySpeed) return directResults
     const latencyOf = (item: VideoItem) =>
       (item.source_code ? sourceLatencies?.get(item.source_code) : undefined) ??
       Number.POSITIVE_INFINITY
+    const speedOf = (item: VideoItem) => {
+      const playback = item.source_code ? playbackLatencies?.get(item.source_code) : undefined
+      return playback !== undefined ? playback : latencyOf(item)
+    }
     return directResults
       .map((item, index) => ({ item, index }))
       .sort((x, y) => {
         const tierDiff =
           getTitleMatchTier(x.item.vod_name, query) - getTitleMatchTier(y.item.vod_name, query)
         if (tierDiff !== 0) return tierDiff
+        const speedDiff = speedOf(x.item) - speedOf(y.item)
+        if (speedDiff !== 0) return speedDiff
         const latencyDiff = latencyOf(x.item) - latencyOf(y.item)
         if (latencyDiff !== 0) return latencyDiff
         return x.index - y.index
       })
       .map(entry => entry.item)
-  }, [directResults, sourceLatencies, directQuery])
+  }, [directResults, sourceLatencies, playbackLatencies, directQuery])
 
   // TMDB 模式：显示所有结果
   if (mode === 'tmdb') {
@@ -206,7 +216,9 @@ export function SearchResultsGrid({
   const results = directResultsSorted
   const validResults = results.filter(item => item.source_code && item.vod_id)
   const hasResults = results.length > 0
-  const sortedBySpeed = !!sourceLatencies && sourceLatencies.size > 0
+  const sortedBySpeed =
+    (!!sourceLatencies && sourceLatencies.size > 0) ||
+    (!!playbackLatencies && playbackLatencies.size > 0)
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -216,7 +228,7 @@ export function SearchResultsGrid({
         {hasResults && (
           <div className="text-muted-foreground text-sm">
             共找到 <span className="text-primary font-medium">{results.length}</span> 个结果
-            {sortedBySpeed && <span> · 已按匹配度优先、同档按源速排列</span>}
+            {sortedBySpeed && <span> · 已按匹配度优先、同档按播放速度排列</span>}
           </div>
         )}
         {/* 右侧：源状态徽章 */}
