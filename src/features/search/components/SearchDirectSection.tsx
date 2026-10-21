@@ -20,6 +20,7 @@ export function SearchDirectSection({ query }: SearchDirectSectionProps) {
     cmsPagination,
     successfulSourcesInCurrentPage,
     sourceLatencies,
+    playbackLatencies,
     startDirectSearch,
     abortDirectSearch,
     clearDirectSearchState,
@@ -67,6 +68,7 @@ export function SearchDirectSection({ query }: SearchDirectSectionProps) {
           searchProgress={searchProgress}
           successfulSources={successfulSourcesInCurrentPage}
           sourceLatencies={sourceLatencies}
+          playbackLatencies={playbackLatencies}
           directQuery={query}
           totalResults={cmsPagination.totalResults}
           hasMore={hasMore}

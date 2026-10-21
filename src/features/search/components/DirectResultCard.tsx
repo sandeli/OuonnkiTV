@@ -22,8 +22,10 @@ interface DirectResultCardProps {
   remarks?: string
   /** 影片规格（分辨率，如 1080P / 2K / 4K）- 绿色实心标 */
   resolution?: string | null
-  /** 该源测速耗时（毫秒）- 绿色描边标 */
+  /** 该源接口测速耗时（毫秒）- 绿色描边标 */
   latencyMs?: number
+  /** 该源播放线路测速耗时（毫秒，浏览器直连分集地址）- 蓝色描边标 */
+  playbackLatencyMs?: number
   /** 语言（如「汉语普通话」） */
   lang?: string
 }
@@ -42,6 +44,7 @@ export function DirectResultCard({
   remarks,
   resolution,
   latencyMs,
+  playbackLatencyMs,
   lang,
 }: DirectResultCardProps) {
   const [imgError, setImgError] = useState(false)
@@ -109,7 +112,7 @@ export function DirectResultCard({
         <div className="px-2 py-3 text-center">
           <p className="text-primary line-clamp-1 text-sm font-semibold">{title}</p>
 
-          {(resolution || latencyMs !== undefined) && (
+          {(resolution || latencyMs !== undefined || playbackLatencyMs !== undefined) && (
             <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
               {resolution && (
                 <span className="rounded bg-green-500 px-1.5 py-0.5 text-[11px] font-bold text-white">
@@ -117,8 +120,19 @@ export function DirectResultCard({
                 </span>
               )}
               {latencyMs !== undefined && (
-                <span className="rounded-full border border-green-500 px-2 py-0.5 text-[11px] font-medium text-green-600 dark:text-green-400">
-                  {latencyMs}ms
+                <span
+                  className="rounded-full border border-green-500 px-2 py-0.5 text-[11px] font-medium text-green-600 dark:text-green-400"
+                  title="接口速度：浏览器经本站代理请求该源搜索接口的往返耗时"
+                >
+                  接口 {latencyMs}ms
+                </span>
+              )}
+              {playbackLatencyMs !== undefined && (
+                <span
+                  className="rounded-full border border-sky-500 px-2 py-0.5 text-[11px] font-medium text-sky-600 dark:text-sky-400"
+                  title="播放速度：浏览器直连该源视频地址的首字节耗时"
+                >
+                  播放 {playbackLatencyMs}ms
                 </span>
               )}
             </div>

@@ -56,12 +56,91 @@ export function useDirectSearch() {
     if (changed) setSourceLatencies(new Map(sourceLatencyRef.current))
   }, [])
 
+  // 各源播放线路测速：源 ID -> 浏览器直连该源分集地址的首字节耗时（毫秒）
+  const [playbackLatencies, setPlaybackLatencies] = useState<Map<string, number>>(new Map())
+  const playbackLatencyRef = useRef<Map<string, number>>(new Map())
+  const probedSourcesRef = useRef<Set<string>>(new Set())
+  const probeQueueRef = useRef<Array<{ source: VideoSource; vodId: string }>>([])
+  const activeProbesRef = useRef(0)
+  const probeVersionRef = useRef(0)
+
   const { videoAPIs } = useApiStore()
   const cmsClient = useCmsClient()
+  const cmsClientRef = useRef(cmsClient)
+  cmsClientRef.current = cmsClient
+
+  // 对单个源做播放线路探测：取详情第一集地址，浏览器直连计时（只测到响应头到达，不下载正片）
+  const runProbe = useCallback(async (source: VideoSource, vodId: string, version: number) => {
+    try {
+      const detail = await cmsClientRef.current.getDetail(vodId, source)
+      if (version !== probeVersionRef.current) return
+      const episodeUrl = detail.episodes?.[0]
+      if (!detail.success || !episodeUrl) return
+
+      let parsed: URL
+      try {
+        parsed = new URL(episodeUrl)
+      } catch {
+        return
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
+
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 6000)
+      const start = performance.now()
+      try {
+        const response = await fetch(episodeUrl, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        const latency = Math.round(performance.now() - start)
+        // 只测线路速度，拿到响应头即可中止正文下载
+        void response.body?.cancel().catch(() => {})
+        if (version !== probeVersionRef.current) return
+        playbackLatencyRef.current.set(source.id, latency)
+        setPlaybackLatencies(new Map(playbackLatencyRef.current))
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch {
+      // 探测失败（跨域限制/超时/无分集地址）静默处理，卡片不展示播放耗时
+    }
+  }, [])
+
+  const pumpProbeQueue = useCallback(() => {
+    const MAX_CONCURRENT_PROBES = 3
+    while (activeProbesRef.current < MAX_CONCURRENT_PROBES && probeQueueRef.current.length > 0) {
+      const job = probeQueueRef.current.shift()
+      if (!job) break
+      activeProbesRef.current += 1
+      void runProbe(job.source, job.vodId, probeVersionRef.current).finally(() => {
+        activeProbesRef.current -= 1
+        pumpProbeQueue()
+      })
+    }
+  }, [runProbe])
 
   const selectedAPIs = useMemo(() => {
     return videoAPIs.filter(api => api.isEnabled)
   }, [videoAPIs])
+
+  // 结果到达后，为每个有结果的源排队探测一次（每轮搜索每源只测一次）
+  useEffect(() => {
+    if (directResults.length === 0) return
+    const seen = new Set<string>()
+    for (const item of directResults) {
+      const code = item.source_code
+      if (!code || seen.has(code)) continue
+      seen.add(code)
+      if (probedSourcesRef.current.has(code)) continue
+      const source = selectedAPIs.find(api => api.id === code)
+      if (!source || !item.vod_id) continue
+      probedSourcesRef.current.add(code)
+      probeQueueRef.current.push({ source, vodId: String(item.vod_id) })
+    }
+    pumpProbeQueue()
+  }, [directResults, selectedAPIs, pumpProbeQueue])
 
   const fetchDirectSearch = useCallback(async (keyword: string, page: number = 1) => {
     if (!keyword || selectedAPIs.length === 0) return
@@ -83,6 +162,12 @@ export function useDirectSearch() {
       sourcePaginationCacheRef.current.clear()
       sourceLatencyRef.current.clear()
       setSourceLatencies(new Map())
+      // 播放测速状态一并重置，并让上一轮未完成的探测失效
+      probeVersionRef.current += 1
+      probedSourcesRef.current.clear()
+      probeQueueRef.current = []
+      playbackLatencyRef.current.clear()
+      setPlaybackLatencies(new Map())
       setCompletedSourcesInCurrentPage(new Set())
       setSuccessfulSourcesInCurrentPage(new Set())
     } else {
@@ -310,6 +395,11 @@ export function useDirectSearch() {
     setHasMore(true)
     sourceLatencyRef.current.clear()
     setSourceLatencies(new Map())
+    probeVersionRef.current += 1
+    probedSourcesRef.current.clear()
+    probeQueueRef.current = []
+    playbackLatencyRef.current.clear()
+    setPlaybackLatencies(new Map())
     setCompletedSourcesInCurrentPage(new Set())
     setSuccessfulSourcesInCurrentPage(new Set())
     sourcesToFetchRef.current = []
@@ -345,6 +435,7 @@ export function useDirectSearch() {
     canLoadMore,
     successfulSourcesInCurrentPage,
     sourceLatencies,
+    playbackLatencies,
     startDirectSearch: fetchDirectSearch,
     abortDirectSearch,
     clearDirectSearchState,

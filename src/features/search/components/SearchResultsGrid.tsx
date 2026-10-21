@@ -31,6 +31,8 @@ interface SearchResultsGridProps {
   successfulSources?: Set<string>
   /** 各源响应耗时（毫秒）：直连模式按源速从快到慢排序结果 */
   sourceLatencies?: Map<string, number>
+  /** 各源播放线路测速（源 ID -> 浏览器直连分集地址首字节耗时，毫秒） */
+  playbackLatencies?: Map<string, number>
   /** 总结果数量（来自 API 分页信息） */
   totalResults?: number
   /** 是否正在搜索新查询（用于显示骨架屏） */
@@ -101,6 +103,7 @@ export function SearchResultsGrid({
   searchProgress,
   successfulSources,
   sourceLatencies,
+  playbackLatencies,
   totalResults,
   isSearchingNewQuery,
   hasMore = false,
@@ -252,6 +255,7 @@ export function SearchResultsGrid({
                   remarks={item.vod_remarks || undefined}
                   resolution={extractResolution(item)}
                   latencyMs={sourceLatencies?.get(sourceCode)}
+                  playbackLatencyMs={playbackLatencies?.get(sourceCode)}
                   lang={item.vod_lang || undefined}
                 />
               )
