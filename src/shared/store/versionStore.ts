@@ -57,6 +57,14 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.15',
+    title: '公告弹窗自适应大小',
+    date: formatDate('2026-10-21'),
+    features: [],
+    fixes: ['首页公告弹窗改为按内容自适应大小（宽度随文案伸缩，最小 340px、最大 580px，长公告内部滚动），「知道了」按钮改居中显示。'],
+    breaking: [],
+  },
+  {
     version: '2.1.14',
     title: '换源列表排版整齐化',
     date: formatDate('2026-10-21'),

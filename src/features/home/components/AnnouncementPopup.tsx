@@ -47,16 +47,20 @@ export function AnnouncementPopup() {
         if (!next) markSeenAndClose()
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[88vh] sm:w-auto sm:max-w-[min(580px,92vw)] sm:min-w-[340px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Megaphone className="size-5" />
             公告
           </DialogTitle>
         </DialogHeader>
-        <div className="text-sm leading-relaxed whitespace-pre-wrap">{announcement.content}</div>
-        <DialogFooter>
-          <Button onClick={markSeenAndClose}>知道了</Button>
+        <div className="overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap">
+          {announcement.content}
+        </div>
+        <DialogFooter className="sm:justify-center">
+          <Button className="min-w-28" onClick={markSeenAndClose}>
+            知道了
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
