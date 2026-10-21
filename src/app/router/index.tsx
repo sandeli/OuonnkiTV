@@ -4,6 +4,7 @@ import { TgysLogo } from '@/shared/components/icons'
 
 // Layouts
 import MainLayout from '@/app/layouts/MainLayout'
+import RouteErrorBoundary from '@/app/router/RouteErrorBoundary'
 import SettingsLayout from '@/app/layouts/SettingsLayout'
 
 // Auth
@@ -62,6 +63,7 @@ const router = createBrowserRouter([
   {
     path: '/',
     element: <MainLayout />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         index: true,

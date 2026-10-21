@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.30',
+    title: '修复发新版后旧页面报错',
+    date: formatDate('2026-10-21'),
+    features: [],
+    fixes: [
+      '修复站点发布新版本后，还开着旧页面的用户点进某些页面时报「Failed to fetch dynamically imported module」的原始错误页：现在会自动刷新一次切换到新版本（带防重复刷新保护），其他错误也改为友好的错误页（刷新/回首页）。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.1.29',
     title: '管理员开关视频源全站生效',
     date: formatDate('2026-10-21'),
