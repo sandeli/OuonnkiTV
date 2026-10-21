@@ -15,7 +15,12 @@ function setAdminSources(value: string, managedSourceEnabled: Record<string, boo
 
 describe('apiStore 管理员托管源标记', () => {
   beforeEach(() => {
-    useApiStore.setState({ videoAPIs: [], managedSourceIds: [], adFilteringEnabled: true })
+    useApiStore.setState({
+      videoAPIs: [],
+      managedSourceIds: [],
+      managedTrackingVersion: 1,
+      adFilteringEnabled: true,
+    })
     setAdminSources('')
   })
 
@@ -25,6 +30,56 @@ describe('apiStore 管理员托管源标记', () => {
     const state = useApiStore.getState()
     expect(state.videoAPIs.map(s => s.id).sort()).toEqual(['a', 'b'])
     expect([...state.managedSourceIds].sort()).toEqual(['a', 'b'])
+  })
+
+  it('替换源文件后，同 id 的源按新文件内容更新', async () => {
+    setAdminSources(SRC_AB)
+    await useApiStore.getState().initializeEnvSources()
+    const updated =
+      '[{"id":"a","name":"源A改","url":"https://a2.example/api.php/provide/vod"}]'
+    setAdminSources(updated)
+    await useApiStore.getState().initializeEnvSources()
+    const state = useApiStore.getState()
+    expect(state.videoAPIs).toHaveLength(1)
+    expect(state.videoAPIs[0].name).toBe('源A改')
+    expect(state.videoAPIs[0].url).toBe('https://a2.example/api.php/provide/vod')
+  })
+
+  it('存量补标记：旧版本导入的残留源被清掉，手动添加的 uuid 源保留', async () => {
+    // 模拟托管标记功能上线前就已存在的本地数据（无任何标记记录）
+    useApiStore.setState({
+      videoAPIs: [
+        {
+          id: 'stale1',
+          name: '残留源',
+          url: 'https://stale.example/api.php/provide/vod',
+          detailUrl: 'https://stale.example/api.php/provide/vod',
+          isEnabled: true,
+          updatedAt: new Date(),
+          timeout: 3000,
+          retry: 3,
+        } as never,
+        {
+          id: '123e4567-e89b-42d3-a456-426614174000',
+          name: '手动源',
+          url: 'https://manual.example/api.php/provide/vod',
+          detailUrl: 'https://manual.example/api.php/provide/vod',
+          isEnabled: true,
+          updatedAt: new Date(),
+          timeout: 3000,
+          retry: 3,
+        } as never,
+      ],
+      managedSourceIds: [],
+      managedTrackingVersion: 0,
+    })
+    setAdminSources(SRC_A)
+    await useApiStore.getState().initializeEnvSources()
+    const ids = useApiStore.getState().videoAPIs.map(s => s.id)
+    expect(ids).not.toContain('stale1')
+    expect(ids).toContain('123e4567-e89b-42d3-a456-426614174000')
+    expect(ids).toContain('a')
+    expect(useApiStore.getState().managedSourceIds).toEqual(['a'])
   })
 
   it('管理员换源后，旧托管源被移除，用户自加源保留', async () => {

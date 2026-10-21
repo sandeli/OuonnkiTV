@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.31',
+    title: '修复后台替换视频源后旧源残留',
+    date: formatDate('2026-10-21'),
+    features: [],
+    fixes: [
+      '修复管理员在后台替换视频源后，各用户本地还残留旧源的问题：托管源改为整体镜像同步（替换后增删、改名、改地址都如实生效），并对旧版本导入的历史残留源做一次性清理；手动添加的源与订阅源不受影响。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.1.30',
     title: '修复发新版后旧页面报错',
     date: formatDate('2026-10-21'),

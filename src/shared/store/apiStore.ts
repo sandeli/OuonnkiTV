@@ -31,6 +31,8 @@ interface ApiState {
   // 管理员统一提供的源（环境变量/管理员后台设置的初始源）的 id 集合：
   // 这些源对所有用户生效，但普通用户的「视频源管理」列表中不显示，只能看到自己添加的源
   managedSourceIds: string[]
+  // 托管标记的存量补全版本：0 = 还没给旧版本导入的源补过标记
+  managedTrackingVersion: number
 }
 
 interface ApiActions {
@@ -90,6 +92,7 @@ export const useApiStore = create<ApiStore>()(
         videoAPIs: [],
         adFilteringEnabled: true,
         managedSourceIds: [],
+        managedTrackingVersion: 0,
 
         // Actions - 使用cms-core纯函数
         setApiEnabled: (apiId: string, enabled: boolean) => {
@@ -162,21 +165,39 @@ export const useApiStore = create<ApiStore>()(
               state.adFilteringEnabled = INITIAL_CONFIG.adFilteringEnabled
             }
             if (envSources.length > 0) {
+              // 存量补标记（一次性）：托管标记功能上线前导入的源没有记录，
+              // 若管理员此后已替换过源文件，没被标记的旧源会永远残留。这里把
+              // 「非手动添加（uuid）、非订阅源（sub: 前缀）」的现存源补记为托管源，
+              // 交给下面的镜像替换统一清理。手动添加与订阅源不受影响。
+              if (state.managedTrackingVersion < 1 && state.managedSourceIds.length === 0) {
+                const uuidPattern =
+                  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+                state.managedSourceIds = state.videoAPIs
+                  .filter(s => !uuidPattern.test(s.id) && !s.id.startsWith('sub:'))
+                  .map(s => s.id)
+              }
+              state.managedTrackingVersion = 1
+
+              // 托管源整体镜像：先摘除旧托管源再导入最新列表，管理员替换源文件后
+              // 增删、改名、改地址都如实生效，不再被导入的「已存在跳过」卡住；
+              // 拉取失败返回空时整段不执行（外层已按 0 条处理为下次重试）。
+              const previousManaged = new Set(state.managedSourceIds)
+              const insertAt = state.videoAPIs.findIndex(s => previousManaged.has(s.id))
+              state.videoAPIs = state.videoAPIs.filter(s => !previousManaged.has(s.id))
               const store = toSourceStore(state)
               const { store: newStore } = importSources(store, envSources, {
                 defaultTimeout: useSettingStore.getState().network.defaultTimeout,
                 defaultRetry: useSettingStore.getState().network.defaultRetry,
                 skipInvalid: true,
               })
-              state.videoAPIs = fromSourceStore(newStore)
-              // 更新托管标记：此前由管理员提供、但新列表里已没有的源一并移除；
-              // 用户自己添加的源（不在旧托管集合里）不受影响。拉取失败返回空时不更新，
-              // 避免把托管源误清（见上方 return 的计数约定）。
-              const nextManaged = new Set(envSources.map(s => s.id))
-              state.videoAPIs = state.videoAPIs.filter(
-                s => !state.managedSourceIds.includes(s.id) || nextManaged.has(s.id),
-              )
-              state.managedSourceIds = [...nextManaged]
+              const merged = fromSourceStore(newStore)
+              // 托管源回到它们原来所在的位置，避免每次初始化后列表顺序大洗牌
+              const freshIds = new Set(envSources.map(s => s.id))
+              const imported = merged.filter(s => freshIds.has(s.id))
+              const rest = merged.filter(s => !freshIds.has(s.id))
+              const at = insertAt === -1 ? rest.length : Math.min(insertAt, rest.length)
+              state.videoAPIs = [...rest.slice(0, at), ...imported, ...rest.slice(at)]
+              state.managedSourceIds = [...freshIds]
             }
           })
           return envSources.length
@@ -295,6 +316,9 @@ export const useApiStore = create<ApiStore>()(
 
           if (!Array.isArray(state.managedSourceIds)) {
             state.managedSourceIds = []
+          }
+          if (typeof state.managedTrackingVersion !== 'number') {
+            state.managedTrackingVersion = 0
           }
 
           if (version < 5) {
