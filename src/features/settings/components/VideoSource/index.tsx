@@ -333,7 +333,7 @@ export default function VideoSource() {
           <>
             {/* 已启用统计 + 拖拽排序提示 */}
             <div className="flex items-center justify-between gap-2">
-              <Badge variant="secondary" className="bg-sky-500/14 text-sky-700 dark:text-sky-300">
+              <Badge variant="secondary" className="bg-sky-500/14 text-sky-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                 已启用 {getSelectedAPIs().length}/{videoAPIs.length}
               </Badge>
               <div className="text-muted-foreground/60 flex items-center gap-1.5 text-xs">

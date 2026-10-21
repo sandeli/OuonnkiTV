@@ -1,7 +1,10 @@
 import {
+  DOUBAN_DATA_PROXY_TYPES,
+  DOUBAN_IMAGE_PROXY_TYPES,
   getSetting,
   isRegistrationOpen,
   json,
+  readDoubanProxySettings,
   readJson,
   requireAdmin,
   setSetting,
@@ -33,6 +36,7 @@ export const onRequest = async (context: PagesContext) => {
       registrationOpen: await isRegistrationOpen(db, context.env),
       announcement: await readAnnouncement(db),
       announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
+      doubanProxy: await readDoubanProxySettings(db),
     })
   }
 
@@ -42,6 +46,10 @@ export const onRequest = async (context: PagesContext) => {
       announcementEnabled?: unknown
       announcementContent?: unknown
       announcementBarContent?: unknown
+      doubanDataProxyType?: unknown
+      doubanDataProxyUrl?: unknown
+      doubanImageProxyType?: unknown
+      doubanImageProxyUrl?: unknown
     }>(context.request)
 
     if (typeof body?.registrationOpen === 'boolean') {
@@ -66,11 +74,31 @@ export const onRequest = async (context: PagesContext) => {
       await setSetting(db, 'announcement_bar_content', body.announcementBarContent.slice(0, 500))
     }
 
+    if (
+      typeof body?.doubanDataProxyType === 'string' &&
+      (DOUBAN_DATA_PROXY_TYPES as readonly string[]).includes(body.doubanDataProxyType)
+    ) {
+      await setSetting(db, 'douban_data_proxy_type', body.doubanDataProxyType)
+    }
+    if (typeof body?.doubanDataProxyUrl === 'string') {
+      await setSetting(db, 'douban_data_proxy_url', body.doubanDataProxyUrl.trim().slice(0, 500))
+    }
+    if (
+      typeof body?.doubanImageProxyType === 'string' &&
+      (DOUBAN_IMAGE_PROXY_TYPES as readonly string[]).includes(body.doubanImageProxyType)
+    ) {
+      await setSetting(db, 'douban_image_proxy_type', body.doubanImageProxyType)
+    }
+    if (typeof body?.doubanImageProxyUrl === 'string') {
+      await setSetting(db, 'douban_image_proxy_url', body.doubanImageProxyUrl.trim().slice(0, 500))
+    }
+
     return json({
       ok: true,
       registrationOpen: await isRegistrationOpen(db, context.env),
       announcement: await readAnnouncement(db),
       announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
+      doubanProxy: await readDoubanProxySettings(db),
     })
   }
 

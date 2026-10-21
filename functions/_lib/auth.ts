@@ -349,6 +349,57 @@ export async function requireAdmin(
 
 // ---------- 站点设置（注册开关） ----------
 
+export const DOUBAN_DATA_PROXY_TYPES = [
+  'direct',
+  'cors-proxy-zwei',
+  'cmliussss-cdn-tencent',
+  'cmliussss-cdn-ali',
+  'custom',
+] as const
+
+export const DOUBAN_IMAGE_PROXY_TYPES = [
+  'server',
+  'direct',
+  'img3',
+  'cmliussss-cdn-tencent',
+  'cmliussss-cdn-ali',
+  'custom',
+] as const
+
+export interface DoubanProxySettings {
+  dataType: string
+  dataUrl: string
+  imageType: string
+  imageUrl: string
+}
+
+export const DEFAULT_DOUBAN_PROXY: DoubanProxySettings = {
+  dataType: 'direct',
+  dataUrl: '',
+  imageType: 'server',
+  imageUrl: '',
+}
+
+/** 读取豆瓣代理设置（管理员后台配置，存 settings 表）；非法值回退默认 */
+export async function readDoubanProxySettings(db: D1Database): Promise<DoubanProxySettings> {
+  const [dataType, dataUrl, imageType, imageUrl] = await Promise.all([
+    getSetting(db, 'douban_data_proxy_type'),
+    getSetting(db, 'douban_data_proxy_url'),
+    getSetting(db, 'douban_image_proxy_type'),
+    getSetting(db, 'douban_image_proxy_url'),
+  ])
+  return {
+    dataType: (DOUBAN_DATA_PROXY_TYPES as readonly string[]).includes(dataType ?? '')
+      ? (dataType as string)
+      : DEFAULT_DOUBAN_PROXY.dataType,
+    dataUrl: dataUrl ?? '',
+    imageType: (DOUBAN_IMAGE_PROXY_TYPES as readonly string[]).includes(imageType ?? '')
+      ? (imageType as string)
+      : DEFAULT_DOUBAN_PROXY.imageType,
+    imageUrl: imageUrl ?? '',
+  }
+}
+
 export async function getSetting(db: D1Database, key: string): Promise<string | null> {
   const row = await db
     .prepare('SELECT value FROM settings WHERE key = ?')

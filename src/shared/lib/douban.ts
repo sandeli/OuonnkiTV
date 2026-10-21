@@ -1,4 +1,6 @@
 import { buildProxyRequestUrl } from '@/shared/config/api.config'
+import { DEFAULT_DOUBAN_PROXY, type DoubanProxyConfig } from '@/shared/lib/authApi'
+import { useAuthStore } from '@/shared/store/authStore'
 import { useSettingStore } from '@/shared/store/settingStore'
 
 /**
@@ -48,7 +50,8 @@ const PAGE_LIMIT = 18
 const cache = new Map<string, DoubanSubject[]>()
 
 function cacheKey(category: DoubanCategory) {
-  return `${category.type}:${category.tag}`
+  const proxy = doubanProxyConfig()
+  return `${category.type}:${category.tag}:${proxy.dataType}:${proxy.dataUrl}`
 }
 
 function proxyUrlFromSettings(): string | undefined {
@@ -56,6 +59,80 @@ function proxyUrlFromSettings(): string | undefined {
     return useSettingStore.getState().network.proxyUrl
   } catch {
     return undefined
+  }
+}
+
+/** 豆瓣代理配置（管理员后台设置，经公开配置下发；缺失时用默认：数据本站转发 / 图片本站代理） */
+export function doubanProxyConfig(): DoubanProxyConfig {
+  try {
+    return useAuthStore.getState().authConfig?.doubanProxy ?? DEFAULT_DOUBAN_PROXY
+  } catch {
+    return DEFAULT_DOUBAN_PROXY
+  }
+}
+
+const ZWEI_CORS_PROXY = 'https://ciao-cors.is-an.org/'
+
+function swapDoubanHost(target: string, host: string): string {
+  return target.replace(/^(https?:\/\/)(?:movie|m)\.douban\.com/, `$1${host}`)
+}
+
+/**
+ * 按数据代理设置生成豆瓣接口的实际请求地址（纯函数，便于测试）。
+ * - direct：经本站 /proxy 由服务器直接请求豆瓣（当前方式）
+ * - cors-proxy-zwei：浏览器经 Zwei 的 CORS 代理转发
+ * - cmliussss-cdn-*：浏览器直连 CMLiussss 的豆瓣 CDN 镜像域名
+ * - custom：自定义代理前缀 + 编码后的目标地址
+ */
+export function buildDoubanDataRequestUrl(
+  target: string,
+  config: DoubanProxyConfig,
+  siteProxy?: string,
+): string {
+  switch (config.dataType) {
+    case 'cors-proxy-zwei':
+      return `${ZWEI_CORS_PROXY}${encodeURIComponent(target)}`
+    case 'cmliussss-cdn-tencent':
+      return swapDoubanHost(target, 'movie.douban.cmliussss.net')
+    case 'cmliussss-cdn-ali':
+      return swapDoubanHost(target, 'movie.douban.cmliussss.com')
+    case 'custom':
+      return config.dataUrl.trim()
+        ? `${config.dataUrl.trim()}${encodeURIComponent(target)}`
+        : buildProxyRequestUrl(target, siteProxy)
+    case 'direct':
+    default:
+      return buildProxyRequestUrl(target, siteProxy)
+  }
+}
+
+/**
+ * 按图片代理设置生成豆瓣海报的实际加载地址（纯函数，便于测试）。
+ * 非 doubanio 域名直接原样返回。
+ */
+export function buildDoubanPosterUrl(
+  cover: string,
+  config: DoubanProxyConfig,
+  siteProxy?: string,
+): string {
+  if (!cover) return ''
+  if (!cover.includes('doubanio.com')) return cover
+  switch (config.imageType) {
+    case 'direct':
+      return cover
+    case 'img3':
+      return cover.replace(/img\d+\.doubanio\.com/g, 'img3.doubanio.com')
+    case 'cmliussss-cdn-tencent':
+      return cover.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.net')
+    case 'cmliussss-cdn-ali':
+      return cover.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.com')
+    case 'custom':
+      return config.imageUrl.trim()
+        ? `${config.imageUrl.trim()}${encodeURIComponent(cover)}`
+        : buildProxyRequestUrl(cover, siteProxy)
+    case 'server':
+    default:
+      return buildProxyRequestUrl(cover, siteProxy)
   }
 }
 
@@ -71,7 +148,9 @@ export async function fetchDoubanCategory(category: DoubanCategory): Promise<Dou
     `&page_limit=${PAGE_LIMIT}&page_start=0`
 
   try {
-    const response = await fetch(buildProxyRequestUrl(target, proxyUrlFromSettings()))
+    const response = await fetch(
+      buildDoubanDataRequestUrl(target, doubanProxyConfig(), proxyUrlFromSettings()),
+    )
     if (!response.ok) return []
     const data = (await response.json()) as { subjects?: unknown }
     const subjects = Array.isArray(data.subjects) ? data.subjects : []
@@ -94,10 +173,9 @@ export async function fetchDoubanCategory(category: DoubanCategory): Promise<Dou
   }
 }
 
-/** 豆瓣海报经本站代理加载（原图域名有防盗链，直连会 403） */
+/** 豆瓣海报加载地址（按管理员后台的图片代理设置生成） */
 export function doubanPosterUrl(cover: string): string {
-  if (!cover) return ''
-  return buildProxyRequestUrl(cover, proxyUrlFromSettings())
+  return buildDoubanPosterUrl(cover, doubanProxyConfig(), proxyUrlFromSettings())
 }
 
 /** 点击豆瓣条目 → 站内直连聚合搜索各源（mode=direct） */

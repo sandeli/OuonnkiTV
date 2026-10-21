@@ -17,7 +17,7 @@ const STATUS_CONFIG = [
   {
     key: FavoriteWatchStatus.NOT_WATCHED,
     label: '未观看',
-    dotClass: 'bg-sky-500',
+    dotClass: 'bg-sky-500 dark:bg-emerald-800',
   },
   {
     key: FavoriteWatchStatus.WATCHING,

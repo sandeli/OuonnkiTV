@@ -101,7 +101,7 @@ const HistoryList = ({
                       </motion.div>
                     </div>
                   </div>
-                  <div className="line-clamp-1 text-[4.5cqw] font-bold text-gray-700 transition-colors duration-200 group-hover:text-indigo-400 group-hover:underline md:text-lg">
+                  <div className="line-clamp-1 text-[4.5cqw] font-bold text-gray-700 transition-colors duration-200 group-hover:text-indigo-400 dark:group-hover:text-emerald-300 group-hover:underline md:text-lg">
                     {item.title}
                   </div>
                   <div className="flex w-full items-center justify-between gap-[2cqw] text-[3cqw] md:gap-2 md:text-xs">

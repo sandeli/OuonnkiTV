@@ -1,8 +1,10 @@
 import {
+  DEFAULT_DOUBAN_PROXY,
   ensureSchema,
   getSetting,
   isRegistrationOpen,
   json,
+  readDoubanProxySettings,
   type PagesContext,
 } from '../../_lib/auth'
 
@@ -16,14 +18,16 @@ export const onRequest = async (context: PagesContext) => {
       turnstileSiteKey: '',
       announcement: null,
       announcementBar: '',
+      doubanProxy: DEFAULT_DOUBAN_PROXY,
     })
   }
   await ensureSchema(db)
-  const [enabled, content, version, barContent] = await Promise.all([
+  const [enabled, content, version, barContent, doubanProxy] = await Promise.all([
     getSetting(db, 'announcement_popup_enabled'),
     getSetting(db, 'announcement_popup_content'),
     getSetting(db, 'announcement_popup_version'),
     getSetting(db, 'announcement_bar_content'),
+    readDoubanProxySettings(db),
   ])
   return json({
     authEnabled: true,
@@ -35,5 +39,6 @@ export const onRequest = async (context: PagesContext) => {
       version: Number.parseInt(version ?? '0', 10) || 0,
     },
     announcementBar: barContent ?? '',
+    doubanProxy,
   })
 }

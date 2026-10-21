@@ -16,6 +16,22 @@ export interface AnnouncementConfig {
   version: number
 }
 
+export interface DoubanProxyConfig {
+  /** 数据代理：direct=本站服务器转发 / cors-proxy-zwei / cmliussss-cdn-tencent / cmliussss-cdn-ali / custom */
+  dataType: string
+  dataUrl: string
+  /** 图片代理：server=本站代理 / direct / img3 / cmliussss-cdn-tencent / cmliussss-cdn-ali / custom */
+  imageType: string
+  imageUrl: string
+}
+
+export const DEFAULT_DOUBAN_PROXY: DoubanProxyConfig = {
+  dataType: 'direct',
+  dataUrl: '',
+  imageType: 'server',
+  imageUrl: '',
+}
+
 export interface AuthPublicConfig {
   authEnabled: boolean
   registrationOpen: boolean
@@ -23,6 +39,8 @@ export interface AuthPublicConfig {
   announcement: AnnouncementConfig | null
   /** 首页滚动公告（管理员后台设置；空字符串表示未设置，前端回退环境变量） */
   announcementBar: string
+  /** 豆瓣数据/图片代理（管理员后台设置） */
+  doubanProxy: DoubanProxyConfig
 }
 
 export class AuthApiError extends Error {
@@ -70,6 +88,22 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
       turnstileSiteKey: typeof data.turnstileSiteKey === 'string' ? data.turnstileSiteKey : '',
       announcement,
       announcementBar: typeof data.announcementBar === 'string' ? data.announcementBar : '',
+      doubanProxy:
+        data.doubanProxy && typeof data.doubanProxy === 'object'
+          ? {
+              dataType:
+                typeof data.doubanProxy.dataType === 'string'
+                  ? data.doubanProxy.dataType
+                  : DEFAULT_DOUBAN_PROXY.dataType,
+              dataUrl: typeof data.doubanProxy.dataUrl === 'string' ? data.doubanProxy.dataUrl : '',
+              imageType:
+                typeof data.doubanProxy.imageType === 'string'
+                  ? data.doubanProxy.imageType
+                  : DEFAULT_DOUBAN_PROXY.imageType,
+              imageUrl:
+                typeof data.doubanProxy.imageUrl === 'string' ? data.doubanProxy.imageUrl : '',
+            }
+          : DEFAULT_DOUBAN_PROXY,
     }
   } catch {
     return {
@@ -78,6 +112,7 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
       turnstileSiteKey: '',
       announcement: null,
       announcementBar: '',
+      doubanProxy: DEFAULT_DOUBAN_PROXY,
     }
   }
 }
@@ -228,6 +263,7 @@ export interface AdminSettings {
   registrationOpen: boolean
   announcement: AnnouncementConfig
   announcementBar: string
+  doubanProxy: DoubanProxyConfig
 }
 
 export function adminGetSettings(token: string): Promise<AdminSettings> {
@@ -241,6 +277,10 @@ export function adminUpdateSettings(
     announcementEnabled?: boolean
     announcementContent?: string
     announcementBarContent?: string
+    doubanDataProxyType?: string
+    doubanDataProxyUrl?: string
+    doubanImageProxyType?: string
+    doubanImageProxyUrl?: string
   },
 ): Promise<{ ok: boolean } & AdminSettings> {
   return request('/api/admin/settings', { method: 'POST', body: JSON.stringify(patch) }, token)

@@ -79,8 +79,8 @@ export function SettingsSection({
     },
     sky: {
       section: '',
-      line: 'from-sky-500/30 to-transparent',
-      icon: 'bg-muted/70 text-sky-700 dark:text-sky-300 ring-sky-500/25',
+      line: 'from-sky-500/30 to-transparent dark:from-emerald-600/30',
+      icon: 'bg-muted/70 text-sky-700 ring-sky-500/25 dark:text-emerald-300 dark:ring-emerald-500/25',
     },
     emerald: {
       section: '',
@@ -104,8 +104,8 @@ export function SettingsSection({
     },
     cyan: {
       section: '',
-      line: 'from-cyan-500/30 to-transparent',
-      icon: 'bg-muted/70 text-cyan-700 dark:text-cyan-300 ring-cyan-500/25',
+      line: 'from-cyan-500/30 to-transparent dark:from-emerald-600/30',
+      icon: 'bg-muted/70 text-cyan-700 ring-cyan-500/25 dark:text-emerald-300 dark:ring-emerald-500/25',
     },
   }[tone]
 

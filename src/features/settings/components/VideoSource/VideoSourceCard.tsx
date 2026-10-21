@@ -74,7 +74,7 @@ function SecondaryInfo({ source, isSub }: { source: VideoSource; isSub: boolean 
       ) : (
         <Badge
           variant="outline"
-          className="border-sky-500/30 text-sky-600 dark:text-sky-400 h-5 text-[10px]"
+          className="border-sky-500/30 text-sky-600 h-5 text-[10px] dark:border-emerald-700/40 dark:text-emerald-300"
         >
           自建源
         </Badge>

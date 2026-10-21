@@ -129,7 +129,7 @@ export function DirectResultCard({
               )}
               {playbackLatencyMs !== undefined && (
                 <span
-                  className="rounded-full border border-sky-500 px-2 py-0.5 text-[11px] font-medium text-sky-600 dark:text-sky-400"
+                  className="rounded-full border border-sky-500 px-2 py-0.5 text-[11px] font-medium text-sky-600 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
                   title="播放速度：浏览器直连该源视频地址的首字节耗时"
                 >
                   播放 {playbackLatencyMs}ms

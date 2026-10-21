@@ -15,6 +15,13 @@ import { toast } from 'sonner'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
 import { Switch } from '@/shared/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/components/ui/select'
 import { Input } from '@/shared/components/ui/input'
 import { Spinner } from '@/shared/components/ui/spinner'
 import { ConfirmModal } from '@/shared/components/common/ConfirmModal'
@@ -155,6 +162,11 @@ export default function AdminPage() {
   const [announcementSaving, setAnnouncementSaving] = useState(false)
   const [announcementBar, setAnnouncementBar] = useState('')
   const [announcementBarSaving, setAnnouncementBarSaving] = useState(false)
+  const [doubanDataType, setDoubanDataType] = useState('direct')
+  const [doubanDataUrl, setDoubanDataUrl] = useState('')
+  const [doubanImageType, setDoubanImageType] = useState('server')
+  const [doubanImageUrl, setDoubanImageUrl] = useState('')
+  const [doubanProxySaving, setDoubanProxySaving] = useState(false)
 
   const isAdmin = authMode === 'server' && !!token && user?.role === 'admin'
 
@@ -172,6 +184,10 @@ export default function AdminPage() {
       setAnnouncementContent(settings.announcement.content)
       setAnnouncementVersion(settings.announcement.version)
       setAnnouncementBar(settings.announcementBar)
+      setDoubanDataType(settings.doubanProxy.dataType)
+      setDoubanDataUrl(settings.doubanProxy.dataUrl)
+      setDoubanImageType(settings.doubanProxy.imageType)
+      setDoubanImageUrl(settings.doubanProxy.imageUrl)
     } catch {
       toast.error('加载管理员数据失败')
     } finally {
@@ -243,6 +259,30 @@ export default function AdminPage() {
       toast.error('保存滚动公告失败')
     } finally {
       setAnnouncementBarSaving(false)
+    }
+  }
+
+  const handleSaveDoubanProxy = async () => {
+    if (!token) return
+    setDoubanProxySaving(true)
+    try {
+      const result = await adminUpdateSettings(token, {
+        doubanDataProxyType: doubanDataType,
+        doubanDataProxyUrl: doubanDataUrl,
+        doubanImageProxyType: doubanImageType,
+        doubanImageProxyUrl: doubanImageUrl,
+      })
+      setDoubanDataType(result.doubanProxy.dataType)
+      setDoubanDataUrl(result.doubanProxy.dataUrl)
+      setDoubanImageType(result.doubanProxy.imageType)
+      setDoubanImageUrl(result.doubanProxy.imageUrl)
+      // 刷新本页缓存的公开配置，管理员切到首页即可看到新代理效果
+      void useAuthStore.getState().probeConfig()
+      toast.success('豆瓣代理已保存')
+    } catch {
+      toast.error('保存豆瓣代理失败')
+    } finally {
+      setDoubanProxySaving(false)
     }
   }
 
@@ -420,6 +460,68 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* 豆瓣代理设置 */}
+      <div className="border-border bg-card mb-6 rounded-xl border p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold">豆瓣代理</span>
+          <span className="text-muted-foreground text-xs">
+            首页豆瓣墙的数据与海报加载方式，保存后全站生效；海报崩图或数据加载慢时可切换 CDN 镜像
+          </span>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <p className="text-sm">数据代理</p>
+            <Select value={doubanDataType} onValueChange={setDoubanDataType}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="direct">直连（服务器直接请求豆瓣）</SelectItem>
+                <SelectItem value="cors-proxy-zwei">Cors Proxy By Zwei</SelectItem>
+                <SelectItem value="cmliussss-cdn-tencent">豆瓣 CDN By CMLiussss（腾讯云）</SelectItem>
+                <SelectItem value="cmliussss-cdn-ali">豆瓣 CDN By CMLiussss（阿里云）</SelectItem>
+                <SelectItem value="custom">自定义代理</SelectItem>
+              </SelectContent>
+            </Select>
+            {doubanDataType === 'custom' && (
+              <Input
+                placeholder="自定义代理前缀，如 https://proxy.example.com/?url="
+                value={doubanDataUrl}
+                onChange={e => setDoubanDataUrl(e.target.value)}
+              />
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-sm">图片代理</p>
+            <Select value={doubanImageType} onValueChange={setDoubanImageType}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="server">本站代理（服务器转发图片）</SelectItem>
+                <SelectItem value="direct">直连（浏览器直接加载豆瓣图）</SelectItem>
+                <SelectItem value="img3">豆瓣 img3 节点</SelectItem>
+                <SelectItem value="cmliussss-cdn-tencent">豆瓣 CDN By CMLiussss（腾讯云）</SelectItem>
+                <SelectItem value="cmliussss-cdn-ali">豆瓣 CDN By CMLiussss（阿里云）</SelectItem>
+                <SelectItem value="custom">自定义代理</SelectItem>
+              </SelectContent>
+            </Select>
+            {doubanImageType === 'custom' && (
+              <Input
+                placeholder="自定义代理前缀，如 https://proxy.example.com/?url="
+                value={doubanImageUrl}
+                onChange={e => setDoubanImageUrl(e.target.value)}
+              />
+            )}
+          </div>
+        </div>
+        <div className="mt-3">
+          <Button size="sm" disabled={doubanProxySaving} onClick={() => void handleSaveDoubanProxy()}>
+            {doubanProxySaving ? '保存中…' : '保存'}
+          </Button>
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-20">
           <Spinner />
@@ -441,7 +543,7 @@ export default function AdminPage() {
                 </span>
               </div>
 
-              <p className="text-muted-foreground mt-2 text-sm">
+              <p className="text-muted-foreground mt-2 text-sm [overflow-wrap:anywhere]">
                 最近登录：{formatTime(row.lastLoginAt)} · 共登录 {row.loginCount} 次 · 观看{' '}
                 {row.watchCount} 部 · 有效期：{formatExpiry(row.expiresAt).text}
                 {row.lastWatchTitle
@@ -490,7 +592,7 @@ export default function AdminPage() {
               </div>
 
               {expandedId === row.id && (
-                <div className="border-border mt-4 border-t pt-4">
+                <div className="border-border mt-4 min-w-0 border-t pt-4">
                   {detailLoading || !detail ? (
                     <div className="flex justify-center py-6">
                       <Spinner />
@@ -525,15 +627,15 @@ export default function AdminPage() {
                           </Button>
                         </span>
                       </div>
-                      <div className="grid gap-6 md:grid-cols-2">
-                      <div>
+                      <div className="grid min-w-0 gap-6 md:grid-cols-2">
+                      <div className="min-w-0">
                         <h3 className="mb-2 text-sm font-semibold">登录记录（最近 10 次）</h3>
                         {detail.loginLogs.length === 0 ? (
                           <p className="text-muted-foreground text-sm">暂无登录记录</p>
                         ) : (
                           <ul className="space-y-2">
                             {detail.loginLogs.map(log => (
-                              <li key={log.id} className="text-sm">
+                              <li key={log.id} className="min-w-0 text-sm [overflow-wrap:anywhere]">
                                 <span>{formatTime(log.createdAt)}</span>
                                 <span className="text-muted-foreground ml-2">{log.ip ?? ''}</span>
                                 {formatGeo(log.country, log.region, log.city) && (
@@ -549,14 +651,14 @@ export default function AdminPage() {
                           </ul>
                         )}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <h3 className="mb-2 text-sm font-semibold">观看记录（最近 10 部）</h3>
                         {detail.watchRecords.length === 0 ? (
                           <p className="text-muted-foreground text-sm">暂无观看记录</p>
                         ) : (
                           <ul className="space-y-2">
                             {detail.watchRecords.map(record => (
-                              <li key={record.id} className="text-sm">
+                              <li key={record.id} className="min-w-0 text-sm [overflow-wrap:anywhere]">
                                 <span className="font-medium">《{record.title}》</span>
                                 <span className="text-muted-foreground ml-1">
                                   {record.episodeName ||
