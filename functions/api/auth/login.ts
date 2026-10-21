@@ -1,6 +1,7 @@
 import {
   createSession,
   ensureSchema,
+  getRequestGeo,
   json,
   MASTER_USER_ID,
   nowSeconds,
@@ -69,9 +70,12 @@ export const onRequest = async (context: PagesContext) => {
       .run()
   }
 
+  const geo = getRequestGeo(context.request)
   await db
-    .prepare('INSERT INTO login_logs (user_id, username, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(sessionUser.userId, sessionUser.username, ip, userAgent, loginAt)
+    .prepare(
+      'INSERT INTO login_logs (user_id, username, ip, user_agent, country, city, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
+    .bind(sessionUser.userId, sessionUser.username, ip, userAgent, geo.country, geo.city, loginAt)
     .run()
 
   const { token, expiresAt } = await createSession(db, sessionUser)

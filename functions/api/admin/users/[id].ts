@@ -25,7 +25,7 @@ export const onRequest = async (context: PagesContext) => {
 
     const loginLogs = await db
       .prepare(
-        'SELECT id, ip, user_agent AS userAgent, created_at AS createdAt FROM login_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
+        'SELECT id, ip, user_agent AS userAgent, country, city, created_at AS createdAt FROM login_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
       )
       .bind(userId)
       .all()

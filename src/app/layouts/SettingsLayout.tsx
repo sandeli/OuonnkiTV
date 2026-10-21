@@ -8,7 +8,6 @@ import {
   FolderCog,
   Info,
   ListVideo,
-  LogOut,
   Play,
   Settings2,
   ShieldCheck,
@@ -106,7 +105,6 @@ export default function SettingsLayout() {
   const location = useLocation()
   const authUser = useAuthStore(state => state.user)
   const authMode = useAuthStore(state => state.authMode)
-  const logout = useAuthStore(state => state.logout)
 
   const isServerAdmin = authMode === 'server' && authUser?.role === 'admin'
   const modules = isServerAdmin ? [...settingsModules, adminModule] : settingsModules
@@ -144,26 +142,6 @@ export default function SettingsLayout() {
               <h1 className="truncate text-base font-bold md:text-xl">设置中心</h1>
               <p className="text-muted-foreground hidden text-xs md:block">管理播放与系统偏好</p>
             </div>
-
-            {authMode === 'server' && authUser && (
-              <div className="flex shrink-0 items-center gap-1.5">
-                <span className="text-muted-foreground hidden text-xs sm:block">
-                  {authUser.username}
-                  {authUser.isMaster ? '（站长）' : ''}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-xs"
-                  onClick={() => {
-                    void logout().then(() => navigate('/'))
-                  }}
-                >
-                  <LogOut className="size-3.5" />
-                  退出
-                </Button>
-              </div>
-            )}
 
             <div className="order-3 w-full md:order-none md:ml-auto md:flex md:w-[min(58vw,760px)] md:justify-end md:pr-3">
               <UnderlineTabs

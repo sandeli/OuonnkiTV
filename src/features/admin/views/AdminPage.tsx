@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import {
+  ArrowLeft,
   Ban,
   ChevronDown,
   ChevronUp,
@@ -16,6 +18,7 @@ import { Switch } from '@/shared/components/ui/switch'
 import { Spinner } from '@/shared/components/ui/spinner'
 import { ConfirmModal } from '@/shared/components/common/ConfirmModal'
 import { useAuthStore } from '@/shared/store/authStore'
+import { useVersionStore } from '@/shared/store/versionStore'
 import {
   adminDeleteUser,
   adminGetSettings,
@@ -27,6 +30,40 @@ import {
   type AdminUserDetail,
   type AdminUserRow,
 } from '@/shared/lib/authApi'
+
+const COUNTRY_NAMES: Record<string, string> = {
+  CN: '中国',
+  HK: '中国香港',
+  TW: '中国台湾',
+  MO: '中国澳门',
+  US: '美国',
+  JP: '日本',
+  KR: '韩国',
+  SG: '新加坡',
+  GB: '英国',
+  DE: '德国',
+  FR: '法国',
+  CA: '加拿大',
+  AU: '澳大利亚',
+  RU: '俄罗斯',
+  IN: '印度',
+  VN: '越南',
+  TH: '泰国',
+  MY: '马来西亚',
+  ID: '印度尼西亚',
+  PH: '菲律宾',
+  NL: '荷兰',
+  IT: '意大利',
+  ES: '西班牙',
+  BR: '巴西',
+}
+
+/** 登录日志的地理位置文本：国家中文名 + 城市（CF 边缘提供，老记录无此数据时为空） */
+function formatGeo(country: string | null, city: string | null): string {
+  if (!country && !city) return ''
+  const countryName = country ? (COUNTRY_NAMES[country] ?? country) : ''
+  return [countryName, city ?? ''].filter(Boolean).join(' ')
+}
 
 function formatTime(seconds: number | null): string {
   if (!seconds) return '从未'
@@ -40,6 +77,8 @@ function formatProgress(progress: number, duration: number): string {
 }
 
 export default function AdminPage() {
+  const navigate = useNavigate()
+  const updateHistory = useVersionStore(state => state.updateHistory)
   const token = useAuthStore(state => state.token)
   const user = useAuthStore(state => state.user)
   const authMode = useAuthStore(state => state.authMode)
@@ -159,6 +198,15 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 md:py-10">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mb-4 h-8 px-2 text-xs md:h-9 md:px-3 md:text-sm"
+        onClick={() => navigate('/')}
+      >
+        <ArrowLeft />
+        返回
+      </Button>
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <Users className="size-6" />
@@ -261,6 +309,11 @@ export default function AdminPage() {
                               <li key={log.id} className="text-sm">
                                 <span>{formatTime(log.createdAt)}</span>
                                 <span className="text-muted-foreground ml-2">{log.ip ?? ''}</span>
+                                {formatGeo(log.country, log.city) && (
+                                  <span className="text-muted-foreground ml-2">
+                                    {formatGeo(log.country, log.city)}
+                                  </span>
+                                )}
                                 <span className="text-muted-foreground block truncate text-xs">
                                   {log.userAgent ?? ''}
                                 </span>
@@ -302,6 +355,43 @@ export default function AdminPage() {
           ))}
         </div>
       )}
+
+      {/* 更新日志（与站内版本记录同一份数据，每次更新同步维护） */}
+      <div className="mt-10">
+        <h2 className="mb-4 text-lg font-bold">更新日志</h2>
+        <div className="space-y-3">
+          {updateHistory.map(entry => (
+            <div key={entry.version} className="border-border bg-card rounded-xl border p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">v{entry.version}</Badge>
+                <span className="font-semibold">{entry.title}</span>
+                <span className="text-muted-foreground ml-auto text-xs">{entry.date}</span>
+              </div>
+              {entry.features.length > 0 && (
+                <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {entry.features.map(feature => (
+                    <li key={feature}>{feature}</li>
+                  ))}
+                </ul>
+              )}
+              {entry.fixes && entry.fixes.length > 0 && (
+                <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {entry.fixes.map(fix => (
+                    <li key={fix}>修复：{fix}</li>
+                  ))}
+                </ul>
+              )}
+              {entry.breaking && entry.breaking.length > 0 && (
+                <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
+                  {entry.breaking.map(item => (
+                    <li key={item}>注意：{item}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
 
       <ConfirmModal
         isOpen={!!deleteTarget}

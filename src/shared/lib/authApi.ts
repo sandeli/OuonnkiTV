@@ -124,6 +124,8 @@ export interface AdminLoginLog {
   id: number
   ip: string | null
   userAgent: string | null
+  country: string | null
+  city: string | null
   createdAt: number
 }
 

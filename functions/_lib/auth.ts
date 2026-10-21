@@ -52,6 +52,12 @@ export function nowSeconds(): number {
   return Math.floor(Date.now() / 1000)
 }
 
+/** Cloudflare 边缘在请求上附带的地理信息（国家代码 + 城市），本地/非 CF 环境为空 */
+export function getRequestGeo(request: Request): { country: string; city: string } {
+  const cf = (request as Request & { cf?: { country?: string; city?: string } }).cf
+  return { country: cf?.country ?? '', city: cf?.city ?? '' }
+}
+
 // ---------- 建表（幂等，进程内只跑一次） ----------
 
 let schemaPromise: Promise<void> | null = null
@@ -122,6 +128,14 @@ export function ensureSchema(db: D1Database): Promise<void> {
           )`,
         ),
       ])
+      // 老表补列：login_logs 的国家/城市（列已存在时 ALTER 会报错，忽略即可）
+      for (const column of ['country', 'city']) {
+        try {
+          await db.prepare(`ALTER TABLE login_logs ADD COLUMN ${column} TEXT`).run()
+        } catch {
+          // 列已存在
+        }
+      }
     })().catch(error => {
       schemaPromise = null
       throw error
