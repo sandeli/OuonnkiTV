@@ -57,6 +57,24 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.7',
+    title: '品牌 Logo 换新：狮子头',
+    date: formatDate('2026-10-21'),
+    features: ['全站 Logo 由猫头改为狮子头：保留原眯眼笑脸与播放三角造型，头部换成圆润波浪鬃毛；导航、搜索、关于页与 favicon 全套图标同步更新。'],
+    fixes: [],
+    breaking: [],
+  },
+  {
+    version: '2.1.6',
+    title: '首页滚动公告改为后台设置',
+    date: formatDate('2026-10-21'),
+    features: [
+      '首页顶部滚动公告改为在管理员后台直接设置，保存后立即生效，不再需要改环境变量并重新部署；后台未设置时仍回退环境变量 TGYS_ANNOUNCEMENT。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.1.5',
     title: '公告弹窗与踢下线修复',
     date: formatDate('2026-10-21'),

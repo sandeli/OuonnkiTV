@@ -1,13 +1,22 @@
+import { useEffect } from 'react'
 import { Megaphone } from 'lucide-react'
 import { getPublicEnv } from '@/shared/config/runtimeEnv'
+import { useAuthStore } from '@/shared/store/authStore'
 
 /**
  * AnnouncementBar - 首页滚动公告栏
- * 内容来自环境变量 TGYS_ANNOUNCEMENT（Cloudflare 后台设置，改后需重新部署；
- * Docker 部署为运行时读取，重启容器即可）。未设置或为空时不渲染。
+ * 内容优先读管理员后台设置（存服务器，改完即生效）；后台未设置时回退
+ * 环境变量 TGYS_ANNOUNCEMENT。两者都为空时不渲染。
  */
 export function AnnouncementBar() {
-  const text = getPublicEnv('TGYS_ANNOUNCEMENT')?.trim()
+  const serverText = useAuthStore(state => state.authConfig?.announcementBar)
+
+  // 进首页重拉一次配置，保证管理员刚改的公告立刻生效
+  useEffect(() => {
+    void useAuthStore.getState().probeConfig()
+  }, [])
+
+  const text = serverText?.trim() || getPublicEnv('TGYS_ANNOUNCEMENT')?.trim()
   if (!text) return null
 
   // 滚动时长随文案长度调整，保证不同长度文案的滚动速度大致一致

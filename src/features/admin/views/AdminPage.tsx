@@ -153,6 +153,8 @@ export default function AdminPage() {
   const [announcementContent, setAnnouncementContent] = useState('')
   const [announcementVersion, setAnnouncementVersion] = useState(0)
   const [announcementSaving, setAnnouncementSaving] = useState(false)
+  const [announcementBar, setAnnouncementBar] = useState('')
+  const [announcementBarSaving, setAnnouncementBarSaving] = useState(false)
 
   const isAdmin = authMode === 'server' && !!token && user?.role === 'admin'
 
@@ -169,6 +171,7 @@ export default function AdminPage() {
       setAnnouncementEnabled(settings.announcement.enabled)
       setAnnouncementContent(settings.announcement.content)
       setAnnouncementVersion(settings.announcement.version)
+      setAnnouncementBar(settings.announcementBar)
     } catch {
       toast.error('加载管理员数据失败')
     } finally {
@@ -224,6 +227,22 @@ export default function AdminPage() {
       toast.error('保存公告失败')
     } finally {
       setAnnouncementSaving(false)
+    }
+  }
+
+  const handleSaveAnnouncementBar = async () => {
+    if (!token) return
+    setAnnouncementBarSaving(true)
+    try {
+      const result = await adminUpdateSettings(token, { announcementBarContent: announcementBar })
+      setAnnouncementBar(result.announcementBar)
+      // 刷新本页缓存的公开配置，管理员自己切到首页即可看到新滚动公告
+      void useAuthStore.getState().probeConfig()
+      toast.success(announcementBar.trim() ? '滚动公告已保存' : '滚动公告已清空')
+    } catch {
+      toast.error('保存滚动公告失败')
+    } finally {
+      setAnnouncementBarSaving(false)
     }
   }
 
@@ -329,6 +348,33 @@ export default function AdminPage() {
             disabled={switchSaving}
             onCheckedChange={checked => void handleToggleRegistration(checked)}
           />
+        </div>
+      </div>
+
+      {/* 首页滚动公告设置 */}
+      <div className="border-border bg-card mb-6 rounded-xl border p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold">首页滚动公告</span>
+          <span className="text-muted-foreground text-xs">
+            显示在首页顶部的滚动字幕，保存后立即生效；留空则不显示（若设过环境变量 TGYS_ANNOUNCEMENT
+            会回退显示它）
+          </span>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <Input
+            placeholder="输入滚动公告内容"
+            maxLength={500}
+            value={announcementBar}
+            onChange={e => setAnnouncementBar(e.target.value)}
+          />
+          <Button
+            size="sm"
+            className="shrink-0"
+            disabled={announcementBarSaving}
+            onClick={() => void handleSaveAnnouncementBar()}
+          >
+            {announcementBarSaving ? '保存中…' : '保存'}
+          </Button>
         </div>
       </div>
 

@@ -32,6 +32,7 @@ export const onRequest = async (context: PagesContext) => {
     return json({
       registrationOpen: await isRegistrationOpen(db, context.env),
       announcement: await readAnnouncement(db),
+      announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
     })
   }
 
@@ -40,6 +41,7 @@ export const onRequest = async (context: PagesContext) => {
       registrationOpen?: unknown
       announcementEnabled?: unknown
       announcementContent?: unknown
+      announcementBarContent?: unknown
     }>(context.request)
 
     if (typeof body?.registrationOpen === 'boolean') {
@@ -60,10 +62,15 @@ export const onRequest = async (context: PagesContext) => {
       }
     }
 
+    if (typeof body?.announcementBarContent === 'string') {
+      await setSetting(db, 'announcement_bar_content', body.announcementBarContent.slice(0, 500))
+    }
+
     return json({
       ok: true,
       registrationOpen: await isRegistrationOpen(db, context.env),
       announcement: await readAnnouncement(db),
+      announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
     })
   }
 

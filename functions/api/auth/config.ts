@@ -10,13 +10,20 @@ import {
 export const onRequest = async (context: PagesContext) => {
   const db = context.env.TGYS_DB
   if (!db) {
-    return json({ authEnabled: false, registrationOpen: false, turnstileSiteKey: '', announcement: null })
+    return json({
+      authEnabled: false,
+      registrationOpen: false,
+      turnstileSiteKey: '',
+      announcement: null,
+      announcementBar: '',
+    })
   }
   await ensureSchema(db)
-  const [enabled, content, version] = await Promise.all([
+  const [enabled, content, version, barContent] = await Promise.all([
     getSetting(db, 'announcement_popup_enabled'),
     getSetting(db, 'announcement_popup_content'),
     getSetting(db, 'announcement_popup_version'),
+    getSetting(db, 'announcement_bar_content'),
   ])
   return json({
     authEnabled: true,
@@ -27,5 +34,6 @@ export const onRequest = async (context: PagesContext) => {
       content: content ?? '',
       version: Number.parseInt(version ?? '0', 10) || 0,
     },
+    announcementBar: barContent ?? '',
   })
 }

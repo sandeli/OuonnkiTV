@@ -21,6 +21,8 @@ export interface AuthPublicConfig {
   registrationOpen: boolean
   turnstileSiteKey: string
   announcement: AnnouncementConfig | null
+  /** 首页滚动公告（管理员后台设置；空字符串表示未设置，前端回退环境变量） */
+  announcementBar: string
 }
 
 export class AuthApiError extends Error {
@@ -67,9 +69,16 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
       registrationOpen: data.registrationOpen === true,
       turnstileSiteKey: typeof data.turnstileSiteKey === 'string' ? data.turnstileSiteKey : '',
       announcement,
+      announcementBar: typeof data.announcementBar === 'string' ? data.announcementBar : '',
     }
   } catch {
-    return { authEnabled: false, registrationOpen: false, turnstileSiteKey: '', announcement: null }
+    return {
+      authEnabled: false,
+      registrationOpen: false,
+      turnstileSiteKey: '',
+      announcement: null,
+      announcementBar: '',
+    }
   }
 }
 
@@ -218,6 +227,7 @@ export function adminDeleteUser(token: string, userId: number): Promise<{ ok: bo
 export interface AdminSettings {
   registrationOpen: boolean
   announcement: AnnouncementConfig
+  announcementBar: string
 }
 
 export function adminGetSettings(token: string): Promise<AdminSettings> {
@@ -230,6 +240,7 @@ export function adminUpdateSettings(
     registrationOpen?: boolean
     announcementEnabled?: boolean
     announcementContent?: string
+    announcementBarContent?: string
   },
 ): Promise<{ ok: boolean } & AdminSettings> {
   return request('/api/admin/settings', { method: 'POST', body: JSON.stringify(patch) }, token)
