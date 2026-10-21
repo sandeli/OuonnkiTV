@@ -67,6 +67,7 @@ export function SearchDirectSection({ query }: SearchDirectSectionProps) {
           searchProgress={searchProgress}
           successfulSources={successfulSourcesInCurrentPage}
           sourceLatencies={sourceLatencies}
+          directQuery={query}
           totalResults={cmsPagination.totalResults}
           hasMore={hasMore}
           isCurrentPageComplete={isCurrentPageComplete}

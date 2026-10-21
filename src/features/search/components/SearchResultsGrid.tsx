@@ -10,6 +10,7 @@ import type { SearchMode } from './SearchModeToggle'
 import { getSourceColorScheme } from '@/shared/lib/source-colors'
 import { SourceStatusBadge } from './SourceStatusBadge'
 import { DirectResultCard } from './DirectResultCard'
+import { getTitleMatchTier } from '../hooks/directSearch.utils'
 import { getPosterUrl } from '@/shared/lib/tmdb'
 import { buildCmsPlayPath, buildTmdbDetailPath } from '@/shared/lib/routes'
 
@@ -20,6 +21,8 @@ interface SearchResultsGridProps {
   tmdbResults?: TmdbMediaItem[]
   /** 直连搜索结果 */
   directResults?: VideoItem[]
+  /** 直连搜索关键词（用于按标题匹配度排序） */
+  directQuery?: string
   /** 是否加载中 */
   loading: boolean
   /** 直连搜索进度（已完成的源数量/总源数量） */
@@ -93,6 +96,7 @@ export function SearchResultsGrid({
   mode,
   tmdbResults = [],
   directResults = [],
+  directQuery,
   loading,
   searchProgress,
   successfulSources,
@@ -104,15 +108,25 @@ export function SearchResultsGrid({
   sentinelRef,
   className,
 }: SearchResultsGridProps) {
-  // 直连模式排序：已测得源速时按源响应耗时从快到慢（稳定排序，同源内保持原顺序，未测速排最后）
+  // 直连模式排序：先按标题与搜索词的匹配度分档（精准的在前），同档内按源速从快到慢，未测速排最后
   const directResultsSorted = useMemo(() => {
-    if (!sourceLatencies || sourceLatencies.size === 0) return directResults
-    return [...directResults].sort((a, b) => {
-      const la = a.source_code ? sourceLatencies.get(a.source_code) : undefined
-      const lb = b.source_code ? sourceLatencies.get(b.source_code) : undefined
-      return (la ?? Number.POSITIVE_INFINITY) - (lb ?? Number.POSITIVE_INFINITY)
-    })
-  }, [directResults, sourceLatencies])
+    const query = directQuery?.trim() ?? ''
+    if (!query && (!sourceLatencies || sourceLatencies.size === 0)) return directResults
+    const latencyOf = (item: VideoItem) =>
+      (item.source_code ? sourceLatencies?.get(item.source_code) : undefined) ??
+      Number.POSITIVE_INFINITY
+    return directResults
+      .map((item, index) => ({ item, index }))
+      .sort((x, y) => {
+        const tierDiff =
+          getTitleMatchTier(x.item.vod_name, query) - getTitleMatchTier(y.item.vod_name, query)
+        if (tierDiff !== 0) return tierDiff
+        const latencyDiff = latencyOf(x.item) - latencyOf(y.item)
+        if (latencyDiff !== 0) return latencyDiff
+        return x.index - y.index
+      })
+      .map(entry => entry.item)
+  }, [directResults, sourceLatencies, directQuery])
 
   // TMDB 模式：显示所有结果
   if (mode === 'tmdb') {
@@ -199,7 +213,7 @@ export function SearchResultsGrid({
         {hasResults && (
           <div className="text-muted-foreground text-sm">
             共找到 <span className="text-primary font-medium">{results.length}</span> 个结果
-            {sortedBySpeed && <span> · 已按各源速度从快到慢排列</span>}
+            {sortedBySpeed && <span> · 已按匹配度优先、同档按源速排列</span>}
           </div>
         )}
         {/* 右侧：源状态徽章 */}

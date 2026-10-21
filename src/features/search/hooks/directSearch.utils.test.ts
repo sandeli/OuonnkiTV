@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { VideoSource } from '@tgys/cms-core'
-import { getSourcesToFetch } from './directSearch.utils'
+import { getSourcesToFetch, getTitleMatchTier } from './directSearch.utils'
 
 function createSource(id: string): VideoSource {
   return {
@@ -34,5 +34,24 @@ describe('getSourcesToFetch', () => {
 
     expect(result.map(item => item.id)).toEqual(['b', 'c'])
     expect(result).toHaveLength(2)
+  })
+})
+
+describe('getTitleMatchTier', () => {
+  it('完全一致为 0 档（忽略标点与空白）', () => {
+    expect(getTitleMatchTier('嫁金钗', '嫁金钗')).toBe(0)
+    expect(getTitleMatchTier('嫁 金钗', '嫁金钗')).toBe(0)
+    expect(getTitleMatchTier('《嫁金钗》', '嫁金钗')).toBe(0)
+  })
+
+  it('带季数/年份后缀为 1 档', () => {
+    expect(getTitleMatchTier('嫁金钗第一季', '嫁金钗')).toBe(1)
+    expect(getTitleMatchTier('嫁金钗', '嫁金钗国语版')).toBe(1)
+  })
+
+  it('互相包含为 2 档，完全无关为 3 档', () => {
+    expect(getTitleMatchTier('新嫁金钗传奇', '嫁金钗')).toBe(2)
+    expect(getTitleMatchTier('金枝欲孽', '嫁金钗')).toBe(3)
+    expect(getTitleMatchTier('', '嫁金钗')).toBe(3)
   })
 })
