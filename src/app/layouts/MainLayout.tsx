@@ -13,7 +13,7 @@ import { useSubscriptionStore } from '@/shared/store/subscriptionStore'
 import { useSubscriptionAutoRefresh } from '@/shared/hooks/useSubscriptionAutoRefresh'
 import { useScrollChromeVisibility } from '@/shared/hooks'
 import { useLocation } from 'react-router'
-import { getInitialContentConfigId } from '@/shared/config/runtimeEnv'
+import { getInitialContentConfigId, hashConfigValue } from '@/shared/config/runtimeEnv'
 
 const UpdateModal = lazy(() => import('@/shared/components/UpdateModal'))
 
@@ -37,9 +37,15 @@ export default function MainLayout() {
   // 订阅源自动刷新
   useSubscriptionAutoRefresh()
 
+  const adminVideoSources = useAuthStore(state => state.authConfig?.initialVideoSources ?? '')
+
   // 初始化逻辑 (从 MyRouter 迁移)
   useEffect(() => {
-    const initialContentConfigId = getInitialContentConfigId()
+    // 指纹纳入管理员后台视频源：管理员改源后，所有客户端下次打开自动重新导入
+    const adminSegment = adminVideoSources.trim()
+      ? `:adminsrc:${hashConfigValue(adminVideoSources.trim())}`
+      : ''
+    const initialContentConfigId = getInitialContentConfigId() + adminSegment
     const needsInitialization =
       localStorage.getItem('initialContentConfigId') !== initialContentConfigId
     if (needsInitialization) {
@@ -50,7 +56,7 @@ export default function MainLayout() {
       }
       void initialize()
     }
-  }, [initializeEnvSources, initializeEnvSubscriptions])
+  }, [initializeEnvSources, initializeEnvSubscriptions, adminVideoSources])
 
   // 版本更新检查（仅管理员：普通用户不弹更新日志）
   useEffect(() => {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildDoubanDataRequestUrl, buildDoubanPosterUrl } from './douban'
+import {
+  buildDoubanDataRequestUrl,
+  buildDoubanPosterUrl,
+  resolveDoubanProxyConfig,
+} from './douban'
 import type { DoubanProxyConfig } from './authApi'
 
 const SITE_PROXY = '/proxy?url='
@@ -86,5 +90,48 @@ describe('buildDoubanPosterUrl', () => {
     const other = 'https://cdn.example.com/poster.jpg'
     expect(buildDoubanPosterUrl(other, cfg({ imageType: 'direct' }), SITE_PROXY)).toBe(other)
     expect(buildDoubanPosterUrl('', cfg({}), SITE_PROXY)).toBe('')
+  })
+})
+
+describe('resolveDoubanProxyConfig', () => {
+  const admin: DoubanProxyConfig = {
+    dataType: 'cmliussss-cdn-tencent',
+    dataUrl: '',
+    imageType: 'server',
+    imageUrl: '',
+  }
+
+  it('无覆盖时完全跟随管理员设置', () => {
+    const resolved = resolveDoubanProxyConfig(admin, {
+      dataType: null,
+      dataUrl: '',
+      imageType: null,
+      imageUrl: '',
+    })
+    expect(resolved).toEqual(admin)
+  })
+
+  it('只覆盖图片时数据仍跟随管理员', () => {
+    const resolved = resolveDoubanProxyConfig(admin, {
+      dataType: null,
+      dataUrl: '',
+      imageType: 'direct',
+      imageUrl: '',
+    })
+    expect(resolved.dataType).toBe('cmliussss-cdn-tencent')
+    expect(resolved.imageType).toBe('direct')
+  })
+
+  it('覆盖为自定义时用自己的地址而非管理员的', () => {
+    const resolved = resolveDoubanProxyConfig(
+      { ...admin, dataType: 'custom', dataUrl: 'https://admin.example/?url=' },
+      {
+        dataType: 'custom',
+        dataUrl: 'https://mine.example/?url=',
+        imageType: null,
+        imageUrl: '',
+      },
+    )
+    expect(resolved.dataUrl).toBe('https://mine.example/?url=')
   })
 })

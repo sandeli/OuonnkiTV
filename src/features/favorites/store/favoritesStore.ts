@@ -6,6 +6,7 @@ import { FavoriteWatchStatus } from '../types/favorites'
 import type { TmdbFavoriteItem, CmsFavoriteItem } from '../types/favorites'
 import type { TmdbMediaItem } from '@/shared/types/tmdb'
 import type { VideoItem } from '@/shared/types/video'
+import { createScopedStorage, onAuthScopeChange } from '@/shared/lib/scopedStorage'
 
 interface FavoritesState {
   /** 收藏列表 */
@@ -620,6 +621,7 @@ export const useFavoritesStore = create<FavoritesStore>()(
       })),
       {
         name: 'tgys-tv-favorites-store',
+        storage: createScopedStorage(),
         version: 2,
         partialize: state => ({ favorites: state.favorites }),
         migrate: persistedState => {
@@ -638,3 +640,8 @@ export const useFavoritesStore = create<FavoritesStore>()(
     },
   ),
 )
+
+// 登录身份变化时换仓：每个账号只看到自己的收藏
+onAuthScopeChange(() => {
+  void useFavoritesStore.persist.rehydrate()
+})

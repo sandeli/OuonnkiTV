@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select'
 import { Input } from '@/shared/components/ui/input'
+import { Textarea } from '@/shared/components/ui/textarea'
+import { getPublicEnv } from '@/shared/config/runtimeEnv'
 import { useAuthStore } from '@/shared/store/authStore'
 import { useVersionStore } from '@/shared/store/versionStore'
 import { adminGetSettings, adminUpdateSettings } from '@/shared/lib/authApi'
@@ -37,6 +39,8 @@ export default function AdminPage() {
   const [doubanImageType, setDoubanImageType] = useState('server')
   const [doubanImageUrl, setDoubanImageUrl] = useState('')
   const [doubanProxySaving, setDoubanProxySaving] = useState(false)
+  const [videoSources, setVideoSources] = useState('')
+  const [videoSourcesSaving, setVideoSourcesSaving] = useState(false)
 
   const isAdmin = authMode === 'server' && !!token && user?.role === 'admin'
 
@@ -53,6 +57,7 @@ export default function AdminPage() {
       setDoubanDataUrl(settings.doubanProxy.dataUrl)
       setDoubanImageType(settings.doubanProxy.imageType)
       setDoubanImageUrl(settings.doubanProxy.imageUrl)
+      setVideoSources(settings.videoSources)
     } catch {
       toast.error('加载管理员数据失败')
     }
@@ -145,6 +150,26 @@ export default function AdminPage() {
       toast.error('保存豆瓣代理失败')
     } finally {
       setDoubanProxySaving(false)
+    }
+  }
+
+  const handleSaveVideoSources = async () => {
+    if (!token) return
+    setVideoSourcesSaving(true)
+    try {
+      const result = await adminUpdateSettings(token, { videoSources })
+      setVideoSources(result.videoSources)
+      // 刷新公开配置：本机指纹随之变化，会按新源重新导入
+      void useAuthStore.getState().probeConfig()
+      toast.success(
+        result.videoSources.trim()
+          ? '视频源已保存，将优先于环境变量生效'
+          : '已清空视频源设置，恢复使用环境变量',
+      )
+    } catch {
+      toast.error('保存视频源失败')
+    } finally {
+      setVideoSourcesSaving(false)
     }
   }
 
@@ -248,7 +273,8 @@ export default function AdminPage() {
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">豆瓣代理</span>
           <span className="text-muted-foreground text-xs">
-            首页豆瓣墙的数据与海报加载方式，保存后全站生效；海报崩图或数据加载慢时可切换 CDN 镜像
+            首页豆瓣墙的数据与海报加载方式，保存后作为全站默认生效；每位用户也可在「设置中心 →
+            系统设置」里为自己单独指定。海报崩图或数据加载慢时可切换 CDN 镜像
           </span>
         </div>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -302,6 +328,33 @@ export default function AdminPage() {
           <Button size="sm" disabled={doubanProxySaving} onClick={() => void handleSaveDoubanProxy()}>
             {doubanProxySaving ? '保存中…' : '保存'}
           </Button>
+        </div>
+      </div>
+
+      {/* 视频源设置（优先级高于 TGYS_INITIAL_VIDEO_SOURCES 环境变量） */}
+      <div className="border-border bg-card mb-6 rounded-xl border p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold">视频源</span>
+          <span className="text-muted-foreground text-xs">
+            与环境变量 TGYS_INITIAL_VIDEO_SOURCES 同格式：可填远程 JSON 地址（如 KVideo 的
+            lite.json 链接）或直接粘贴内联 JSON；本项非空时优先于环境变量生效，保存后所有用户下次打开站点自动重新导入
+          </span>
+        </div>
+        <Textarea
+          className="mt-3 min-h-28 font-mono text-xs"
+          placeholder="留空 = 使用环境变量 TGYS_INITIAL_VIDEO_SOURCES"
+          value={videoSources}
+          onChange={e => setVideoSources(e.target.value)}
+        />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={videoSourcesSaving} onClick={() => void handleSaveVideoSources()}>
+            {videoSourcesSaving ? '保存中…' : '保存'}
+          </Button>
+          <span className="text-muted-foreground text-xs">
+            {getPublicEnv('TGYS_INITIAL_VIDEO_SOURCES')?.trim()
+              ? '环境变量当前已设置（本框留空时使用它）'
+              : '环境变量当前未设置'}
+          </span>
         </div>
       </div>
 

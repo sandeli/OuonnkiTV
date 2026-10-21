@@ -37,6 +37,7 @@ export const onRequest = async (context: PagesContext) => {
       announcement: await readAnnouncement(db),
       announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
       doubanProxy: await readDoubanProxySettings(db),
+      videoSources: (await getSetting(db, 'initial_video_sources')) ?? '',
     })
   }
 
@@ -50,6 +51,7 @@ export const onRequest = async (context: PagesContext) => {
       doubanDataProxyUrl?: unknown
       doubanImageProxyType?: unknown
       doubanImageProxyUrl?: unknown
+      videoSources?: unknown
     }>(context.request)
 
     if (typeof body?.registrationOpen === 'boolean') {
@@ -92,6 +94,11 @@ export const onRequest = async (context: PagesContext) => {
     if (typeof body?.doubanImageProxyUrl === 'string') {
       await setSetting(db, 'douban_image_proxy_url', body.doubanImageProxyUrl.trim().slice(0, 500))
     }
+    if (typeof body?.videoSources === 'string') {
+      // 管理员视频源：与 TGYS_INITIAL_VIDEO_SOURCES 同格式（远程 JSON 地址或内联 JSON），
+      // 非空时客户端优先用它，留空表示回退环境变量
+      await setSetting(db, 'initial_video_sources', body.videoSources.trim().slice(0, 512000))
+    }
 
     return json({
       ok: true,
@@ -99,6 +106,7 @@ export const onRequest = async (context: PagesContext) => {
       announcement: await readAnnouncement(db),
       announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
       doubanProxy: await readDoubanProxySettings(db),
+      videoSources: (await getSetting(db, 'initial_video_sources')) ?? '',
     })
   }
 

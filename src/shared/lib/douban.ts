@@ -1,6 +1,7 @@
 import { buildProxyRequestUrl } from '@/shared/config/api.config'
 import { DEFAULT_DOUBAN_PROXY, type DoubanProxyConfig } from '@/shared/lib/authApi'
 import { useAuthStore } from '@/shared/store/authStore'
+import { useDoubanProxyOverrideStore } from '@/shared/store/doubanProxyOverrideStore'
 import { useSettingStore } from '@/shared/store/settingStore'
 
 /**
@@ -62,12 +63,45 @@ function proxyUrlFromSettings(): string | undefined {
   }
 }
 
-/** 豆瓣代理配置（管理员后台设置，经公开配置下发；缺失时用默认：数据本站转发 / 图片本站代理） */
+/** 个人覆盖（系统设置里可改）：某类为 null 表示跟随管理员设置 */
+export interface DoubanProxyOverride {
+  dataType: string | null
+  dataUrl: string
+  imageType: string | null
+  imageUrl: string
+}
+
+/** 合并管理员设置与个人覆盖，得到最终生效的豆瓣代理配置（纯函数） */
+export function resolveDoubanProxyConfig(
+  admin: DoubanProxyConfig,
+  override: DoubanProxyOverride,
+): DoubanProxyConfig {
+  return {
+    dataType: override.dataType ?? admin.dataType,
+    dataUrl: override.dataType ? override.dataUrl : admin.dataUrl,
+    imageType: override.imageType ?? admin.imageType,
+    imageUrl: override.imageType ? override.imageUrl : admin.imageUrl,
+  }
+}
+
+/** 当前生效的豆瓣代理配置：管理员全站设置为默认，叠加当前用户的个人覆盖 */
 export function doubanProxyConfig(): DoubanProxyConfig {
+  let admin: DoubanProxyConfig = DEFAULT_DOUBAN_PROXY
   try {
-    return useAuthStore.getState().authConfig?.doubanProxy ?? DEFAULT_DOUBAN_PROXY
+    admin = useAuthStore.getState().authConfig?.doubanProxy ?? DEFAULT_DOUBAN_PROXY
   } catch {
-    return DEFAULT_DOUBAN_PROXY
+    admin = DEFAULT_DOUBAN_PROXY
+  }
+  try {
+    const o = useDoubanProxyOverrideStore.getState()
+    return resolveDoubanProxyConfig(admin, {
+      dataType: o.dataType,
+      dataUrl: o.dataUrl,
+      imageType: o.imageType,
+      imageUrl: o.imageUrl,
+    })
+  } catch {
+    return admin
   }
 }
 

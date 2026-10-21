@@ -41,6 +41,8 @@ export interface AuthPublicConfig {
   announcementBar: string
   /** 豆瓣数据/图片代理（管理员后台设置） */
   doubanProxy: DoubanProxyConfig
+  /** 管理员后台设置的视频源（与 TGYS_INITIAL_VIDEO_SOURCES 同格式）；非空时优先于环境变量 */
+  initialVideoSources?: string
 }
 
 export class AuthApiError extends Error {
@@ -264,6 +266,8 @@ export interface AdminSettings {
   announcement: AnnouncementConfig
   announcementBar: string
   doubanProxy: DoubanProxyConfig
+  /** 管理员视频源（与 TGYS_INITIAL_VIDEO_SOURCES 同格式）；空串表示使用环境变量 */
+  videoSources: string
 }
 
 export function adminGetSettings(token: string): Promise<AdminSettings> {
@@ -281,6 +285,7 @@ export function adminUpdateSettings(
     doubanDataProxyUrl?: string
     doubanImageProxyType?: string
     doubanImageProxyUrl?: string
+    videoSources?: string
   },
 ): Promise<{ ok: boolean } & AdminSettings> {
   return request('/api/admin/settings', { method: 'POST', body: JSON.stringify(patch) }, token)

@@ -1,4 +1,5 @@
 import NetworkSettings from '../components/NetworkSettings'
+import DoubanProxySettings from '../components/DoubanProxySettings'
 import SearchSettings from '../components/SearchSettings'
 import ThemeSettings from '../components/ThemeSettings'
 import { useSettingStore } from '@/shared/store/settingStore'
@@ -37,6 +38,7 @@ export default function SystemSettings() {
       showHeader={false}
     >
       <NetworkSettings />
+      <DoubanProxySettings />
       <SearchSettings />
       <ThemeSettings />
       <SettingsSection

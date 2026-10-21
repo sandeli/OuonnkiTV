@@ -34,7 +34,7 @@ export default function SideBar({
   enableScrollAnimation = false,
 }: SideBarProps) {
   const location = useLocation()
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile, state: sidebarState } = useSidebar()
   const authUser = useAuthStore(state => state.user)
   const authMode = useAuthStore(state => state.authMode)
   const hasLegacySession = useAuthStore(state => !!state.sessionToken)
@@ -79,14 +79,13 @@ export default function SideBar({
         url: '/history',
         icon: History,
       },
-    ],
-    footer: [
       {
         title: '设置',
         url: '/settings',
         icon: Settings,
       },
     ],
+    footer: [],
   }
   // 获取版本信息
   const { currentVersion } = useVersionStore()
@@ -156,8 +155,11 @@ export default function SideBar({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        {sidebarState === 'expanded' && (
+          <p className="text-muted-foreground px-2 pb-1 text-center text-xs">v{currentVersion}</p>
+        )}
         <SidebarMenu>
-          {showLogout && isMobile && (
+          {showLogout && (
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
                 <button type="button" onClick={handleLogoutClick} className="w-full">
@@ -167,19 +169,6 @@ export default function SideBar({
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
-          {items.footer.map(item => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild>
-                <NavLink to={item.url} onClick={handleNavLinkClick}>
-                  <item.icon />
-                  <span className="flex w-full items-center justify-between">
-                    <span>{item.title}</span>
-                    <span className="text-muted-foreground text-xs">v{currentVersion}</span>
-                  </span>
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>

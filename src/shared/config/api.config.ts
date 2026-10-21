@@ -48,6 +48,7 @@ import type { VideoApi } from '@/shared/types/video'
 import { INITIAL_CONFIG, type VideoSourceConfig } from './initialConfig'
 import { DEFAULT_SETTINGS } from './settings.config'
 import { getPublicEnv } from './runtimeEnv'
+import { useAuthStore } from '@/shared/store/authStore'
 
 type VideoSourceInput = VideoSourceConfig[] | string | undefined
 
@@ -119,8 +120,17 @@ export const loadVideoSources = async (input: VideoSourceInput): Promise<VideoAp
   }
 }
 
-// 从环境变量获取初始视频源。完整配置优先于独立视频源变量。
+// 初始视频源优先级：管理员后台设置 > TGYS_INITIAL_CONFIG > TGYS_INITIAL_VIDEO_SOURCES 环境变量。
+// 管理员值经公开配置下发，与环境变量同格式（远程 JSON 地址或内联 JSON）；留空表示回退环境变量。
 export const getInitialVideoSources = async (): Promise<VideoApi[]> => {
+  try {
+    const adminSources = useAuthStore.getState().authConfig?.initialVideoSources
+    if (adminSources && adminSources.trim()) {
+      return loadVideoSources(adminSources)
+    }
+  } catch {
+    // 忽略：未初始化时按环境变量走
+  }
   if (INITIAL_CONFIG && INITIAL_CONFIG.videoSources !== undefined) {
     return loadVideoSources(INITIAL_CONFIG.videoSources)
   }

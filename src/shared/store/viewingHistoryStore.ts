@@ -5,6 +5,7 @@ import { getHistoryItemKey, getHistorySeriesKey } from '@/shared/lib/viewingHist
 import { reportWatchActivity } from '@/shared/lib/activityReport'
 import type { ViewingHistoryItem } from '@/shared/types'
 import { useSettingStore } from './settingStore'
+import { createScopedStorage, onAuthScopeChange } from '@/shared/lib/scopedStorage'
 
 interface ViewingHistoryState {
   // 观看历史列表
@@ -96,7 +97,8 @@ export const useViewingHistoryStore = create<ViewingHistoryStore>()(
         },
       })),
       {
-        name: 'tgys-tv-viewing-history', // 持久化存储的键名
+        name: 'tgys-tv-viewing-history', // 持久化存储的键名（实际按登录账号分仓，见 scopedStorage）
+        storage: createScopedStorage(),
         version: 3,
         migrate: (persistedState: unknown, version: number) => {
           const persistedHistory =
@@ -140,3 +142,8 @@ export const useViewingHistoryStore = create<ViewingHistoryStore>()(
     },
   ),
 )
+
+// 登录身份变化时换仓：每个账号只看到自己的观看历史
+onAuthScopeChange(() => {
+  void useViewingHistoryStore.persist.rehydrate()
+})

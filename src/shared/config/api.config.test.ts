@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loadVideoSources } from './api.config'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getInitialVideoSources, loadVideoSources } from './api.config'
+import { useAuthStore } from '@/shared/store/authStore'
 
 describe('loadVideoSources', () => {
   afterEach(() => {
@@ -33,5 +34,30 @@ describe('loadVideoSources', () => {
       `/proxy?url=${encodeURIComponent('https://example.com/sources.json')}`,
     )
     expect(sources[0]).toMatchObject({ name: '远程源', url: 'https://remote.example/api' })
+  })
+})
+
+describe('getInitialVideoSources 管理员视频源优先级', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ authConfig: null })
+  })
+
+  it('管理员后台设置非空时优先使用（内联 JSON）', async () => {
+    useAuthStore.setState({
+      authConfig: {
+        initialVideoSources:
+          '[{"name":"后台源","url":"https://admin.example/api.php/provide/vod"}]',
+      } as never,
+    })
+    const sources = await getInitialVideoSources()
+    expect(sources.map(s => s.name)).toEqual(['后台源'])
+  })
+
+  it('管理员设置为空时回退环境变量（测试环境未设则为空）', async () => {
+    useAuthStore.setState({
+      authConfig: { initialVideoSources: '   ' } as never,
+    })
+    const sources = await getInitialVideoSources()
+    expect(sources).toEqual([])
   })
 })
