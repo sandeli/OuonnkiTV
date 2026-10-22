@@ -95,11 +95,11 @@ describe('注册模式', () => {
 })
 
 describe('邀请码', () => {
-  it('生成 10 位易读码（无易混字符）且多次不重复', () => {
+  it('生成 6 位易读码（无易混字符）且多次不重复', () => {
     const codes = new Set<string>()
     for (let i = 0; i < 50; i += 1) {
       const code = generateInviteCode()
-      expect(code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{10}$/)
+      expect(code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/)
       codes.add(code)
     }
     expect(codes.size).toBe(50)

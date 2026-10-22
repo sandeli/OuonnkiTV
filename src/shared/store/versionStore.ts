@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.38',
+    title: '邀请码改为 6 位',
+    date: formatDate('2026-10-22'),
+    features: [
+      '新生成的邀请码由 10 位缩短为 6 位，更便于口头与手动传递。此前已生成的 10 位邀请码不受影响，仍可正常使用。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.1.37',
     title: '修复邀请码注册入口不显示',
     date: formatDate('2026-10-22'),

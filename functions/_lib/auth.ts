@@ -506,9 +506,9 @@ export interface InviteCodeRow {
 // 易读字母表：去掉 0/O/1/I/L 等易混字符
 const INVITE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 
-/** 生成 10 位邀请码（纯函数，可测） */
+/** 生成 6 位邀请码（纯函数，可测）；校验按完整字符串匹配，已生成的老码不受长度影响 */
 export function generateInviteCode(): string {
-  const bytes = new Uint8Array(10)
+  const bytes = new Uint8Array(6)
   crypto.getRandomValues(bytes)
   return Array.from(bytes, b => INVITE_ALPHABET[b % INVITE_ALPHABET.length]).join('')
 }
