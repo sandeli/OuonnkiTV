@@ -35,7 +35,7 @@ export interface DoubanCategory {
 /** 首页分类墙板块（顺序即展示顺序） */
 export const DOUBAN_CATEGORIES: DoubanCategory[] = [
   { label: '热门电影', type: 'movie', tag: '热门' },
-  { label: '热门剧集', type: 'tv', tag: '热门' },
+  { label: '国产剧', type: 'tv', tag: '国产剧' },
   { label: '韩剧', type: 'tv', tag: '韩剧' },
   { label: '美剧', type: 'tv', tag: '美剧' },
   { label: '日剧', type: 'tv', tag: '日剧' },
@@ -47,8 +47,67 @@ export const DOUBAN_CATEGORIES: DoubanCategory[] = [
 
 const PAGE_LIMIT = 18
 
-// 简单内存缓存：同一会话内切页返回首页不重复请求
+// ===== 持久缓存 + 并发治理（稳定性改进）=====
+// 背景：首页 9 个分类同时请求豆瓣且零持久缓存时，会间歇性撞上豆瓣限流，
+// 表现为随机分类整块消失。借鉴 KVideo 的「缓存 1 小时」思路，落到客户端实现：
+// - 成功结果写入 localStorage（TTL 1 小时），刷新/重开浏览器直接命中，不再每次回源
+// - 过期数据先返回展示、后台静默刷新（SWR）；刷新失败继续用旧数据，板块不消失
+// - 内存缓存保留作第一层（同一会话内切页返回零延迟）
+// - 在途请求并发上限 3（信号量排队），避免 9 连发加重限流；单请求 8 秒超时、失败退避重试 1 次
+const CACHE_TTL_MS = 60 * 60 * 1000
+const STORAGE_PREFIX = 'tgys-douban-cache:'
+const REQUEST_TIMEOUT_MS = 8000
+const MAX_CONCURRENT_REQUESTS = 3
+
+// 内存缓存：同一会话内切页返回首页不重复请求
 const cache = new Map<string, DoubanSubject[]>()
+
+interface StoredDoubanCache {
+  at: number
+  items: DoubanSubject[]
+}
+
+function readStoredCache(key: string): StoredDoubanCache | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<StoredDoubanCache>
+    if (typeof parsed.at !== 'number' || !Array.isArray(parsed.items)) return null
+    return { at: parsed.at, items: parsed.items }
+  } catch {
+    return null
+  }
+}
+
+function writeStoredCache(key: string, items: DoubanSubject[]) {
+  try {
+    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify({ at: Date.now(), items }))
+  } catch {
+    // 存储不可用/已满时静默放弃，内存缓存仍生效
+  }
+}
+
+// 并发信号量：同时在途的豆瓣数据请求不超过 MAX_CONCURRENT_REQUESTS
+let activeRequests = 0
+const waitQueue: Array<() => void> = []
+
+async function acquireSlot(): Promise<void> {
+  if (activeRequests < MAX_CONCURRENT_REQUESTS) {
+    activeRequests += 1
+    return
+  }
+  await new Promise<void>(resolve => waitQueue.push(resolve))
+  activeRequests += 1
+}
+
+function releaseSlot() {
+  activeRequests -= 1
+  const next = waitQueue.shift()
+  if (next) next()
+}
+
+// 同一分类的在途请求去重（内存缓存未命中且并发调用时只发一次）
+const inflight = new Map<string, Promise<DoubanSubject[]>>()
 
 function cacheKey(category: DoubanCategory) {
   const proxy = doubanProxyConfig()
@@ -170,41 +229,82 @@ export function buildDoubanPosterUrl(
   }
 }
 
-/** 拉取一个分类的豆瓣条目（失败返回空数组，不抛错） */
-export async function fetchDoubanCategory(category: DoubanCategory): Promise<DoubanSubject[]> {
-  const key = cacheKey(category)
-  const hit = cache.get(key)
-  if (hit) return hit
-
+/** 实际请求豆瓣并写缓存：8 秒超时、失败退避重试 1 次；成功返回条目，彻底失败返回空数组 */
+async function fetchCategoryFromNetwork(
+  category: DoubanCategory,
+  key: string,
+): Promise<DoubanSubject[]> {
   const target =
     `https://movie.douban.com/j/search_subjects?type=${category.type}` +
     `&tag=${encodeURIComponent(category.tag)}&sort=recommend` +
     `&page_limit=${PAGE_LIMIT}&page_start=0`
+  const url = buildDoubanDataRequestUrl(target, doubanProxyConfig(), proxyUrlFromSettings())
 
-  try {
-    const response = await fetch(
-      buildDoubanDataRequestUrl(target, doubanProxyConfig(), proxyUrlFromSettings()),
-    )
-    if (!response.ok) return []
-    const data = (await response.json()) as { subjects?: unknown }
-    const subjects = Array.isArray(data.subjects) ? data.subjects : []
-    const items: DoubanSubject[] = subjects
-      .map(raw => {
-        const s = (raw ?? {}) as Record<string, unknown>
-        return {
-          id: String(s.id ?? ''),
-          title: typeof s.title === 'string' ? s.title : '',
-          rate: typeof s.rate === 'string' ? s.rate : '',
-          cover: typeof s.cover === 'string' ? s.cover : '',
-          url: typeof s.url === 'string' ? s.url : '',
-        }
-      })
-      .filter(item => item.id && item.title)
-    if (items.length) cache.set(key, items)
-    return items
-  } catch {
-    return []
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 800))
+    await acquireSlot()
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    try {
+      const response = await fetch(url, { signal: controller.signal })
+      if (!response.ok) continue
+      const data = (await response.json()) as { subjects?: unknown }
+      const subjects = Array.isArray(data.subjects) ? data.subjects : []
+      const items: DoubanSubject[] = subjects
+        .map(raw => {
+          const s = (raw ?? {}) as Record<string, unknown>
+          return {
+            id: String(s.id ?? ''),
+            title: typeof s.title === 'string' ? s.title : '',
+            rate: typeof s.rate === 'string' ? s.rate : '',
+            cover: typeof s.cover === 'string' ? s.cover : '',
+            url: typeof s.url === 'string' ? s.url : '',
+          }
+        })
+        .filter(item => item.id && item.title)
+      if (items.length) {
+        cache.set(key, items)
+        writeStoredCache(key, items)
+        return items
+      }
+      // 空结果多半是被限流，按失败处理走重试
+    } catch {
+      // 超时/网络错误 → 退避后重试一次
+    } finally {
+      clearTimeout(timer)
+      releaseSlot()
+    }
   }
+  return []
+}
+
+/**
+ * 拉取一个分类的豆瓣条目（不抛错）：
+ * 内存缓存 → 未过期持久缓存 → 过期持久缓存先展示 + 后台刷新 → 网络（失败兜底旧缓存）
+ */
+export async function fetchDoubanCategory(category: DoubanCategory): Promise<DoubanSubject[]> {
+  const key = cacheKey(category)
+  const memHit = cache.get(key)
+  if (memHit) return memHit
+
+  const stored = readStoredCache(key)
+  if (stored && stored.items.length) {
+    cache.set(key, stored.items)
+    if (Date.now() - stored.at < CACHE_TTL_MS) return stored.items
+    // 已过期：先返回旧数据展示，后台刷新供下次使用（失败则保留旧数据）
+    if (!inflight.has(key)) {
+      const p = fetchCategoryFromNetwork(category, key).finally(() => inflight.delete(key))
+      inflight.set(key, p)
+      void p
+    }
+    return stored.items
+  }
+
+  const pending = inflight.get(key)
+  if (pending) return pending
+  const request = fetchCategoryFromNetwork(category, key).finally(() => inflight.delete(key))
+  inflight.set(key, request)
+  return request
 }
 
 /** 豆瓣海报加载地址（按管理员后台的图片代理设置生成） */

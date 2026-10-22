@@ -4,7 +4,7 @@ import { DoubanHomeContent } from '../components/DoubanHomeContent'
 
 /**
  * HomeView - 首页视图
- * 豆瓣分类墙：热门电影 / 热门剧集 / 热门综艺 / 热门动漫 / 豆瓣高分 / 经典电影
+ * 豆瓣分类墙：热门电影 / 国产剧 / 热门综艺 / 热门动漫 / 豆瓣高分 / 经典电影
  * 点击任意海报按片名跳转站内聚合搜索各源
  */
 export default function HomeView() {

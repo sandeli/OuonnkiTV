@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   buildDoubanDataRequestUrl,
   buildDoubanPosterUrl,
+  DOUBAN_CATEGORIES,
+  fetchDoubanCategory,
   resolveDoubanProxyConfig,
 } from './douban'
+import type { DoubanCategory } from './douban'
 import type { DoubanProxyConfig } from './authApi'
 
 const SITE_PROXY = '/proxy?url='
@@ -133,5 +136,85 @@ describe('resolveDoubanProxyConfig', () => {
       },
     )
     expect(resolved.dataUrl).toBe('https://mine.example/?url=')
+  })
+})
+
+describe('DOUBAN_CATEGORIES', () => {
+  it('国产剧取代热门剧集（type=tv、tag=国产剧）', () => {
+    const labels = DOUBAN_CATEGORIES.map(x => x.label)
+    expect(labels).toContain('国产剧')
+    expect(labels).not.toContain('热门剧集')
+    expect(DOUBAN_CATEGORIES.find(x => x.label === '国产剧')).toMatchObject({
+      type: 'tv',
+      tag: '国产剧',
+    })
+  })
+})
+
+describe('fetchDoubanCategory 缓存与重试', () => {
+  const cat = (tag: string): DoubanCategory => ({ label: tag, type: 'movie', tag })
+  const okJson = (subjects: unknown[]) => ({
+    ok: true,
+    json: async () => ({ subjects }),
+  })
+  const oneSubject = [
+    { id: '1', title: '片名', rate: '8.0', cover: 'https://img1.doubanio.com/x.jpg', url: '' },
+  ]
+
+  beforeEach(() => {
+    localStorage.clear()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('成功后写入持久缓存，同分类二次调用不再发请求', async () => {
+    const fetchMock = vi.fn(async () => okJson(oneSubject))
+    vi.stubGlobal('fetch', fetchMock)
+    const a = await fetchDoubanCategory(cat('缓存测试'))
+    const b = await fetchDoubanCategory(cat('缓存测试'))
+    expect(a).toHaveLength(1)
+    expect(b).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(
+      Object.keys(localStorage).some(k => k.startsWith('tgys-douban-cache:')),
+    ).toBe(true)
+  })
+
+  it('首次失败会退避重试，第二次成功即返回数据', async () => {
+    vi.useFakeTimers()
+    let calls = 0
+    const fetchMock = vi.fn(async () => {
+      calls += 1
+      return calls === 1 ? { ok: false, json: async () => ({}) } : okJson(oneSubject)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const promise = fetchDoubanCategory(cat('重试测试'))
+    await vi.advanceTimersByTimeAsync(1000)
+    const items = await promise
+    expect(items).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('过期持久缓存先返回旧数据，并触发后台刷新', async () => {
+    const target = cat('过期测试')
+    const fetchMock = vi.fn(async () => okJson(oneSubject))
+    vi.stubGlobal('fetch', fetchMock)
+    // 先拉一次写入持久缓存，然后把缓存时间改到 2 小时前（TTL 1 小时 → 已过期）
+    await fetchDoubanCategory(target)
+    const key = Object.keys(localStorage).find(k => k.startsWith('tgys-douban-cache:'))!
+    const stale = [{ id: '9', title: '旧片', rate: '', cover: '', url: '' }]
+    localStorage.setItem(key, JSON.stringify({ at: Date.now() - 2 * 3600_000, items: stale }))
+    // 重置模块清空内存缓存（localStorage 保留），模拟重开浏览器
+    vi.resetModules()
+    const fresh = await import('./douban')
+    const items = await fresh.fetchDoubanCategory(target)
+    // 立即拿到的是过期旧数据（不阻塞等待网络）
+    expect(items).toEqual(stale)
+    // 后台刷新已触发：等待其完成，持久缓存应被新数据覆盖
+    await new Promise(r => setTimeout(r, 50))
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(JSON.parse(localStorage.getItem(key)!).items[0].title).toBe('片名')
   })
 })

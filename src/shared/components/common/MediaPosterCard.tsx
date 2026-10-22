@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Play } from 'lucide-react'
 import { NavLink } from 'react-router'
 import { AspectRatio } from '@/shared/components/ui/aspect-ratio'
@@ -39,6 +40,8 @@ export function MediaPosterCard({
   topRightLabelColorScheme,
   rating,
 }: MediaPosterCardProps) {
+  // 海报加载失败时兜底为 No Image 占位块（借鉴 KVideo 的两级兜底），不裂图
+  const [imgError, setImgError] = useState(false)
   // 使用自定义配色或默认配色
   const labelColor = topRightLabelColorScheme || { bg: '250, 204, 21', text: '120, 53, 15' } // yellow-400 和 amber-950 的 RGB 值
 
@@ -53,12 +56,14 @@ export function MediaPosterCard({
         {/* 海报卡片 */}
         <div className="relative overflow-hidden rounded-lg">
           <AspectRatio ratio={aspectRatio}>
-            {posterUrl ? (
+            {posterUrl && !imgError ? (
               <img
                 className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-110"
                 src={posterUrl}
                 alt={title}
                 loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
               />
             ) : (
               <div className="bg-muted flex h-full w-full items-center justify-center">

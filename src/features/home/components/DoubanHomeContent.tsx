@@ -62,6 +62,7 @@ function DoubanSection({ category }: { category: DoubanCategory }) {
 
   const [items, setItems] = useState<DoubanSubject[]>([])
   const [loading, setLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
   const [carouselApi, setCarouselApi] = useState<CarouselApi>()
   const [canScrollPrev, setCanScrollPrev] = useState(false)
   const [canScrollNext, setCanScrollNext] = useState(false)
@@ -77,9 +78,9 @@ function DoubanSection({ category }: { category: DoubanCategory }) {
     return () => {
       cancelled = true
     }
-    // category 为模块级常量配置，引用稳定
+    // category 为模块级常量配置，引用稳定；reloadKey 变化时重新拉取（失败占位的点击重试）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [reloadKey])
 
   useEffect(() => {
     if (!carouselApi) return
@@ -100,9 +101,20 @@ function DoubanSection({ category }: { category: DoubanCategory }) {
     return <DoubanSectionSkeleton title={category.label} />
   }
 
-  // 拉取失败或无数据时整块隐藏，不影响其他分类
+  // 拉取失败或无数据：显示带标题的失败占位，可点击重试（不再整块消失）
   if (items.length === 0) {
-    return null
+    return (
+      <div className="px-1">
+        <h2 className="text-primary text-xl font-semibold">{category.label}</h2>
+        <button
+          type="button"
+          onClick={() => setReloadKey(k => k + 1)}
+          className="text-muted-foreground hover:text-primary mt-2 text-sm underline underline-offset-4"
+        >
+          加载失败，点击重试
+        </button>
+      </div>
+    )
   }
 
   const canDrag = items.length > visibleCount
@@ -157,7 +169,7 @@ function DoubanSection({ category }: { category: DoubanCategory }) {
 
 /**
  * DoubanHomeContent - 首页豆瓣分类墙
- * 热门电影 / 热门剧集 / 热门综艺 / 热门动漫 / 豆瓣高分 / 经典电影
+ * 热门电影 / 国产剧 / 热门综艺 / 热门动漫 / 豆瓣高分 / 经典电影
  */
 export function DoubanHomeContent() {
   return (
