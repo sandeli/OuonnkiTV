@@ -263,3 +263,10 @@
 .art-video-player.tgys-hide-mini-progress.art-lock .art-bottom .art-progress {
   display: none !important;
 }
+
+/* 防浏览器手势误导航：快速横拖（尤其拉播放进度条）会被 Android Chrome 当成返回手势
+   （overscroll 历史导航），本应用是 SPA 自有导航，全局关掉 overscroll 手势与下拉刷新劫持 */
+html,
+body {
+  overscroll-behavior: none;
+}

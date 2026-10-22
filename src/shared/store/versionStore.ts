@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.45',
+    title: '修复拉进度条被浏览器当返回手势退出',
+    date: formatDate('2026-10-22'),
+    features: [],
+    fixes: [
+      '修复看片时快速拉动进度条会退出播放页：手机浏览器会把快速横拖误判为「返回手势」而后退（直达进入时历史较薄，后退正好落到首页）。已全局关闭浏览器的 overscroll 手势导航与下拉刷新劫持，并让播放器区域的触摸拖动只归播放器处理，不再被系统手势抢走。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.1.44',
     title: '修复直达播放跳首页',
     date: formatDate('2026-10-22'),
