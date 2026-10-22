@@ -2,19 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import type { VideoSource } from '@tgys/cms-core'
-import { Button } from '@/shared/components/ui/button'
-import { Spinner } from '@/shared/components/ui/spinner'
+import { Play } from 'lucide-react'
 import { useCmsClient } from '@/shared/hooks'
 import { useApiStore } from '@/shared/store/apiStore'
 import { getTitleMatchTier } from '@/features/search/hooks/directSearch.utils'
 import { buildDoubanSearchPath } from '@/shared/lib/douban'
+import { buildCmsPlayPath } from '@/shared/lib/routes'
 
 /**
  * 豆瓣墙点击直达播放的解析页（/play/auto?q=片名）：
  * 跨源搜索同名资源 → 按标题匹配档位筛候选 → 逐个探测第一集播放延迟 →
  * 选出最快的源后 replace 跳转到标准播放地址 /play/cms/:source/:vodId（播放页本体不感知此流程）。
  * 规则与搜索结果页一致：先比匹配档位，再比播放延迟，测不出延迟的排后面。
- * 10 秒软上限：到时已有候选就用当前最佳开播，不无限等；一个候选都没有则回退搜索结果页。
+ * 主路径等全部源搜索完、候选测速完再做选择；30 秒兜底上限：到时已有候选就用当前
+ * 最佳开播（v2.1.43 由 10 秒放宽——10 秒时慢源还没测完就被迫早选，用户反馈会挑错源）。
+ * 一个候选都没有则等搜索扫完后回退搜索结果页。
  */
 
 export interface AutoPlayCandidate {
@@ -40,7 +42,7 @@ export function pickBestCandidate(candidates: AutoPlayCandidate[]): AutoPlayCand
 const SEARCH_WORKERS = 4
 const PROBE_WORKERS = 3
 const PROBE_TIMEOUT_MS = 6000
-const RESOLVE_DEADLINE_MS = 10000
+const RESOLVE_DEADLINE_MS = 30000
 
 export default function AutoPlayResolveView() {
   const [searchParams] = useSearchParams()
@@ -73,7 +75,7 @@ export default function AutoPlayResolveView() {
       finished = true
       const best = pickBestCandidate(candidates)
       if (best) {
-        navigate(`/play/cms/${best.sourceId}/${best.vodId}`, { replace: true })
+        navigate(buildCmsPlayPath(best.sourceId, best.vodId), { replace: true })
       } else {
         toast.error('未找到可直接播放的源，已为你打开搜索结果')
         navigate(buildDoubanSearchPath(title), { replace: true })
@@ -167,7 +169,10 @@ export default function AutoPlayResolveView() {
                 latency: null,
               }
               candidates.push(candidate)
-              probeQueue.push(candidate)
+              // 按档位插入测速队列：精确匹配的候选先测，兜底超时早选时手里已有靠谱数据
+              const insertAt = probeQueue.findIndex(q => q.tier > candidate.tier)
+              if (insertAt === -1) probeQueue.push(candidate)
+              else probeQueue.splice(insertAt, 0, candidate)
               setProgress(p => ({ ...p, found: candidates.length }))
             }
           }
@@ -202,22 +207,42 @@ export default function AutoPlayResolveView() {
   }, [title])
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-      <Spinner className="size-8" />
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 px-4 text-center">
+      {/* 旋转光环 + 中央播放键的载入动画 */}
+      <div className="relative flex size-28 items-center justify-center">
+        <div className="border-primary/15 absolute inset-0 rounded-full border-4" />
+        <div className="border-primary absolute inset-0 animate-spin rounded-full border-4 border-t-transparent [animation-duration:1.6s]" />
+        <div className="border-primary/40 absolute inset-3 animate-[spin_3.2s_linear_infinite_reverse] rounded-full border-2 border-b-transparent" />
+        <div className="bg-primary/10 flex size-14 animate-pulse items-center justify-center rounded-full">
+          <Play className="text-primary size-6 fill-current pl-0.5" />
+        </div>
+      </div>
       <div>
-        <p className="text-lg font-semibold">正在为你挑最快的源</p>
+        <p className="text-lg font-semibold">
+          正在为你挑最快的源
+          <span className="ml-1 inline-flex gap-0.5 align-baseline">
+            <span className="animate-bounce [animation-delay:0ms]">.</span>
+            <span className="animate-bounce [animation-delay:150ms]">.</span>
+            <span className="animate-bounce [animation-delay:300ms]">.</span>
+          </span>
+        </p>
         <p className="text-muted-foreground mt-1 text-sm">《{title}》</p>
       </div>
-      <p className="text-muted-foreground text-sm">
-        已搜索 {progress.searched}/{progress.total} 个源 · 找到 {progress.found} 个可播源 · 已测速{' '}
-        {progress.probed} 个
-      </p>
-      <Button
-        variant="outline"
-        onClick={() => navigate(buildDoubanSearchPath(title), { replace: true })}
-      >
-        不等了，查看全部源
-      </Button>
+      {/* 搜索进度条 */}
+      <div className="w-56">
+        <div className="bg-primary/15 h-1.5 overflow-hidden rounded-full">
+          <div
+            className="bg-primary h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${progress.total > 0 ? Math.round((progress.searched / progress.total) * 100) : 0}%`,
+            }}
+          />
+        </div>
+        <p className="text-muted-foreground mt-3 text-xs">
+          已搜索 {progress.searched}/{progress.total} 个源 · 找到 {progress.found} 个可播源 · 已测速{' '}
+          {progress.probed} 个
+        </p>
+      </div>
     </div>
   )
 }

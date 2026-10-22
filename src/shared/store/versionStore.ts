@@ -57,6 +57,18 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.43',
+    title: '直达播放挑源不再抢跑',
+    date: formatDate('2026-10-22'),
+    features: [
+      '豆瓣直达播放的等待页改版：双层旋转光环 + 播放键动画与搜索进度条，去掉手动跳过按钮，安安静静等最快的源挑好。',
+    ],
+    fixes: [
+      '修复豆瓣直达播放挑源过早结束：原 10 秒上限时慢源还没测速完就被迫选源，容易挑错甚至被弹回。现主路径等全部源搜索完、候选测速完再选最快的，兜底上限放宽到 30 秒；测速顺序改为精确匹配的候选优先测。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.1.42',
     title: '豆瓣海报点击直达播放',
     date: formatDate('2026-10-22'),
