@@ -13,7 +13,7 @@ import { Skeleton } from '@/shared/components/ui/skeleton'
 import { useIsMobile } from '@/shared/hooks/use-mobile'
 import {
   DOUBAN_CATEGORIES,
-  buildDoubanSearchPath,
+  buildDoubanPlayPath,
   doubanPosterUrl,
   fetchDoubanCategory,
   type DoubanCategory,
@@ -132,7 +132,7 @@ function DoubanSection({ category }: { category: DoubanCategory }) {
               return (
                 <CarouselItem key={item.id} className="h-fit basis-1/3 md:basis-1/4 lg:basis-1/6">
                   <MediaPosterCard
-                    to={buildDoubanSearchPath(item.title)}
+                    to={buildDoubanPlayPath(item.title)}
                     posterUrl={item.cover ? doubanPosterUrl(item.cover) : null}
                     title={item.title}
                     rating={Number.isFinite(rating) && rating > 0 ? rating : undefined}

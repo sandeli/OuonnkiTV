@@ -317,3 +317,8 @@ export function doubanPosterUrl(cover: string): string {
 export function buildDoubanSearchPath(title: string): string {
   return `/search?q=${encodeURIComponent(title)}&mode=direct`
 }
+
+/** 点击豆瓣条目 → 直达播放解析页：自动跨源挑最快的源开播（找不到才回退搜索页） */
+export function buildDoubanPlayPath(title: string): string {
+  return `/play/auto?q=${encodeURIComponent(title)}`
+}

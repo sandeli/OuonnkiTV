@@ -32,6 +32,7 @@ const UserManagementSettings = lazy(
 
 // Player views
 const UnifiedPlayer = lazy(() => import('@/features/player/components/UnifiedPlayer'))
+const AutoPlayResolveView = lazy(() => import('@/features/player/views/AutoPlayResolveView'))
 
 // Loading fallback
 const LoadingFallback = () => {
@@ -123,6 +124,14 @@ const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <UnifiedPlayer />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: 'play/auto',
+        element: (
+          <SuspenseWrapper>
+            <AutoPlayResolveView />
           </SuspenseWrapper>
         ),
       },
