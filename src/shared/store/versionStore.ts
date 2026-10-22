@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.32',
+    title: '登录后保持登录状态',
+    date: formatDate('2026-10-22'),
+    features: [
+      '登录保持：登录一次后，关闭浏览器再打开无需重新登录，直接进入站点（最长保持 30 天，与服务器会话有效期一致）。被管理员踢下线、禁用或账号到期时仍会立即失效、需要重新登录。升级后首次打开需要再登录一次，之后即保持。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.1.31',
     title: '修复后台替换视频源后旧源残留',
     date: formatDate('2026-10-21'),

@@ -205,7 +205,10 @@ export const useAuthStore = create<AuthStore>()(
     {
       name: 'auth-storage',
       version: 2,
-      storage: createJSONStorage(() => sessionStorage),
+      // 登录态持久化到 localStorage：关浏览器/重启后仍保持登录，
+      // 有效期由服务器会话决定（30 天）；被踢、被禁用、账号到期仍会被会话复查拦下。
+      // （2026-10-22 按站长要求改：此前用 sessionStorage，关浏览器必须重新登录。）
+      storage: createJSONStorage(() => localStorage),
       partialize: (state): PersistedAuthState => ({
         token: state.token,
         user: state.user,
