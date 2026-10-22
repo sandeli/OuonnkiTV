@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
+import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import type { VideoSource } from '@tgys/cms-core'
 import { Play } from 'lucide-react'
@@ -45,10 +45,13 @@ const PROBE_TIMEOUT_MS = 6000
 const RESOLVE_DEADLINE_MS = 30000
 
 export default function AutoPlayResolveView() {
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const cmsClient = useCmsClient()
-  const title = (searchParams.get('q') ?? '').trim()
+  // 标题只在挂载时从地址读一次并冻结：跳去播放页后地址里的 ?q 会消失，若响应式重读，
+  // 标题变空会触发下方空标题守卫，把刚跳的播放页又顶回首页（v2.1.44 实测踩中）
+  const [title] = useState(
+    () => (new URLSearchParams(window.location.search).get('q') ?? '').trim(),
+  )
 
   const [progress, setProgress] = useState({ searched: 0, total: 0, found: 0, probed: 0 })
   const runRef = useRef(0)
@@ -75,9 +78,13 @@ export default function AutoPlayResolveView() {
       finished = true
       const best = pickBestCandidate(candidates)
       if (best) {
+        // 选源交代：让用户（和排障）一眼看出解析页选出了哪个源、测速多少
+        toast.success(
+          `已为你选源：${best.sourceName}${best.latency !== null ? ` · 播放 ${best.latency} ms` : ' · 未测得延迟'}`,
+        )
         navigate(buildCmsPlayPath(best.sourceId, best.vodId), { replace: true })
       } else {
-        toast.error('未找到可直接播放的源，已为你打开搜索结果')
+        toast.error(`已搜索 ${searchedCount} 个源，未找到可直接播放的，已为你打开搜索结果`)
         navigate(buildDoubanSearchPath(title), { replace: true })
       }
     }
