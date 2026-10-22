@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.39',
+    title: '新注册用户默认可用 365 天',
+    date: formatDate('2026-10-22'),
+    features: [
+      '自助注册的新用户默认可用天数为 365 天（从注册时刻起算，到期后无法登录，可联系管理员续期）。此前已注册的用户不受影响（仍为无限制，除非管理员单独设置过）；管理员手动添加的用户仍默认无限制。管理员可在用户管理里随时调整单个用户的天数或改为无限制。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.1.38',
     title: '邀请码改为 6 位',
     date: formatDate('2026-10-22'),

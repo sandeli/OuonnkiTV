@@ -1,6 +1,7 @@
 import {
   consumeInvite,
   createSession,
+  defaultUserExpiresAt,
   ensureSchema,
   findUsableInvite,
   getRegistrationMode,
@@ -65,9 +66,10 @@ export const onRequest = async (context: PagesContext) => {
   try {
     const result = (await db
       .prepare(
-        'INSERT INTO users (username, password_hash, password_salt, role, disabled, created_at) VALUES (?, ?, ?, ?, 0, ?)',
+        'INSERT INTO users (username, password_hash, password_salt, role, disabled, created_at, expires_at) VALUES (?, ?, ?, ?, 0, ?, ?)',
       )
-      .bind(username, passwordHash, salt, 'user', createdAt)
+      // 新注册用户默认可用 365 天（管理员可在用户管理里改天数或设为无限制）
+      .bind(username, passwordHash, salt, 'user', createdAt, defaultUserExpiresAt(createdAt))
       .run()) as { meta?: { last_row_id?: number } }
     userId = result.meta?.last_row_id ?? 0
   } catch {

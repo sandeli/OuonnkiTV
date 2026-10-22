@@ -477,6 +477,16 @@ export async function isRegistrationOpen(db: D1Database, env: AuthEnv): Promise<
   return envValue !== '0' && envValue !== 'false'
 }
 
+// ---------- 新注册用户默认有效期 ----------
+
+/** 自助注册新用户的默认可用天数（从注册时刻起算）；管理员手动添加的用户不适用（默认无限制） */
+export const DEFAULT_USER_VALID_DAYS = 365
+
+/** 新注册用户的到期时间（unix 秒，纯函数，可测） */
+export function defaultUserExpiresAt(createdAtSec: number): number {
+  return createdAtSec + DEFAULT_USER_VALID_DAYS * 86400
+}
+
 // ---------- 注册模式（开放 / 仅邀请 / 关闭） ----------
 
 export type RegistrationMode = 'open' | 'invite' | 'closed'

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   clampNumber,
   clampText,
+  DEFAULT_USER_VALID_DAYS,
+  defaultUserExpiresAt,
   generateInviteCode,
   getRegistrationMode,
   hashPassword,
@@ -110,5 +112,13 @@ describe('邀请码', () => {
     expect(inviteCodeStatus({ maxUses: 1, usedCount: 1, expiresAt: null }, now)).toBe('exhausted')
     expect(inviteCodeStatus({ maxUses: 3, usedCount: 1, expiresAt: now - 1 }, now)).toBe('expired')
     expect(inviteCodeStatus({ maxUses: 3, usedCount: 1, expiresAt: now + 60 }, now)).toBe('usable')
+  })
+})
+
+describe('新注册用户默认有效期', () => {
+  it('默认 365 天，到期时间 = 注册时刻 + 365 天', () => {
+    expect(DEFAULT_USER_VALID_DAYS).toBe(365)
+    const createdAt = 1_700_000_000
+    expect(defaultUserExpiresAt(createdAt)).toBe(createdAt + 365 * 86400)
   })
 })
