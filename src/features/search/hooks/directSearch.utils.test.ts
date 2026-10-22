@@ -54,4 +54,32 @@ describe('getTitleMatchTier', () => {
     expect(getTitleMatchTier('金枝欲孽', '嫁金钗')).toBe(3)
     expect(getTitleMatchTier('', '嫁金钗')).toBe(3)
   })
+
+  it('数字片段误命中要沉底：搜 12 不应把 1234/312 当相关', () => {
+    expect(getTitleMatchTier('1234', '12')).toBe(3)
+    expect(getTitleMatchTier('312', '12')).toBe(3)
+    expect(getTitleMatchTier('120急救', '12')).toBe(3)
+  })
+
+  it('数字在词边界上仍算命中', () => {
+    expect(getTitleMatchTier('12只猴子', '12')).toBe(1)
+    expect(getTitleMatchTier('飞驰人生2', '飞驰人生')).toBe(1)
+    expect(getTitleMatchTier('重案六组第12集', '12')).toBe(2)
+  })
+
+  it('中文数字与阿拉伯数字互通（季数）', () => {
+    expect(getTitleMatchTier('庆余年第二季', '庆余年2')).toBe(0)
+    expect(getTitleMatchTier('庆余年第二季', '庆余年')).toBe(1)
+    expect(getTitleMatchTier('琅琊榜之风起长林', '琅琊榜2')).toBe(3)
+  })
+
+  it('繁简体互通', () => {
+    expect(getTitleMatchTier('三體', '三体')).toBe(0)
+    expect(getTitleMatchTier('電視劇三體', '三体')).toBe(2)
+    expect(getTitleMatchTier('繁體字劇場', '繁体字')).toBe(1)
+  })
+
+  it('全角数字与半角互通', () => {
+    expect(getTitleMatchTier('１２只猴子', '12')).toBe(1)
+  })
 })
