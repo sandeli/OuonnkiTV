@@ -29,6 +29,8 @@ export interface PagesContext {
   request: Request
   env: AuthEnv
   params: Record<string, string | string[]>
+  /** Pages 运行时提供：让响应返回后继续执行的后台任务（如电报通知） */
+  waitUntil?: (promise: Promise<unknown>) => void
 }
 
 export interface SessionUser {
@@ -127,6 +129,17 @@ export function ensureSchema(db: D1Database): Promise<void> {
             value TEXT NOT NULL
           )`,
         ),
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS invite_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            note TEXT NOT NULL DEFAULT '',
+            max_uses INTEGER NOT NULL DEFAULT 1,
+            used_count INTEGER NOT NULL DEFAULT 0,
+            expires_at INTEGER,
+            created_at INTEGER NOT NULL
+          )`,
+        ),
       ])
       // 老表补列（列已存在时 ALTER 会报错，忽略即可）
       const columnAdditions: Array<[string, string, string]> = [
@@ -135,6 +148,8 @@ export function ensureSchema(db: D1Database): Promise<void> {
         ['login_logs', 'city', 'TEXT'],
         // 用户到期时间（unix 秒，NULL = 无限制），由管理员在后台设置
         ['users', 'expires_at', 'INTEGER'],
+        // 电报上线通知开关（1 = 该用户登录时给管理员发 TG 通知）
+        ['users', 'tg_watch', 'INTEGER NOT NULL DEFAULT 0'],
       ]
       for (const [table, column, type] of columnAdditions) {
         try {
@@ -460,6 +475,165 @@ export async function isRegistrationOpen(db: D1Database, env: AuthEnv): Promise<
   if (stored === '0') return false
   const envValue = (env.TGYS_REGISTRATION_OPEN ?? '').trim().toLowerCase()
   return envValue !== '0' && envValue !== 'false'
+}
+
+// ---------- 注册模式（开放 / 仅邀请 / 关闭） ----------
+
+export type RegistrationMode = 'open' | 'invite' | 'closed'
+
+/** 注册模式：后台 registration_mode 优先；未设置时由旧的 registration_open 推导 */
+export async function getRegistrationMode(
+  db: D1Database,
+  env: AuthEnv,
+): Promise<RegistrationMode> {
+  const stored = await getSetting(db, 'registration_mode')
+  if (stored === 'open' || stored === 'invite' || stored === 'closed') return stored
+  return (await isRegistrationOpen(db, env)) ? 'open' : 'closed'
+}
+
+// ---------- 邀请码 ----------
+
+export interface InviteCodeRow {
+  id: number
+  code: string
+  note: string
+  maxUses: number
+  usedCount: number
+  expiresAt: number | null
+  createdAt: number
+}
+
+// 易读字母表：去掉 0/O/1/I/L 等易混字符
+const INVITE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+
+/** 生成 10 位邀请码（纯函数，可测） */
+export function generateInviteCode(): string {
+  const bytes = new Uint8Array(10)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, b => INVITE_ALPHABET[b % INVITE_ALPHABET.length]).join('')
+}
+
+/** 邀请码状态（纯函数，可测）：可用 / 已用完 / 已过期 */
+export function inviteCodeStatus(
+  row: { maxUses: number; usedCount: number; expiresAt: number | null },
+  nowSec: number,
+): 'usable' | 'exhausted' | 'expired' {
+  if (row.expiresAt !== null && row.expiresAt < nowSec) return 'expired'
+  if (row.usedCount >= row.maxUses) return 'exhausted'
+  return 'usable'
+}
+
+/** 按码查可用邀请（大小写不敏感、忽略首尾空白）；不可用返回 null */
+export async function findUsableInvite(
+  db: D1Database,
+  rawCode: string,
+): Promise<InviteCodeRow | null> {
+  const code = rawCode.trim().toUpperCase()
+  if (!code) return null
+  const row = await db
+    .prepare(
+      'SELECT id, code, note, max_uses AS maxUses, used_count AS usedCount, expires_at AS expiresAt, created_at AS createdAt FROM invite_codes WHERE code = ?',
+    )
+    .bind(code)
+    .first<InviteCodeRow>()
+  if (!row) return null
+  return inviteCodeStatus(row, nowSeconds()) === 'usable' ? row : null
+}
+
+/** 核销一次邀请码使用次数 */
+export async function consumeInvite(db: D1Database, inviteId: number): Promise<void> {
+  await db
+    .prepare('UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ?')
+    .bind(inviteId)
+    .run()
+}
+
+// ---------- 电报上线通知 ----------
+
+export interface TgNotifyConfig {
+  botToken: string
+  chatId: string
+}
+
+/** 电报通知配置（管理员后台设置，存 settings 表） */
+export async function readTgNotifyConfig(db: D1Database): Promise<TgNotifyConfig> {
+  const [botToken, chatId] = await Promise.all([
+    getSetting(db, 'tg_notify_bot_token'),
+    getSetting(db, 'tg_notify_chat_id'),
+  ])
+  return { botToken: botToken ?? '', chatId: chatId ?? '' }
+}
+
+const TG_COUNTRY_NAMES: Record<string, string> = {
+  CN: '中国',
+  HK: '中国香港',
+  TW: '中国台湾',
+  MO: '中国澳门',
+  US: '美国',
+  JP: '日本',
+  KR: '韩国',
+  SG: '新加坡',
+  GB: '英国',
+  DE: '德国',
+  FR: '法国',
+  CA: '加拿大',
+  AU: '澳大利亚',
+}
+
+/** 发送一条 Telegram 消息（5 秒超时）；返回是否成功及失败原因 */
+export async function sendTelegramMessage(
+  botToken: string,
+  chatId: string,
+  text: string,
+): Promise<{ ok: boolean; description?: string }> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 5000)
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+      signal: controller.signal,
+    })
+    const data = (await response.json().catch(() => null)) as {
+      ok?: boolean
+      description?: string
+    } | null
+    if (response.ok && data?.ok) return { ok: true }
+    return { ok: false, description: data?.description ?? `HTTP ${response.status}` }
+  } catch {
+    return { ok: false, description: '网络异常或超时' }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** 用户上线（登录成功）通知：配置缺失时静默跳过；发送失败不影响登录 */
+export async function notifyUserLoginTg(
+  db: D1Database,
+  info: { username: string; ip: string; country: string; region: string; city: string; at: number },
+): Promise<void> {
+  const { botToken, chatId } = await readTgNotifyConfig(db)
+  if (!botToken || !chatId) return
+  const when = new Date(info.at * 1000).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    hour12: false,
+  })
+  const place = [
+    info.country ? (TG_COUNTRY_NAMES[info.country] ?? info.country) : '',
+    info.region,
+    info.city,
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const lines = [
+    '🟢 TGYS TV 用户上线',
+    `用户：${info.username}`,
+    `时间：${when}（北京时间）`,
+  ]
+  if (place) lines.push(`地点：${place}`)
+  if (info.ip) lines.push(`IP：${info.ip}`)
+  await sendTelegramMessage(botToken, chatId, lines.join('\n'))
 }
 
 // ---------- Turnstile（可选：配置了 Secret 才校验） ----------

@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest'
 import {
   clampNumber,
   clampText,
+  generateInviteCode,
+  getRegistrationMode,
   hashPassword,
+  inviteCodeStatus,
   randomHex,
   sha256Hex,
   validatePassword,
   validateUsername,
   verifyPassword,
+  type AuthEnv,
+  type D1Database,
 } from './auth'
 
 describe('账号校验', () => {
@@ -55,5 +60,55 @@ describe('密码哈希与令牌摘要', () => {
     const digest = await sha256Hex('tgys-token')
     expect(digest).toHaveLength(64)
     expect(await sha256Hex('tgys-token')).toBe(digest)
+  })
+})
+
+/** 只实现 settings 读取的最小 D1 假实现（getSetting 只用 prepare→bind→first） */
+function fakeDb(settings: Record<string, string>): D1Database {
+  return {
+    prepare: () => ({
+      bind: (key: string) => ({
+        first: async () => (settings[key] !== undefined ? { value: settings[key] } : null),
+      }),
+    }),
+  } as unknown as D1Database
+}
+
+describe('注册模式', () => {
+  const env = {} as AuthEnv
+  it('默认开放；旧开关关闭则关闭', async () => {
+    expect(await getRegistrationMode(fakeDb({}), env)).toBe('open')
+    expect(await getRegistrationMode(fakeDb({ registration_open: '0' }), env)).toBe('closed')
+    expect(
+      await getRegistrationMode(fakeDb({}), { TGYS_REGISTRATION_OPEN: '0' } as AuthEnv),
+    ).toBe('closed')
+  })
+  it('registration_mode 优先于旧开关', async () => {
+    expect(
+      await getRegistrationMode(fakeDb({ registration_mode: 'invite', registration_open: '1' }), env),
+    ).toBe('invite')
+    expect(
+      await getRegistrationMode(fakeDb({ registration_mode: 'open', registration_open: '0' }), env),
+    ).toBe('open')
+    expect(await getRegistrationMode(fakeDb({ registration_mode: 'bogus' }), env)).toBe('open')
+  })
+})
+
+describe('邀请码', () => {
+  it('生成 10 位易读码（无易混字符）且多次不重复', () => {
+    const codes = new Set<string>()
+    for (let i = 0; i < 50; i += 1) {
+      const code = generateInviteCode()
+      expect(code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{10}$/)
+      codes.add(code)
+    }
+    expect(codes.size).toBe(50)
+  })
+  it('状态：可用 / 用完 / 过期（过期优先）', () => {
+    const now = 1_700_000_000
+    expect(inviteCodeStatus({ maxUses: 1, usedCount: 0, expiresAt: null }, now)).toBe('usable')
+    expect(inviteCodeStatus({ maxUses: 1, usedCount: 1, expiresAt: null }, now)).toBe('exhausted')
+    expect(inviteCodeStatus({ maxUses: 3, usedCount: 1, expiresAt: now - 1 }, now)).toBe('expired')
+    expect(inviteCodeStatus({ maxUses: 3, usedCount: 1, expiresAt: now + 60 }, now)).toBe('usable')
   })
 })

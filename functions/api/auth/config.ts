@@ -1,8 +1,8 @@
 import {
   DEFAULT_DOUBAN_PROXY,
   ensureSchema,
+  getRegistrationMode,
   getSetting,
-  isRegistrationOpen,
   json,
   readManagedSourceEnabled,
   readDoubanProxySettings,
@@ -16,6 +16,7 @@ export const onRequest = async (context: PagesContext) => {
     return json({
       authEnabled: false,
       registrationOpen: false,
+      registrationMode: 'closed',
       turnstileSiteKey: '',
       announcement: null,
       announcementBar: '',
@@ -25,7 +26,7 @@ export const onRequest = async (context: PagesContext) => {
     })
   }
   await ensureSchema(db)
-  const [enabled, content, version, barContent, doubanProxy, videoSources, managedSourceEnabled] =
+  const [enabled, content, version, barContent, doubanProxy, videoSources, managedSourceEnabled, registrationMode] =
     await Promise.all([
     getSetting(db, 'announcement_popup_enabled'),
     getSetting(db, 'announcement_popup_content'),
@@ -34,10 +35,12 @@ export const onRequest = async (context: PagesContext) => {
     readDoubanProxySettings(db),
     getSetting(db, 'initial_video_sources'),
     readManagedSourceEnabled(db),
+    getRegistrationMode(db, context.env),
   ])
   return json({
     authEnabled: true,
-    registrationOpen: await isRegistrationOpen(db, context.env),
+    registrationOpen: registrationMode !== 'closed',
+    registrationMode,
     turnstileSiteKey: context.env.TGYS_TURNSTILE_SITE_KEY ?? '',
     announcement: {
       enabled: enabled === '1',

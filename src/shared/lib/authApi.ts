@@ -32,9 +32,13 @@ export const DEFAULT_DOUBAN_PROXY: DoubanProxyConfig = {
   imageUrl: '',
 }
 
+export type RegistrationMode = 'open' | 'invite' | 'closed'
+
 export interface AuthPublicConfig {
   authEnabled: boolean
   registrationOpen: boolean
+  /** 注册模式：开放 / 仅邀请码 / 关闭（旧后端无此字段时按 registrationOpen 推导） */
+  registrationMode?: RegistrationMode
   turnstileSiteKey: string
   announcement: AnnouncementConfig | null
   /** 首页滚动公告（管理员后台设置；空字符串表示未设置，前端回退环境变量） */
@@ -150,10 +154,11 @@ export function registerAccount(
   username: string,
   password: string,
   turnstileToken?: string,
+  inviteCode?: string,
 ): Promise<SessionResponse> {
   return request<SessionResponse>('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ username, password, turnstileToken }),
+    body: JSON.stringify({ username, password, turnstileToken, inviteCode }),
   })
 }
 
@@ -191,6 +196,7 @@ export interface AdminUserRow {
   createdAt: number
   lastLoginAt: number | null
   expiresAt: number | null
+  tgWatch: number | null
   loginCount: number
   watchCount: number
   lastWatchAt: number | null
@@ -240,6 +246,19 @@ export async function adminListUsers(token: string): Promise<AdminUserRow[]> {
   return data.users
 }
 
+/** 管理员直接创建用户（用户名+密码；不受开放注册开关限制） */
+export function adminCreateUser(
+  token: string,
+  username: string,
+  password: string,
+): Promise<{ ok: boolean; user: { id: number; username: string } }> {
+  return request(
+    '/api/admin/users',
+    { method: 'POST', body: JSON.stringify({ username, password }) },
+    token,
+  )
+}
+
 export function adminGetUserDetail(token: string, userId: number): Promise<AdminUserDetail> {
   return request<AdminUserDetail>(`/api/admin/users/${userId}`, undefined, token)
 }
@@ -275,8 +294,64 @@ export function adminDeleteUser(token: string, userId: number): Promise<{ ok: bo
   return request(`/api/admin/users/${userId}`, { method: 'DELETE' }, token)
 }
 
+/** 设置某用户的电报上线通知开关 */
+export function adminSetUserTgWatch(
+  token: string,
+  userId: number,
+  enabled: boolean,
+): Promise<{ ok: boolean; tgWatch: boolean }> {
+  return request(
+    `/api/admin/users/${userId}/tgwatch`,
+    { method: 'POST', body: JSON.stringify({ enabled }) },
+    token,
+  )
+}
+
+export async function adminListInvites(token: string): Promise<InviteCodeRow[]> {
+  const data = await request<{ invites: InviteCodeRow[] }>('/api/admin/invites', undefined, token)
+  return data.invites
+}
+
+export function adminCreateInvite(
+  token: string,
+  input: { note: string; maxUses: number; expiresDays: number },
+): Promise<{ ok: boolean; invite: InviteCodeRow }> {
+  return request('/api/admin/invites', { method: 'POST', body: JSON.stringify(input) }, token)
+}
+
+export function adminDeleteInvite(token: string, inviteId: number): Promise<{ ok: boolean }> {
+  return request(`/api/admin/invites/${inviteId}`, { method: 'DELETE' }, token)
+}
+
+/** 用给定的 Bot Token + Chat ID 发送一条电报测试消息 */
+export function adminTestTgNotify(
+  token: string,
+  botToken: string,
+  chatId: string,
+): Promise<{ ok: boolean }> {
+  return request(
+    '/api/admin/tg-test',
+    { method: 'POST', body: JSON.stringify({ botToken, chatId }) },
+    token,
+  )
+}
+
+export interface InviteCodeRow {
+  id: number
+  code: string
+  note: string
+  maxUses: number
+  usedCount: number
+  expiresAt: number | null
+  createdAt: number
+}
+
 export interface AdminSettings {
   registrationOpen: boolean
+  registrationMode: RegistrationMode
+  /** 电报上线通知配置（管理员后台维护） */
+  tgBotToken: string
+  tgChatId: string
   announcement: AnnouncementConfig
   announcementBar: string
   doubanProxy: DoubanProxyConfig
@@ -294,6 +369,9 @@ export function adminUpdateSettings(
   token: string,
   patch: {
     registrationOpen?: boolean
+    registrationMode?: RegistrationMode
+    tgBotToken?: string
+    tgChatId?: string
     announcementEnabled?: boolean
     announcementContent?: string
     announcementBarContent?: string

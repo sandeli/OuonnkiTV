@@ -77,7 +77,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     useAuthStore()
   const serverToken = useAuthStore(state => state.token)
   const legacySessionToken = useAuthStore(state => state.sessionToken)
-  const registrationOpen = useAuthStore(state => state.authConfig?.registrationOpen ?? false)
+  const registrationMode = useAuthStore(
+    state =>
+      state.authConfig?.registrationMode ??
+      (state.authConfig?.registrationOpen ? 'open' : 'closed'),
+  )
+  const registrationOpen = registrationMode !== 'closed'
   const turnstileSiteKey = useAuthStore(state => state.authConfig?.turnstileSiteKey ?? '')
 
   const [gateMode, setGateMode] = useState<GateMode | null>(null)
@@ -85,6 +90,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
@@ -234,12 +240,21 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       toast.error('两次输入的密码不一致')
       return
     }
+    if (registrationMode === 'invite' && !inviteCode.trim()) {
+      toast.error('请输入邀请码')
+      return
+    }
     if (turnstileSiteKey && !turnstileToken) {
       toast.error('请先完成人机验证')
       return
     }
     setIsLoading(true)
-    const result = await register(username.trim(), password, turnstileToken || undefined)
+    const result = await register(
+      username.trim(),
+      password,
+      turnstileToken || undefined,
+      registrationMode === 'invite' ? inviteCode.trim() : undefined,
+    )
     if (result.ok) {
       toast.success('注册成功')
       handleSuccess()
@@ -421,7 +436,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                         onClick={() => switchForm('register')}
                       >
                         <User className="size-4" />
-                        注册账号
+                        {registrationMode === 'invite' ? '邀请码注册' : '注册账号'}
                       </button>
                     ) : (
                       <span>注册已关闭</span>
@@ -454,6 +469,16 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                     onChange={e => setConfirmPassword(e.target.value)}
                     className="h-11 rounded-full"
                   />
+                  {registrationMode === 'invite' && (
+                    <Input
+                      type="text"
+                      placeholder="邀请码（向管理员索取）"
+                      autoComplete="off"
+                      value={inviteCode}
+                      onChange={e => setInviteCode(e.target.value)}
+                      className="h-11 rounded-full"
+                    />
+                  )}
                   <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
                   <Button
                     ref={buttonRef}

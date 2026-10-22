@@ -1,10 +1,13 @@
 import {
+  consumeInvite,
   createSession,
   ensureSchema,
+  findUsableInvite,
+  getRegistrationMode,
   getRequestGeo,
   hashPassword,
-  isRegistrationOpen,
   json,
+  type InviteCodeRow,
   nowSeconds,
   randomHex,
   readJson,
@@ -18,6 +21,7 @@ interface RegisterBody {
   username?: unknown
   password?: unknown
   turnstileToken?: string
+  inviteCode?: unknown
 }
 
 export const onRequest = async (context: PagesContext) => {
@@ -26,7 +30,8 @@ export const onRequest = async (context: PagesContext) => {
   if (!db) return json({ error: '账号系统未配置' }, 503)
   await ensureSchema(db)
 
-  if (!(await isRegistrationOpen(db, context.env))) {
+  const registrationMode = await getRegistrationMode(db, context.env)
+  if (registrationMode === 'closed') {
     return json({ error: '注册已关闭' }, 403)
   }
 
@@ -38,6 +43,16 @@ export const onRequest = async (context: PagesContext) => {
 
   if (!(await verifyTurnstile(context.env, body?.turnstileToken))) {
     return json({ error: '人机验证未通过，请重试' }, 400)
+  }
+
+  // 仅邀请模式：先验邀请码（无效/用完/过期一律拒绝），建号成功后再核销次数
+  let invite: InviteCodeRow | null = null
+  if (registrationMode === 'invite') {
+    invite = await findUsableInvite(
+      db,
+      typeof body?.inviteCode === 'string' ? body.inviteCode : '',
+    )
+    if (!invite) return json({ error: '邀请码无效、已用完或已过期' }, 400)
   }
 
   const salt = randomHex(16)
@@ -58,6 +73,8 @@ export const onRequest = async (context: PagesContext) => {
   } catch {
     return json({ error: '用户名已被注册' }, 409)
   }
+
+  if (invite) await consumeInvite(db, invite.id)
 
   // 注册即登录：同步记一条登录日志与最近登录时间，后台登录记录才完整
   await db

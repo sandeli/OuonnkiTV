@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, ChevronDown, ChevronUp, LogOut, Trash2, UserCheck } from 'lucide-react'
+import { Ban, ChevronDown, ChevronUp, LogOut, Trash2, UserCheck, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
+import { Switch } from '@/shared/components/ui/switch'
 import { Spinner } from '@/shared/components/ui/spinner'
 import { ConfirmModal } from '@/shared/components/common/ConfirmModal'
 import { useAuthStore } from '@/shared/store/authStore'
 import {
+  adminCreateUser,
   adminDeleteUser,
+  adminSetUserTgWatch,
   adminGetUserDetail,
   adminKickUser,
   adminListUsers,
@@ -136,6 +139,10 @@ export default function UserManagementSettings() {
   const [deleteTarget, setDeleteTarget] = useState<AdminUserRow | null>(null)
   const [expiryInput, setExpiryInput] = useState('')
   const [expirySaving, setExpirySaving] = useState(false)
+  const [newUsername, setNewUsername] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [tgWatchSaving, setTgWatchSaving] = useState(false)
 
   const loadUsers = useCallback(async () => {
     if (!token) return
@@ -171,6 +178,49 @@ export default function UserManagementSettings() {
       toast.error('加载用户详情失败')
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  const handleCreate = async () => {
+    if (!token) return
+    const username = newUsername.trim()
+    if (username.length < 3 || username.length > 24 || !/^[\p{L}\p{N}_-]+$/u.test(username)) {
+      toast.error('用户名需 3-24 位，仅限文字、数字、下划线、连字符')
+      return
+    }
+    if (newPassword.length < 6 || newPassword.length > 64) {
+      toast.error('密码需 6-64 位')
+      return
+    }
+    setCreating(true)
+    try {
+      await adminCreateUser(token, username, newPassword)
+      toast.success(`已添加用户 ${username}，对方可用此用户名和密码登录`)
+      setNewUsername('')
+      setNewPassword('')
+      void loadUsers()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '添加失败')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleTgWatch = async (row: AdminUserRow, enabled: boolean) => {
+    if (!token) return
+    setTgWatchSaving(true)
+    try {
+      await adminSetUserTgWatch(token, row.id, enabled)
+      toast.success(
+        enabled
+          ? `已开启 ${row.username} 的电报上线通知（需先在站点设置里配好机器人）`
+          : `已关闭 ${row.username} 的电报上线通知`,
+      )
+      void loadUsers()
+    } catch {
+      toast.error('操作失败')
+    } finally {
+      setTgWatchSaving(false)
     }
   }
 
@@ -241,6 +291,36 @@ export default function UserManagementSettings() {
 
   return (
     <div>
+      <div className="border-border bg-card mb-4 rounded-xl border p-4">
+        <div className="flex items-center gap-2">
+          <UserPlus className="size-4" />
+          <span className="font-semibold">添加用户</span>
+        </div>
+        <p className="text-muted-foreground mt-1 text-sm">
+          管理员直接创建账号，不受「开放注册」开关影响。创建后把用户名和密码告诉对方即可登录；可用天数默认无限制，可在下方用户明细里调整。
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Input
+            className="h-9 w-48"
+            placeholder="用户名（3-24 位）"
+            value={newUsername}
+            onChange={e => setNewUsername(e.target.value)}
+            autoComplete="off"
+          />
+          <Input
+            className="h-9 w-48"
+            type="password"
+            placeholder="密码（6-64 位）"
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+          <Button size="sm" disabled={creating} onClick={() => void handleCreate()}>
+            {creating ? '添加中…' : '添加用户'}
+          </Button>
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-20">
           <Spinner />
@@ -257,6 +337,7 @@ export default function UserManagementSettings() {
                 <span className="font-semibold">{row.username}</span>
                 {row.role === 'admin' && <Badge variant="secondary">管理员</Badge>}
                 {row.disabled === 1 && <Badge variant="destructive">已禁用</Badge>}
+                {row.tgWatch === 1 && <Badge variant="secondary">电报通知</Badge>}
                 <span className="text-muted-foreground ml-auto text-xs">
                   注册于 {formatTime(row.createdAt)}
                 </span>
@@ -344,6 +425,26 @@ export default function UserManagementSettings() {
                           >
                             保存
                           </Button>
+                        </span>
+                      </div>
+                      <div className="mb-5 flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold">电报上线通知</span>
+                        <span className="text-muted-foreground text-sm">
+                          开启后，该用户每次登录都会给管理员的 Telegram 发一条上线消息（只报上线；机器人需先在「站点设置」里配好）
+                        </span>
+                        <span className="ml-auto">
+                          <Switch
+                            checked={
+                              (users.find(u => u.id === expandedId) ?? row).tgWatch === 1
+                            }
+                            disabled={tgWatchSaving}
+                            onCheckedChange={checked =>
+                              void handleTgWatch(
+                                users.find(u => u.id === expandedId) ?? row,
+                                checked,
+                              )
+                            }
+                          />
                         </span>
                       </div>
                       <div className="grid min-w-0 gap-6 md:grid-cols-2">

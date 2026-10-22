@@ -1,12 +1,14 @@
 import {
   DOUBAN_DATA_PROXY_TYPES,
   DOUBAN_IMAGE_PROXY_TYPES,
+  getRegistrationMode,
   getSetting,
   isRegistrationOpen,
   json,
   readManagedSourceEnabled,
   readDoubanProxySettings,
   readJson,
+  readTgNotifyConfig,
   requireAdmin,
   sanitizeManagedSourceEnabled,
   setSetting,
@@ -34,8 +36,12 @@ export const onRequest = async (context: PagesContext) => {
   const { db } = result
 
   if (context.request.method === 'GET') {
+    const tgNotify = await readTgNotifyConfig(db)
     return json({
       registrationOpen: await isRegistrationOpen(db, context.env),
+      registrationMode: await getRegistrationMode(db, context.env),
+      tgBotToken: tgNotify.botToken,
+      tgChatId: tgNotify.chatId,
       announcement: await readAnnouncement(db),
       announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
       doubanProxy: await readDoubanProxySettings(db),
@@ -47,6 +53,9 @@ export const onRequest = async (context: PagesContext) => {
   if (context.request.method === 'POST') {
     const body = await readJson<{
       registrationOpen?: unknown
+      registrationMode?: unknown
+      tgBotToken?: unknown
+      tgChatId?: unknown
       announcementEnabled?: unknown
       announcementContent?: unknown
       announcementBarContent?: unknown
@@ -60,6 +69,23 @@ export const onRequest = async (context: PagesContext) => {
 
     if (typeof body?.registrationOpen === 'boolean') {
       await setSetting(db, 'registration_open', body.registrationOpen ? '1' : '0')
+    }
+
+    if (
+      body?.registrationMode === 'open' ||
+      body?.registrationMode === 'invite' ||
+      body?.registrationMode === 'closed'
+    ) {
+      await setSetting(db, 'registration_mode', body.registrationMode)
+      // 同步旧开关，保持其他读取 registration_open 的地方语义一致
+      await setSetting(db, 'registration_open', body.registrationMode === 'open' ? '1' : '0')
+    }
+
+    if (typeof body?.tgBotToken === 'string') {
+      await setSetting(db, 'tg_notify_bot_token', body.tgBotToken.trim().slice(0, 128))
+    }
+    if (typeof body?.tgChatId === 'string') {
+      await setSetting(db, 'tg_notify_chat_id', body.tgChatId.trim().slice(0, 64))
     }
 
     if (typeof body?.announcementEnabled === 'boolean') {
@@ -111,9 +137,13 @@ export const onRequest = async (context: PagesContext) => {
       }
     }
 
+    const tgNotifyAfter = await readTgNotifyConfig(db)
     return json({
       ok: true,
       registrationOpen: await isRegistrationOpen(db, context.env),
+      registrationMode: await getRegistrationMode(db, context.env),
+      tgBotToken: tgNotifyAfter.botToken,
+      tgChatId: tgNotifyAfter.chatId,
       announcement: await readAnnouncement(db),
       announcementBar: (await getSetting(db, 'announcement_bar_content')) ?? '',
       doubanProxy: await readDoubanProxySettings(db),
