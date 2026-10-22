@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.37',
+    title: '修复邀请码注册入口不显示',
+    date: formatDate('2026-10-22'),
+    features: [],
+    fixes: [
+      '修复开启「仅邀请码」注册后，登录页注册表单不显示邀请码输入框的问题（服务端配置已正确下发，是前端拉取公开配置时漏传了注册模式字段）。修复后切换为邀请模式，注册页即显示邀请码输入框与「邀请码注册」入口。已加回归测试防止再次漏传。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.1.36',
     title: '电报上线通知',
     date: formatDate('2026-10-22'),

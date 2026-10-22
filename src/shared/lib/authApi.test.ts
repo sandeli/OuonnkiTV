@@ -6,6 +6,24 @@ describe('fetchAuthConfig', () => {
     vi.unstubAllGlobals()
   })
 
+  it('透传注册模式 registrationMode（邀请模式不能被漏掉）', async () => {
+    const stub = (payload: Record<string, unknown>) =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: true, json: async () => payload }),
+      )
+    stub({ authEnabled: true, registrationOpen: true, registrationMode: 'invite' })
+    expect((await fetchAuthConfig()).registrationMode).toBe('invite')
+    // 旧后端无 registrationMode 字段时按 registrationOpen 推导
+    stub({ authEnabled: true, registrationOpen: true })
+    expect((await fetchAuthConfig()).registrationMode).toBe('open')
+    stub({ authEnabled: true, registrationOpen: false })
+    expect((await fetchAuthConfig()).registrationMode).toBe('closed')
+    // 非法值同样回退推导
+    stub({ authEnabled: true, registrationOpen: false, registrationMode: 'bogus' })
+    expect((await fetchAuthConfig()).registrationMode).toBe('closed')
+  })
+
   it('透传管理员视频源字段 initialVideoSources', async () => {
     vi.stubGlobal(
       'fetch',

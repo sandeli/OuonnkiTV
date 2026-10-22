@@ -93,6 +93,14 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
     return {
       authEnabled: data.authEnabled === true,
       registrationOpen: data.registrationOpen === true,
+      registrationMode:
+        data.registrationMode === 'open' ||
+        data.registrationMode === 'invite' ||
+        data.registrationMode === 'closed'
+          ? data.registrationMode
+          : data.registrationOpen === true
+            ? 'open'
+            : 'closed',
       turnstileSiteKey: typeof data.turnstileSiteKey === 'string' ? data.turnstileSiteKey : '',
       announcement,
       announcementBar: typeof data.announcementBar === 'string' ? data.announcementBar : '',
@@ -129,6 +137,7 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
     return {
       authEnabled: false,
       registrationOpen: false,
+      registrationMode: 'closed' as const,
       turnstileSiteKey: '',
       announcement: null,
       announcementBar: '',
