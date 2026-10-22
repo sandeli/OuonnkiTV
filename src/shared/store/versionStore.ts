@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.1.41',
+    title: '修复首页热门动漫加载失败',
+    date: formatDate('2026-10-22'),
+    features: [],
+    fixes: [
+      '修复首页「热门动漫」一直加载失败：该板块用的标签在豆瓣不存在（豆瓣电视剧侧的动漫标签叫「日本动画」，没有「动画」），接口恒返回空数据。此前失败板块是静默隐藏的，v2.1.33 改为显示失败占位后才暴露出来。已换成正确标签，其余 8 个分类经逐一核查均正常。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.1.40',
     title: '搜索匹配更精准：片段误命中沉底 + 繁简/中文数字互通',
     date: formatDate('2026-10-22'),

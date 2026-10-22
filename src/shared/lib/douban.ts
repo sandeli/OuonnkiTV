@@ -40,7 +40,8 @@ export const DOUBAN_CATEGORIES: DoubanCategory[] = [
   { label: '美剧', type: 'tv', tag: '美剧' },
   { label: '日剧', type: 'tv', tag: '日剧' },
   { label: '热门综艺', type: 'tv', tag: '综艺' },
-  { label: '热门动漫', type: 'tv', tag: '动画' },
+  // 豆瓣 tv 侧没有「动画」标签（官方标签列表里动漫叫「日本动画」），用错标签会恒返回空
+  { label: '热门动漫', type: 'tv', tag: '日本动画' },
   { label: '豆瓣高分', type: 'movie', tag: '豆瓣高分' },
   { label: '经典电影', type: 'movie', tag: '经典' },
 ]

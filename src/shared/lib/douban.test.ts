@@ -139,6 +139,14 @@ describe('resolveDoubanProxyConfig', () => {
   })
 })
 
+describe('DOUBAN_CATEGORIES 标签有效性', () => {
+  it('热门动漫使用豆瓣官方标签「日本动画」（tv 侧不存在「动画」标签，恒为空）', () => {
+    const anime = DOUBAN_CATEGORIES.find(x => x.label === '热门动漫')
+    expect(anime).toMatchObject({ type: 'tv', tag: '日本动画' })
+    expect(DOUBAN_CATEGORIES.some(x => x.type === 'tv' && x.tag === '动画')).toBe(false)
+  })
+})
+
 describe('DOUBAN_CATEGORIES', () => {
   it('国产剧取代热门剧集（type=tv、tag=国产剧）', () => {
     const labels = DOUBAN_CATEGORIES.map(x => x.label)
