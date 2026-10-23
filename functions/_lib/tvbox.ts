@@ -89,7 +89,7 @@ interface ParsedSourceEntry {
   enabled: boolean
 }
 
-/** 解析源清单 JSON（兼容标准 url/isEnabled 与 KVideo 的 baseUrl/enabled 两种格式） */
+/** 解析源清单 JSON（兼容标准 url/isEnabled、KVideo 的 baseUrl/enabled、MoonTV 的 api_site、TVBox 配置 sites 四种格式） */
 export function parseManagedSourcesJson(raw: string): ParsedSourceEntry[] {
   let data: unknown
   try {
@@ -97,9 +97,29 @@ export function parseManagedSourcesJson(raw: string): ParsedSourceEntry[] {
   } catch {
     return []
   }
-  const list = Array.isArray(data)
-    ? data
-    : ((data as { sources?: unknown[] } | null)?.sources ?? [])
+  let list: unknown[] = []
+  if (Array.isArray(data)) {
+    list = data
+  } else if (data && typeof data === 'object') {
+    const obj = data as { sources?: unknown; api_site?: unknown }
+    if (Array.isArray(obj.sources)) {
+      list = obj.sources
+    } else if (Array.isArray((obj as { sites?: unknown }).sites)) {
+      // TVBox 播放器配置：只提取 type=1 且 api 为 http(s) 的 CMS 源，爬虫/XML 站点本站用不了直接跳过
+      list = ((obj as { sites: unknown[] }).sites as Array<Record<string, unknown>>)
+        .filter(site => {
+          const api = typeof site?.api === 'string' ? site.api.trim() : ''
+          return (site?.type === 1 || site?.type === '1') && /^https?:\/\//i.test(api)
+        })
+        .map(site => ({ id: site.key, name: site.name, url: site.api }))
+    } else if (obj.api_site && typeof obj.api_site === 'object' && !Array.isArray(obj.api_site)) {
+      // MoonTV 订阅格式：{ api_site: { <键>: { name, api } } } → 展开成条目数组，键作 id（后续统一清洗）
+      list = Object.entries(obj.api_site as Record<string, unknown>).map(([key, rawSite]) => {
+        const site = (rawSite ?? {}) as { name?: unknown; api?: unknown }
+        return { id: key, name: site.name, url: site.api }
+      })
+    }
+  }
   if (!Array.isArray(list)) return []
   const out: ParsedSourceEntry[] = []
   for (const entry of list as Array<Record<string, unknown>>) {

@@ -13,6 +13,8 @@ import {
   type ImportResult,
 } from '@tgys/cms-core/source'
 import {
+  expandApiSiteSources,
+  extractTvboxSources,
   getInitialVideoSources,
   getManagedSourceEnabled,
 } from '@/shared/config/api.config'
@@ -32,6 +34,19 @@ export type VideoSourceImportInput = Partial<VideoSource> & {
   baseUrl?: string
   enabled?: boolean
 }
+
+/** MoonTV 订阅文件的顶层结构：{ api_site: { <键>: { name, api } } }，导入时先展开成数组 */
+export interface MoonTvConfigInput {
+  api_site: Record<string, { name?: unknown; api?: unknown }>
+}
+
+/** TVBox 播放器配置的顶层结构：{ sites: [...] }，导入时提取其中 type=1 的 CMS 源 */
+export interface TvboxConfigInput {
+  sites: Array<Record<string, unknown>>
+}
+
+/** importVideoAPIs 可接受的输入：源数组、MoonTV 配置或 TVBox 配置 */
+export type VideoSourceImportBatch = VideoSourceImportInput[] | MoonTvConfigInput | TvboxConfigInput
 
 interface ApiState {
   // 视频源列表
@@ -63,7 +78,7 @@ interface ApiActions {
   // 按 id 批量设置启用状态（普通用户在管理页对自己可见的源做全选/全不选）
   setVideoSourcesEnabled: (ids: string[], enabled: boolean) => void
   // 批量导入视频源（返回真实的导入结果：成功/跳过数量与原因）
-  importVideoAPIs: (apis: VideoSourceImportInput[]) => ImportResult
+  importVideoAPIs: (apis: VideoSourceImportBatch) => ImportResult
   // 获取选中的视频源
   getSelectedAPIs: () => VideoSource[]
   // 重置视频源
@@ -239,13 +254,35 @@ export const useApiStore = create<ApiStore>()(
           })
         },
 
-        importVideoAPIs: (apis: VideoSourceImportInput[]) => {
+        importVideoAPIs: (apis: VideoSourceImportBatch) => {
           let result: ImportResult = { success: true, imported: 0, skipped: 0, errors: [] }
+          // MoonTV 订阅格式（api_site 字典）与 TVBox 配置（sites）先归一化成数组，
+          // 与自家/KVideo 数组格式走同一条导入链路
+          let preSkipped = 0
+          let preError: string | null = null
+          let list: VideoSourceImportInput[]
+          if (Array.isArray(apis)) {
+            list = apis
+          } else {
+            const moonTv = expandApiSiteSources(apis)
+            const tvbox = moonTv ? null : extractTvboxSources(apis)
+            const expanded = moonTv ?? tvbox?.sources ?? []
+            if (tvbox && tvbox.unusable > 0) {
+              preSkipped = tvbox.unusable
+              preError = `TVBox 配置中有 ${tvbox.unusable} 个站点是爬虫/XML 等本站无法使用的类型，已跳过`
+            }
+            list = expanded.map(s => ({
+              id: s.id,
+              name: s.name,
+              url: s.url,
+              isEnabled: s.isEnabled,
+            }))
+          }
           set(state => {
             const store = toSourceStore(state)
             // 兼容 KVideo 源格式：baseUrl（完整接口地址）等价于 url，enabled 等价于 isEnabled。
             // 与管理员初始源解析（parseVideoSources）保持一致，避免同一份源列表在用户导入时被静默跳过。
-            const normalized: Partial<VideoSource>[] = apis.map(api => ({
+            const normalized: Partial<VideoSource>[] = list.map(api => ({
               ...api,
               url: api.url || api.baseUrl,
               isEnabled: api.isEnabled ?? api.enabled ?? true,
@@ -259,6 +296,14 @@ export const useApiStore = create<ApiStore>()(
             state.videoAPIs = fromSourceStore(newStore)
             result = importResult
           })
+          // TVBox 提取阶段跳过的不可用站点并入结果上报，不静默丢弃
+          if (preSkipped > 0) {
+            result = {
+              ...result,
+              skipped: result.skipped + preSkipped,
+              errors: preError ? [...result.errors, preError] : result.errors,
+            }
+          }
           return result
         },
 

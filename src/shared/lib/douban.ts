@@ -292,10 +292,14 @@ async function fetchCategoryFromNetwork(
   return []
 }
 
+/** 整页拉取的进度回调：每合并完一页就汇报一次当前全部条目，供页面边拉边显示 */
+export type DoubanPartialHandler = (items: DoubanSubject[]) => void
+
 /** 整页数据：分页拉取（每页 20 条、逐页退避重试 1 次），按 id 去重凑满 FULL_PAGE_SIZE；某页彻底失败则用已拉到的部分 */
 async function fetchCategoryFullFromNetwork(
   category: DoubanCategory,
   key: string,
+  onPartial?: DoubanPartialHandler,
 ): Promise<DoubanSubject[]> {
   const merged: DoubanSubject[] = []
   const seen = new Set<string>()
@@ -311,6 +315,8 @@ async function fetchCategoryFullFromNetwork(
       seen.add(item.id)
       merged.push(item)
     }
+    // 这一页已并入：先把手头条目交给页面显示，不必等全部拉完
+    if (merged.length) onPartial?.([...merged])
     if (page.length < FULL_PAGE_CHUNK) break
   }
   if (merged.length) {
@@ -329,7 +335,12 @@ async function fetchCategoryFullFromNetwork(
 async function fetchWithSwrCache(
   category: DoubanCategory,
   key: string,
-  networkFetch: (category: DoubanCategory, key: string) => Promise<DoubanSubject[]>,
+  networkFetch: (
+    category: DoubanCategory,
+    key: string,
+    onPartial?: DoubanPartialHandler,
+  ) => Promise<DoubanSubject[]>,
+  onPartial?: DoubanPartialHandler,
 ): Promise<DoubanSubject[]> {
   const memHit = cache.get(key)
   if (memHit) return memHit
@@ -349,7 +360,7 @@ async function fetchWithSwrCache(
 
   const pending = inflight.get(key)
   if (pending) return pending
-  const request = networkFetch(category, key).finally(() => inflight.delete(key))
+  const request = networkFetch(category, key, onPartial).finally(() => inflight.delete(key))
   inflight.set(key, request)
   return request
 }
@@ -358,9 +369,17 @@ export async function fetchDoubanCategory(category: DoubanCategory): Promise<Dou
   return fetchWithSwrCache(category, cacheKey(category), fetchCategoryFromNetwork)
 }
 
-/** 拉取一个分类的整页条目（FULL_PAGE_SIZE 条，上下排列整页展示用）：缓存策略同首页版，缓存键独立 */
-export async function fetchDoubanCategoryFull(category: DoubanCategory): Promise<DoubanSubject[]> {
-  return fetchWithSwrCache(category, `${cacheKey(category)}:full`, fetchCategoryFullFromNetwork)
+/** 拉取一个分类的整页条目（FULL_PAGE_SIZE 条，上下排列整页展示用）：缓存策略同首页版，缓存键独立；传 onPartial 可边拉边显示 */
+export async function fetchDoubanCategoryFull(
+  category: DoubanCategory,
+  onPartial?: DoubanPartialHandler,
+): Promise<DoubanSubject[]> {
+  return fetchWithSwrCache(
+    category,
+    `${cacheKey(category)}:full`,
+    fetchCategoryFullFromNetwork,
+    onPartial,
+  )
 }
 
 /** 按 type+tag 找分类配置（整页路由用）；找不到返回 undefined */

@@ -57,6 +57,27 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.15.0',
+    title: '视频源兼容 MoonTV 与 TVBox 配置',
+    date: formatDate('2026-10-23'),
+    features: [
+      '视频源新增兼容 MoonTV 的订阅格式（api_site 字典，如 jin18 那种配置文件）：设置页的 URL / 文本 / 文件三种导入都能直接载入，管理员初始源与 TVBox 服务端源解析同样支持，初始源地址可以直接填 MoonTV 的订阅链接。自家数组格式与 KVideo 格式（baseUrl）照旧可用，各种格式可混用。MoonTV 条目里的 detail 地址本站用不上，会自动忽略。',
+      '视频源导入同样认 TVBox 播放器配置（sites 结构）：自动提取其中 type=1 的 CMS 采集源导入；type=3 爬虫、type=0 XML 等本站用不了的站点会跳过，并在导入结果里如实报出跳过数量与原因。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
+    version: '2.14.2',
+    title: '豆瓣分类页边拉边显示',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '豆瓣分类整页打开慢：原来要把 100 部按 20 部一页串行拉完 5 次才开始显示。现在改为边拉边显示——第一页 20 部到手就先上屏，后续页陆续补进，出图速度与首页一致。数据与海报仍走管理员后台的豆瓣代理设置，未改。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.14.1',
     title: '去掉小窗与画中画按钮的常驻显示',
     date: formatDate('2026-10-23'),

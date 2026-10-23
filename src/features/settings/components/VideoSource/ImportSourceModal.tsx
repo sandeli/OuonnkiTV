@@ -16,6 +16,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
 import { useApiStore } from '@/shared/store/apiStore'
+import { expandApiSiteSources, extractTvboxSources } from '@/shared/config/api.config'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/shared/lib'
@@ -51,7 +52,8 @@ export function URLSourceModal({
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       const sources = await response.json()
-      if (Array.isArray(sources)) {
+      // 数组格式（自家/KVideo）与 MoonTV 的 api_site 格式都认，后者由 importVideoAPIs 内部展开
+      if (Array.isArray(sources) || expandApiSiteSources(sources) || extractTvboxSources(sources)) {
         const result = importVideoAPIs(sources)
         if (result.imported > 0) {
           toast.success(`成功导入 ${result.imported} 个视频源`)
@@ -64,7 +66,7 @@ export function URLSourceModal({
         onOpenChange(false)
         reset()
       } else {
-        toast.error('导入失败：文件格式错误，应为数组格式')
+        toast.error('导入失败：格式不支持，应为源数组、MoonTV 的 api_site 或 TVBox 配置')
       }
     } catch (error) {
       console.error('Import error:', error)
@@ -130,13 +132,17 @@ export function TextSourceModal({
       val => {
         try {
           const parsed = JSON.parse(val)
-          return Array.isArray(parsed)
+          return (
+            Array.isArray(parsed) ||
+            expandApiSiteSources(parsed) !== null ||
+            extractTvboxSources(parsed) !== null
+          )
         } catch {
           return false
         }
       },
       {
-        message: '请输入有效的 JSON 数组格式',
+        message: '请输入有效的 JSON：源数组、MoonTV 的 api_site 或 TVBox 配置',
       },
     ),
   })
@@ -177,7 +183,7 @@ export function TextSourceModal({
       <DialogContent className="h-fit max-h-[85vh] sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>从文本导入视频源</DialogTitle>
-          <DialogDescription>请粘贴 JSON 数组格式的视频源配置内容。</DialogDescription>
+          <DialogDescription>请粘贴视频源配置：JSON 数组、MoonTV 的 api_site，或 TVBox 配置（自动提取其中 CMS 源）。</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-col">

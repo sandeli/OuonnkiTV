@@ -30,7 +30,12 @@ export default function DoubanCategoryView() {
     }
     let cancelled = false
     setLoading(true)
-    fetchDoubanCategoryFull(category).then(result => {
+    // 边拉边显示：每合并一页就先上屏，不等 100 部全部拉完
+    fetchDoubanCategoryFull(category, partial => {
+      if (cancelled) return
+      setItems(partial)
+      setLoading(false)
+    }).then(result => {
       if (cancelled) return
       setItems(result)
       setLoading(false)

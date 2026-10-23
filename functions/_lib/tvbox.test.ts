@@ -89,6 +89,48 @@ describe('源清单解析', () => {
   it('坏 JSON 返回空', () => {
     expect(parseManagedSourcesJson('not json')).toEqual([])
   })
+  it('MoonTV 的 api_site 格式展开，键清洗为合法 id，缺 api 跳过', () => {
+    const entries = parseManagedSourcesJson(
+      JSON.stringify({
+        cache_time: 3600,
+        api_site: {
+          'iqiyizyapi.com': {
+            name: '🎬-爱奇艺-',
+            api: 'https://iqiyizyapi.com/api.php/provide/vod',
+            detail: 'https://iqiyizyapi.com',
+          },
+          'dbzy.tv': { name: '🎬豆瓣资源', api: 'https://caiji.dbzy5.com/api.php/provide/vod' },
+          broken: { name: '坏条目' },
+        },
+      }),
+    )
+    expect(entries).toHaveLength(2)
+    expect(entries[0]).toMatchObject({
+      id: 'iqiyizyapi_com',
+      name: '🎬-爱奇艺-',
+      api: 'https://iqiyizyapi.com/api.php/provide/vod',
+      enabled: true,
+    })
+    expect(entries[1].id).toBe('dbzy_tv')
+  })
+  it('TVBox 配置只提取 type=1 的 CMS 源，爬虫与 XML 站点跳过', () => {
+    const entries = parseManagedSourcesJson(
+      JSON.stringify({
+        spider: 'https://example.com/spider.jar',
+        sites: [
+          { key: 'csp_LiteApple', name: '小苹果', type: 3, api: 'csp_LiteApple' },
+          { key: 'liangzi', name: '量子', type: 1, api: 'https://lzizy.com/api.php/provide/vod' },
+          { key: 'xmlone', name: 'XML源', type: 0, api: 'https://xml.example/api.php/provide/vod' },
+        ],
+      }),
+    )
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      id: 'liangzi',
+      name: '量子',
+      api: 'https://lzizy.com/api.php/provide/vod',
+    })
+  })
 })
 
 describe('协议拼装', () => {

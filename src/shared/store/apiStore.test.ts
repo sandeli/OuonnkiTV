@@ -222,6 +222,52 @@ describe('apiStore 用户导入视频源', () => {
     expect(state.getSelectedAPIs()).toHaveLength(0)
   })
 
+  it('兼容 MoonTV 格式：api_site 字典展开导入，缺 api 的条目跳过', () => {
+    const result = useApiStore.getState().importVideoAPIs({
+      api_site: {
+        'iqiyizyapi.com': { name: '🎬-爱奇艺-', api: 'https://iqiyizyapi.com/api.php/provide/vod' },
+        'dbzy.tv': { name: '🎬豆瓣资源', api: 'https://caiji.dbzy5.com/api.php/provide/vod' },
+        broken: { name: '坏条目' },
+      },
+    } as never)
+    expect(result.imported).toBe(2)
+    const state = useApiStore.getState()
+    expect(state.videoAPIs).toHaveLength(2)
+    expect(state.videoAPIs.map(s => s.name)).toEqual(['🎬-爱奇艺-', '🎬豆瓣资源'])
+    expect(state.videoAPIs[0].url).toBe('https://iqiyizyapi.com/api.php/provide/vod')
+    expect(state.videoAPIs[0].isEnabled).toBe(true)
+    // 展开后可正常参与搜索选择
+    expect(state.getSelectedAPIs()).toHaveLength(2)
+  })
+
+  it('兼容 TVBox 配置：只提取 type=1 的 CMS 源，爬虫/XML 站点计入跳过并说明', () => {
+    const result = useApiStore.getState().importVideoAPIs({
+      spider: 'https://example.com/spider.jar',
+      sites: [
+        { key: 'csp_LiteApple', name: '小苹果', type: 3, api: 'csp_LiteApple' },
+        {
+          key: 'liangzi',
+          name: '量子',
+          type: 1,
+          api: 'https://lzizy.com/api.php/provide/vod',
+        },
+        { key: 'xmlone', name: 'XML源', type: 0, api: 'https://xml.example/api.php/provide/vod' },
+        {
+          key: 'ffzy',
+          name: '非凡',
+          type: 1,
+          api: 'https://ffzy.tv/api.php/provide/vod',
+        },
+      ],
+    } as never)
+    expect(result.imported).toBe(2)
+    expect(result.skipped).toBe(2)
+    expect(result.errors.some(e => e.includes('TVBox'))).toBe(true)
+    const state = useApiStore.getState()
+    expect(state.videoAPIs.map(s => s.name)).toEqual(['量子', '非凡'])
+    expect(state.getSelectedAPIs()).toHaveLength(2)
+  })
+
   it('无效条目被跳过并如实上报数量', () => {
     const result = useApiStore.getState().importVideoAPIs([
       { name: '好源', url: 'https://ok.example/api.php/provide/vod' },

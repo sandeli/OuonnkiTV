@@ -293,4 +293,25 @@ describe('fetchDoubanCategoryFull 整页拉取', () => {
     ).fetchDoubanCategoryFull(cat('整页部分失败测试'))
     expect(items).toHaveLength(40)
   })
+
+  it('每合并一页就通过 onPartial 汇报进度（边拉边显示）', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const decoded = decodeURIComponent(String(url))
+      const start = Number(/page_start=(\d+)/.exec(decoded)?.[1] ?? 0)
+      // 第三页只回 5 条（不足一整页）→ 拉取在此结束，共 45 条
+      const count = start === 40 ? 5 : 20
+      return okJson(Array.from({ length: count }, (_, i) => subject(start + i + 1)))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const partialLengths: number[] = []
+    const items = await (await import('./douban')).fetchDoubanCategoryFull(
+      cat('整页边拉边显测试'),
+      partial => {
+        partialLengths.push(partial.length)
+      },
+    )
+    expect(items).toHaveLength(45)
+    // 三页各汇报一次，条数递增，最终结果与最后一次汇报一致
+    expect(partialLengths).toEqual([20, 40, 45])
+  })
 })

@@ -14,7 +14,11 @@ import { toast } from 'sonner'
 import { useApiStore } from '@/shared/store/apiStore'
 import { useAuthStore } from '@/shared/store/authStore'
 import { adminUpdateSettings } from '@/shared/lib/authApi'
-import { getManagedSourceEnabled } from '@/shared/config/api.config'
+import {
+  expandApiSiteSources,
+  extractTvboxSources,
+  getManagedSourceEnabled,
+} from '@/shared/config/api.config'
 import { useHealthStore } from '@/shared/store/healthStore'
 import { isSubscriptionSource } from '@/shared/store/subscriptionStore'
 import { useSettingStore } from '@/shared/store/settingStore'
@@ -224,11 +228,19 @@ export default function VideoSource() {
       try {
         const content = e.target?.result as string
         const sources = JSON.parse(content)
-        if (Array.isArray(sources)) {
-          importVideoAPIs(sources)
-          toast.success(`成功导入 ${sources.length} 个视频源`)
+        // 数组格式（自家/KVideo）与 MoonTV 的 api_site 格式都认，后者由 importVideoAPIs 内部展开
+        if (Array.isArray(sources) || expandApiSiteSources(sources) || extractTvboxSources(sources)) {
+          const result = importVideoAPIs(sources)
+          if (result.imported > 0) {
+            toast.success(`成功导入 ${result.imported} 个视频源`)
+          }
+          if (result.skipped > 0) {
+            toast.warning(`跳过 ${result.skipped} 个无效条目`, {
+              description: result.errors.slice(0, 3).join('；'),
+            })
+          }
         } else {
-          toast.error('导入失败：文件格式错误，应为数组格式')
+          toast.error('导入失败：格式不支持，应为源数组、MoonTV 的 api_site 或 TVBox 配置')
         }
       } catch (error) {
         console.error('Import error:', error)

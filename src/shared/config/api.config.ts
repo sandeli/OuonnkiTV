@@ -53,6 +53,61 @@ import type { SiteBehaviorConfig } from '@/shared/lib/authApi'
 
 type VideoSourceInput = VideoSourceConfig[] | string | undefined
 
+/**
+ * MoonTV 订阅格式展开：{ api_site: { <键>: { name, api } } } → 标准源数组。
+ * 不是这种结构（或展开后为空）返回 null，调用方按原格式继续处理。
+ * 展开后与 KVideo、自家数组格式走同一套解析，三种格式可混用同一条导入链路。
+ */
+export const expandApiSiteSources = (input: unknown): VideoSourceConfig[] | null => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null
+  const apiSite = (input as { api_site?: unknown }).api_site
+  if (!apiSite || typeof apiSite !== 'object' || Array.isArray(apiSite)) return null
+  const out: VideoSourceConfig[] = []
+  for (const [key, raw] of Object.entries(apiSite as Record<string, unknown>)) {
+    const site = (raw ?? {}) as { name?: unknown; api?: unknown }
+    const api = typeof site.api === 'string' ? site.api.trim() : ''
+    if (!api) continue
+    const name = typeof site.name === 'string' && site.name.trim() ? site.name.trim() : key
+    // detail 字段是 MoonTV 的详情页地址，TGYS 详情走同一个 CMS 接口，不需要
+    out.push({ id: key, name, url: api, isEnabled: true })
+  }
+  return out.length ? out : null
+}
+
+/** TVBox 配置提取结果：sources 为可用的 CMS 源，unusable 为跳过的不可用站点数 */
+export interface TvboxExtractResult {
+  sources: VideoSourceConfig[]
+  unusable: number
+}
+
+/**
+ * TVBox 播放器配置提取：{ sites: [{ key, name, type, api }] }。
+ * 只有 type=1 且 api 是 http(s) 地址的站点是标准 CMS 采集接口，能直接用；
+ * type=3 爬虫（csp/drpy，靠播放器内的爬虫运行时）、type=0 XML 等其余站点本站用不了，计入 unusable 如实上报。
+ * 不是这种结构返回 null。
+ */
+export const extractTvboxSources = (input: unknown): TvboxExtractResult | null => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null
+  const sites = (input as { sites?: unknown }).sites
+  if (!Array.isArray(sites)) return null
+  const sources: VideoSourceConfig[] = []
+  let unusable = 0
+  for (const raw of sites) {
+    const site = (raw ?? {}) as { key?: unknown; name?: unknown; type?: unknown; api?: unknown }
+    const api = typeof site.api === 'string' ? site.api.trim() : ''
+    const isCmsJson = (site.type === 1 || site.type === '1') && /^https?:\/\//i.test(api)
+    if (isCmsJson) {
+      const key =
+        typeof site.key === 'string' && site.key.trim() ? site.key.trim() : `tvbox_${sources.length + 1}`
+      const name = typeof site.name === 'string' && site.name.trim() ? site.name.trim() : key
+      sources.push({ id: key, name, url: api, isEnabled: true })
+    } else {
+      unusable += 1
+    }
+  }
+  return { sources, unusable }
+}
+
 export const parseVideoSources = (sources: VideoSourceConfig[]): VideoApi[] => {
   return sources
     .map((source, index) => {
@@ -112,7 +167,10 @@ export const loadVideoSources = async (input: VideoSourceInput): Promise<VideoAp
       .trim()
 
     const jsonSources: unknown = JSON.parse(cleanedSources)
-    const sources = Array.isArray(jsonSources) ? jsonSources : [jsonSources]
+    const sources = Array.isArray(jsonSources)
+      ? jsonSources
+      : (expandApiSiteSources(jsonSources) ??
+        extractTvboxSources(jsonSources)?.sources ?? [jsonSources])
 
     return parseVideoSources(sources as VideoSourceConfig[])
   } catch (error) {
