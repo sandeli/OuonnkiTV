@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.2.1',
+    title: '会话复查间隔 30 秒放宽到 60 秒',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '登录状态复查由每 30 秒一次放宽到每 60 秒一次：函数调用量约减半。被踢下线、禁用或到期的账号最长 60 秒内弹回登录页（切回标签页时仍会立即复查）。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.2.0',
     title: '「系统行为」移入管理员后台（TMDB 全站生效）＋视频源「重置源」',
     date: formatDate('2026-10-23'),

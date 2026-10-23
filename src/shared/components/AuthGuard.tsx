@@ -123,7 +123,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   }, [probeConfig, validateSession, legacyProtectionEnabled])
 
   // 应用内退出登录后，守卫重新上锁回到登录界面
-  // 会话定时复查（账号模式）：被管理员踢下线/禁用/到期后，最多 30 秒内弹回登录页，看片中也一样
+  // 会话定时复查（账号模式）：被管理员踢下线/禁用/到期后，最多 60 秒内弹回登录页，看片中也一样（切回标签页会立即复查）
   useEffect(() => {
     if (!isAuthenticated || gateMode !== 'server') return
     let cancelled = false
@@ -133,7 +133,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         setIsAuthenticated(false)
       }
     }
-    const timer = window.setInterval(() => void revalidate(), 30_000)
+    const timer = window.setInterval(() => void revalidate(), 60_000)
     const onVisible = () => {
       if (document.visibilityState === 'visible') void revalidate()
     }
