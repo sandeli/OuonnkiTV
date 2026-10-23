@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.5.0',
+    title: '豆瓣分类整页：点栏目名看 100 部',
+    date: formatDate('2026-10-23'),
+    features: [
+      '首页豆瓣栏目名可点击：进入该分类整页，一次展示 100 部作品（网格上下排列），海报点击仍是直达播放；首页每个栏目保持 18 部横滑预览不变。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.4.0',
     title: '侧边栏显示当前账号，手机端补版本号',
     date: formatDate('2026-10-23'),

@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Link } from 'react-router'
 import { useEffect, useState } from 'react'
 import { MediaPosterCard } from '@/shared/components/common'
 import {
@@ -13,6 +14,7 @@ import { Skeleton } from '@/shared/components/ui/skeleton'
 import { useIsMobile } from '@/shared/hooks/use-mobile'
 import {
   DOUBAN_CATEGORIES,
+  buildDoubanCategoryPath,
   buildDoubanPlayPath,
   doubanPosterUrl,
   fetchDoubanCategory,
@@ -105,7 +107,14 @@ function DoubanSection({ category }: { category: DoubanCategory }) {
   if (items.length === 0) {
     return (
       <div className="px-1">
-        <h2 className="text-primary text-xl font-semibold">{category.label}</h2>
+        <h2 className="text-primary text-xl font-semibold">
+          <Link
+            to={buildDoubanCategoryPath(category)}
+            className="hover:underline underline-offset-4"
+          >
+            {category.label}
+          </Link>
+        </h2>
         <button
           type="button"
           onClick={() => setReloadKey(k => k + 1)}
@@ -122,7 +131,15 @@ function DoubanSection({ category }: { category: DoubanCategory }) {
   return (
     <div className="group/carousel">
       <div className="px-1">
-        <h2 className="text-primary text-xl font-semibold">{category.label}</h2>
+        <h2 className="text-primary text-xl font-semibold">
+          <Link
+            to={buildDoubanCategoryPath(category)}
+            className="inline-flex items-center gap-0.5 hover:underline underline-offset-4"
+          >
+            {category.label}
+            <ChevronRight className="size-5" />
+          </Link>
+        </h2>
       </div>
       <div className="pt-2">
         <Carousel opts={{ watchDrag: canDrag, slidesToScroll }} setApi={setCarouselApi}>

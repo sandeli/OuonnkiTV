@@ -48,6 +48,10 @@ export const DOUBAN_CATEGORIES: DoubanCategory[] = [
 
 const PAGE_LIMIT = 18
 
+/** 分类整页（点栏目名进入）一次展示的条数：分页拉取 5 页 × 20 条凑满 100 */
+export const FULL_PAGE_SIZE = 100
+const FULL_PAGE_CHUNK = 20
+
 // ===== 持久缓存 + 并发治理（稳定性改进）=====
 // 背景：首页 9 个分类同时请求豆瓣且零持久缓存时，会间歇性撞上豆瓣限流，
 // 表现为随机分类整块消失。借鉴 KVideo 的「缓存 1 小时」思路，落到客户端实现：
@@ -230,51 +234,90 @@ export function buildDoubanPosterUrl(
   }
 }
 
+/** 单次请求豆瓣一页（信号量 + 8 秒超时）：成功返回条目；失败或空结果返回 null（空多半是被限流，按失败处理） */
+async function requestSubjectsOnce(
+  category: DoubanCategory,
+  pageStart: number,
+  pageLimit: number,
+): Promise<DoubanSubject[] | null> {
+  const target =
+    `https://movie.douban.com/j/search_subjects?type=${category.type}` +
+    `&tag=${encodeURIComponent(category.tag)}&sort=recommend` +
+    `&page_limit=${pageLimit}&page_start=${pageStart}`
+  const url = buildDoubanDataRequestUrl(target, doubanProxyConfig(), proxyUrlFromSettings())
+
+  await acquireSlot()
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) return null
+    const data = (await response.json()) as { subjects?: unknown }
+    const subjects = Array.isArray(data.subjects) ? data.subjects : []
+    const items: DoubanSubject[] = subjects
+      .map(raw => {
+        const s = (raw ?? {}) as Record<string, unknown>
+        return {
+          id: String(s.id ?? ''),
+          title: typeof s.title === 'string' ? s.title : '',
+          rate: typeof s.rate === 'string' ? s.rate : '',
+          cover: typeof s.cover === 'string' ? s.cover : '',
+          url: typeof s.url === 'string' ? s.url : '',
+        }
+      })
+      .filter(item => item.id && item.title)
+    return items.length ? items : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+    releaseSlot()
+  }
+}
+
 /** 实际请求豆瓣并写缓存：8 秒超时、失败退避重试 1 次；成功返回条目，彻底失败返回空数组 */
 async function fetchCategoryFromNetwork(
   category: DoubanCategory,
   key: string,
 ): Promise<DoubanSubject[]> {
-  const target =
-    `https://movie.douban.com/j/search_subjects?type=${category.type}` +
-    `&tag=${encodeURIComponent(category.tag)}&sort=recommend` +
-    `&page_limit=${PAGE_LIMIT}&page_start=0`
-  const url = buildDoubanDataRequestUrl(target, doubanProxyConfig(), proxyUrlFromSettings())
-
   for (let attempt = 0; attempt < 2; attempt += 1) {
     if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 800))
-    await acquireSlot()
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-    try {
-      const response = await fetch(url, { signal: controller.signal })
-      if (!response.ok) continue
-      const data = (await response.json()) as { subjects?: unknown }
-      const subjects = Array.isArray(data.subjects) ? data.subjects : []
-      const items: DoubanSubject[] = subjects
-        .map(raw => {
-          const s = (raw ?? {}) as Record<string, unknown>
-          return {
-            id: String(s.id ?? ''),
-            title: typeof s.title === 'string' ? s.title : '',
-            rate: typeof s.rate === 'string' ? s.rate : '',
-            cover: typeof s.cover === 'string' ? s.cover : '',
-            url: typeof s.url === 'string' ? s.url : '',
-          }
-        })
-        .filter(item => item.id && item.title)
-      if (items.length) {
-        cache.set(key, items)
-        writeStoredCache(key, items)
-        return items
-      }
-      // 空结果多半是被限流，按失败处理走重试
-    } catch {
-      // 超时/网络错误 → 退避后重试一次
-    } finally {
-      clearTimeout(timer)
-      releaseSlot()
+    const items = await requestSubjectsOnce(category, 0, PAGE_LIMIT)
+    if (items) {
+      cache.set(key, items)
+      writeStoredCache(key, items)
+      return items
     }
+  }
+  return []
+}
+
+/** 整页数据：分页拉取（每页 20 条、逐页退避重试 1 次），按 id 去重凑满 FULL_PAGE_SIZE；某页彻底失败则用已拉到的部分 */
+async function fetchCategoryFullFromNetwork(
+  category: DoubanCategory,
+  key: string,
+): Promise<DoubanSubject[]> {
+  const merged: DoubanSubject[] = []
+  const seen = new Set<string>()
+  for (let start = 0; start < FULL_PAGE_SIZE; start += FULL_PAGE_CHUNK) {
+    let page: DoubanSubject[] | null = null
+    for (let attempt = 0; attempt < 2 && !page; attempt += 1) {
+      if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 800))
+      page = await requestSubjectsOnce(category, start, FULL_PAGE_CHUNK)
+    }
+    if (!page) break
+    for (const item of page) {
+      if (seen.has(item.id)) continue
+      seen.add(item.id)
+      merged.push(item)
+    }
+    if (page.length < FULL_PAGE_CHUNK) break
+  }
+  if (merged.length) {
+    const result = merged.slice(0, FULL_PAGE_SIZE)
+    cache.set(key, result)
+    writeStoredCache(key, result)
+    return result
   }
   return []
 }
@@ -283,8 +326,11 @@ async function fetchCategoryFromNetwork(
  * 拉取一个分类的豆瓣条目（不抛错）：
  * 内存缓存 → 未过期持久缓存 → 过期持久缓存先展示 + 后台刷新 → 网络（失败兜底旧缓存）
  */
-export async function fetchDoubanCategory(category: DoubanCategory): Promise<DoubanSubject[]> {
-  const key = cacheKey(category)
+async function fetchWithSwrCache(
+  category: DoubanCategory,
+  key: string,
+  networkFetch: (category: DoubanCategory, key: string) => Promise<DoubanSubject[]>,
+): Promise<DoubanSubject[]> {
   const memHit = cache.get(key)
   if (memHit) return memHit
 
@@ -294,7 +340,7 @@ export async function fetchDoubanCategory(category: DoubanCategory): Promise<Dou
     if (Date.now() - stored.at < CACHE_TTL_MS) return stored.items
     // 已过期：先返回旧数据展示，后台刷新供下次使用（失败则保留旧数据）
     if (!inflight.has(key)) {
-      const p = fetchCategoryFromNetwork(category, key).finally(() => inflight.delete(key))
+      const p = networkFetch(category, key).finally(() => inflight.delete(key))
       inflight.set(key, p)
       void p
     }
@@ -303,9 +349,28 @@ export async function fetchDoubanCategory(category: DoubanCategory): Promise<Dou
 
   const pending = inflight.get(key)
   if (pending) return pending
-  const request = fetchCategoryFromNetwork(category, key).finally(() => inflight.delete(key))
+  const request = networkFetch(category, key).finally(() => inflight.delete(key))
   inflight.set(key, request)
   return request
+}
+
+export async function fetchDoubanCategory(category: DoubanCategory): Promise<DoubanSubject[]> {
+  return fetchWithSwrCache(category, cacheKey(category), fetchCategoryFromNetwork)
+}
+
+/** 拉取一个分类的整页条目（FULL_PAGE_SIZE 条，上下排列整页展示用）：缓存策略同首页版，缓存键独立 */
+export async function fetchDoubanCategoryFull(category: DoubanCategory): Promise<DoubanSubject[]> {
+  return fetchWithSwrCache(category, `${cacheKey(category)}:full`, fetchCategoryFullFromNetwork)
+}
+
+/** 按 type+tag 找分类配置（整页路由用）；找不到返回 undefined */
+export function findDoubanCategory(type: string, tag: string): DoubanCategory | undefined {
+  return DOUBAN_CATEGORIES.find(item => item.type === type && item.tag === tag)
+}
+
+/** 分类整页地址（点栏目名进入） */
+export function buildDoubanCategoryPath(category: DoubanCategory): string {
+  return `/douban/${category.type}/${encodeURIComponent(category.tag)}`
 }
 
 /** 豆瓣海报加载地址（按管理员后台的图片代理设置生成） */

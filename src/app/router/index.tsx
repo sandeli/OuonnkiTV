@@ -12,6 +12,7 @@ const AuthGuard = lazy(() => import('@/shared/components/AuthGuard'))
 
 // Views (lazy loaded from features)
 const HomeView = lazy(() => import('@/features/home/views/HomeView'))
+const DoubanCategoryView = lazy(() => import('@/features/home/views/DoubanCategoryView'))
 const SearchHubView = lazy(() => import('@/features/search/views/SearchHubView'))
 const FavoritesView = lazy(() => import('@/features/favorites/views/FavoritesView'))
 const HistoryView = lazy(() => import('@/features/history/views/HistoryView'))
@@ -71,6 +72,14 @@ const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <HomeView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: 'douban/:type/:tag',
+        element: (
+          <SuspenseWrapper>
+            <DoubanCategoryView />
           </SuspenseWrapper>
         ),
       },

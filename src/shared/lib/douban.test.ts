@@ -226,3 +226,71 @@ describe('fetchDoubanCategory 缓存与重试', () => {
     expect(JSON.parse(localStorage.getItem(key)!).items[0].title).toBe('片名')
   })
 })
+
+describe('fetchDoubanCategoryFull 整页拉取', () => {
+  const cat = (tag: string): DoubanCategory => ({ label: tag, type: 'movie', tag })
+  const subject = (id: number) => ({
+    id: String(id),
+    title: `片名${id}`,
+    rate: '8.0',
+    cover: 'https://img1.doubanio.com/x.jpg',
+    url: '',
+  })
+  const okJson = (subjects: unknown[]) => ({ ok: true, json: async () => ({ subjects }) })
+
+  beforeEach(() => {
+    localStorage.clear()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('分页合并 5 页凑满 100 条并写入独立缓存', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const decoded = decodeURIComponent(String(url))
+      const start = Number(/page_start=(\d+)/.exec(decoded)?.[1] ?? 0)
+      return okJson(Array.from({ length: 20 }, (_, i) => subject(start + i + 1)))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const mod = await import('./douban')
+    const items = await mod.fetchDoubanCategoryFull(cat('整页合并测试'))
+    expect(items).toHaveLength(100)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+    // 二次调用命中缓存，不再发请求
+    const again = await mod.fetchDoubanCategoryFull(cat('整页合并测试'))
+    expect(again).toHaveLength(100)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+  })
+
+  it('分页之间有重叠条目时按 id 去重', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const decoded = decodeURIComponent(String(url))
+      const start = Number(/page_start=(\d+)/.exec(decoded)?.[1] ?? 0)
+      const ids = Array.from({ length: 20 }, (_, i) => start + i + 1)
+      if (start === 20) ids[0] = 20 // 与上一页末尾重叠 1 条（推荐列表位次漂移的真实情况）
+      return okJson(ids.map(subject))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const items = await (
+      await import('./douban')
+    ).fetchDoubanCategoryFull(cat('整页去重测试'))
+    expect(new Set(items.map(i => i.id)).size).toBe(items.length)
+    expect(items.length).toBeLessThanOrEqual(100)
+    expect(items.length).toBeGreaterThanOrEqual(95)
+  })
+
+  it('某一页彻底失败时返回已拉到的部分', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const decoded = decodeURIComponent(String(url))
+      const start = Number(/page_start=(\d+)/.exec(decoded)?.[1] ?? 0)
+      if (start >= 40) return { ok: false, json: async () => ({}) }
+      return okJson(Array.from({ length: 20 }, (_, i) => subject(start + i + 1)))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const items = await (
+      await import('./douban')
+    ).fetchDoubanCategoryFull(cat('整页部分失败测试'))
+    expect(items).toHaveLength(40)
+  })
+})
