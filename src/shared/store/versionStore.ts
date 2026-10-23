@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.18.1',
+    title: '修复手机端搜索返回后站名与菜单键消失',
+    date: formatDate('2026-10-24'),
+    features: [],
+    fixes: [
+      '修复手机端在导航栏点开搜索并提交后，返回首页时左上角站名图标与总菜单键（以及右侧主题按钮）一直消失的问题：移动端搜索的展开状态在跳转时残留在导航栏里，现已在路由切换与搜索框卸载时自动复位。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.18.0',
     title: '「关于项目」仅管理员可见',
     date: formatDate('2026-10-23'),

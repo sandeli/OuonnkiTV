@@ -138,6 +138,14 @@ export default function SearchBox({ onMobileSearchChange }: SearchBoxProps) {
     }
   }, [])
 
+  // 组件卸载时（如提交搜索跳转到搜索页）通知父组件移动端搜索已关闭，
+  // 避免展开状态在父组件里残留、返回后导航栏品牌区一直隐藏
+  useEffect(() => {
+    return () => {
+      onMobileSearchChange?.(false)
+    }
+  }, [onMobileSearchChange])
+
   // 下拉框内容组件
   const DropdownContent = ({ isMobile = false }: { isMobile?: boolean }) => (
     <div className="p-1">

@@ -2,7 +2,7 @@ import { Navbar, NavbarBrand, NavbarContent } from '@/shared/components/ui/navba
 import { TgysLogo } from '@/shared/components/icons'
 import { SidebarTrigger } from '@/shared/components/ui/sidebar'
 import { NavLink, useLocation } from 'react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LogOut, Moon, Sun, Laptop } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -31,6 +31,13 @@ export default function Navigation({ hidden = false, enableScrollAnimation = fal
 
   // 在搜索页面隐藏导航栏搜索框
   const isSearchPage = location.pathname === '/search'
+
+  // 路由切换时复位移动端搜索展开状态：提交搜索会先卸载导航栏搜索框，
+  // 展开状态来不及回调复位便会残留，导致返回首页后品牌区（菜单键 + 站名图标）
+  // 与右侧按钮一直处于隐藏状态（仅手机端，桌面端有 sm 样式兜底不受影响）
+  useEffect(() => {
+    setIsMobileSearchOpen(false)
+  }, [location.pathname])
 
   return (
     <div
