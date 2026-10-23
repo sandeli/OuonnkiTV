@@ -5,7 +5,11 @@ import {
   DEFAULT_USER_VALID_DAYS,
   defaultUserExpiresAt,
   generateInviteCode,
+  formatRegistrationOpenAt,
+  getRegistrationMaxUsers,
   getRegistrationMode,
+  getRegistrationOpenAt,
+  registrationFull,
   isSiteClosed,
   readSiteBehavior,
   hashPassword,
@@ -95,6 +99,31 @@ describe('注册模式', () => {
       await getRegistrationMode(fakeDb({ registration_mode: 'open', registration_open: '0' }), env),
     ).toBe('open')
     expect(await getRegistrationMode(fakeDb({ registration_mode: 'bogus' }), env)).toBe('open')
+  })
+  it('注册定时开放时刻：未设置/非法为 0，合法时间戳原样读出', async () => {
+    expect(await getRegistrationOpenAt(fakeDb({}))).toBe(0)
+    expect(await getRegistrationOpenAt(fakeDb({ registration_open_at: '0' }))).toBe(0)
+    expect(await getRegistrationOpenAt(fakeDb({ registration_open_at: 'bogus' }))).toBe(0)
+    expect(
+      await getRegistrationOpenAt(fakeDb({ registration_open_at: '1893456000' })),
+    ).toBe(1893456000)
+  })
+  it('开放时刻文案为北京时间、精确到分钟', () => {
+    // 1893456000 = 2030-01-01 00:00:00 UTC = 北京时间 08:00
+    expect(formatRegistrationOpenAt(1893456000)).toContain('2030年1月1日')
+    expect(formatRegistrationOpenAt(1893456000)).toContain('08:00')
+  })
+  it('注册人数上限：未设置/0/非法为 0（不限），合法整数原样读出', async () => {
+    expect(await getRegistrationMaxUsers(fakeDb({}))).toBe(0)
+    expect(await getRegistrationMaxUsers(fakeDb({ registration_max_users: '0' }))).toBe(0)
+    expect(await getRegistrationMaxUsers(fakeDb({ registration_max_users: 'bogus' }))).toBe(0)
+    expect(await getRegistrationMaxUsers(fakeDb({ registration_max_users: '100' }))).toBe(100)
+  })
+  it('满员判断：不限恒不满，达到或超过上限为满', () => {
+    expect(registrationFull(0, 9999)).toBe(false)
+    expect(registrationFull(100, 99)).toBe(false)
+    expect(registrationFull(100, 100)).toBe(true)
+    expect(registrationFull(100, 101)).toBe(true)
   })
 })
 

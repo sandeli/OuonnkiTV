@@ -1,7 +1,10 @@
 import {
   DOUBAN_DATA_PROXY_TYPES,
   DOUBAN_IMAGE_PROXY_TYPES,
+  countRegisteredUsers,
+  getRegistrationMaxUsers,
   getRegistrationMode,
+  getRegistrationOpenAt,
   getSetting,
   isRegistrationOpen,
   json,
@@ -43,6 +46,9 @@ export const onRequest = async (context: PagesContext) => {
     return json({
       registrationOpen: await isRegistrationOpen(db, context.env),
       registrationMode: await getRegistrationMode(db, context.env),
+      registrationOpenAt: await getRegistrationOpenAt(db),
+      registrationMaxUsers: await getRegistrationMaxUsers(db),
+      registeredUserCount: await countRegisteredUsers(db),
       tgBotToken: tgNotify.botToken,
       tgChatId: tgNotify.chatId,
       announcement: await readAnnouncement(db),
@@ -58,6 +64,8 @@ export const onRequest = async (context: PagesContext) => {
     const body = await readJson<{
       registrationOpen?: unknown
       registrationMode?: unknown
+      registrationOpenAt?: unknown
+      registrationMaxUsers?: unknown
       tgBotToken?: unknown
       tgChatId?: unknown
       announcementEnabled?: unknown
@@ -94,6 +102,25 @@ export const onRequest = async (context: PagesContext) => {
       await setSetting(db, 'registration_mode', body.registrationMode)
       // 同步旧开关，保持其他读取 registration_open 的地方语义一致
       await setSetting(db, 'registration_open', body.registrationMode === 'open' ? '1' : '0')
+    }
+
+    // 注册定时开放时刻（unix 秒）：0 = 清除定时；只接受合理范围内的整数
+    if (typeof body?.registrationOpenAt === 'number' && Number.isFinite(body.registrationOpenAt)) {
+      const openAt = Math.floor(body.registrationOpenAt)
+      if (openAt >= 0 && openAt <= 4102444800) {
+        await setSetting(db, 'registration_open_at', String(openAt))
+      }
+    }
+
+    // 注册人数上限：0 = 不限；只接受合理范围内的整数
+    if (
+      typeof body?.registrationMaxUsers === 'number' &&
+      Number.isFinite(body.registrationMaxUsers)
+    ) {
+      const maxUsers = Math.floor(body.registrationMaxUsers)
+      if (maxUsers >= 0 && maxUsers <= 100000) {
+        await setSetting(db, 'registration_max_users', String(maxUsers))
+      }
     }
 
     if (typeof body?.tgBotToken === 'string') {
@@ -198,6 +225,9 @@ export const onRequest = async (context: PagesContext) => {
       ok: true,
       registrationOpen: await isRegistrationOpen(db, context.env),
       registrationMode: await getRegistrationMode(db, context.env),
+      registrationOpenAt: await getRegistrationOpenAt(db),
+      registrationMaxUsers: await getRegistrationMaxUsers(db),
+      registeredUserCount: await countRegisteredUsers(db),
       tgBotToken: tgNotifyAfter.botToken,
       tgChatId: tgNotifyAfter.chatId,
       announcement: await readAnnouncement(db),

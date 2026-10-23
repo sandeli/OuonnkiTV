@@ -27,6 +27,14 @@ import {
   type RegistrationMode,
 } from '@/shared/lib/authApi'
 
+/** unix 秒 → datetime-local 输入值（按浏览器本地时间分解，与输入框口径一致）；0 → 空 */
+function toDateTimeLocalValue(sec: number): string {
+  if (!sec) return ''
+  const d = new Date(sec * 1000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export default function AdminPage() {
   const navigate = useNavigate()
   const token = useAuthStore(state => state.token)
@@ -35,6 +43,13 @@ export default function AdminPage() {
 
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('open')
   const [modeSaving, setModeSaving] = useState(false)
+  const [registrationOpenAt, setRegistrationOpenAt] = useState(0)
+  const [openAtDraft, setOpenAtDraft] = useState('')
+  const [openAtSaving, setOpenAtSaving] = useState(false)
+  const [registrationMaxUsers, setRegistrationMaxUsers] = useState(0)
+  const [maxUsersDraft, setMaxUsersDraft] = useState('')
+  const [maxUsersSaving, setMaxUsersSaving] = useState(false)
+  const [registeredUserCount, setRegisteredUserCount] = useState(0)
   const [invites, setInvites] = useState<InviteCodeRow[]>([])
   const [inviteNote, setInviteNote] = useState('')
   const [inviteMaxUses, setInviteMaxUses] = useState('1')
@@ -79,6 +94,11 @@ export default function AdminPage() {
     try {
       const settings = await adminGetSettings(token)
       setRegistrationMode(settings.registrationMode)
+      setRegistrationOpenAt(settings.registrationOpenAt)
+      setOpenAtDraft(toDateTimeLocalValue(settings.registrationOpenAt))
+      setRegistrationMaxUsers(settings.registrationMaxUsers)
+      setMaxUsersDraft(settings.registrationMaxUsers > 0 ? String(settings.registrationMaxUsers) : '')
+      setRegisteredUserCount(settings.registeredUserCount)
       setTgBotToken(settings.tgBotToken)
       setTgChatId(settings.tgChatId)
       try {
@@ -146,6 +166,60 @@ export default function AdminPage() {
       toast.error('保存失败')
     } finally {
       setModeSaving(false)
+    }
+  }
+
+  // 定时开放：日期输入先存草稿，失焦（或点清除）时才写库，避免编辑到一半就触发保存
+  const saveRegistrationOpenAt = async (value: string) => {
+    if (!token) return
+    const sec = value ? Math.floor(new Date(value).getTime() / 1000) : 0
+    if (value && !Number.isFinite(sec)) {
+      toast.error('日期无效')
+      return
+    }
+    if (sec === registrationOpenAt) return
+    setOpenAtSaving(true)
+    try {
+      const result = await adminUpdateSettings(token, { registrationOpenAt: sec })
+      setRegistrationOpenAt(result.registrationOpenAt)
+      setOpenAtDraft(toDateTimeLocalValue(result.registrationOpenAt))
+      void useAuthStore.getState().probeConfig()
+      toast.success(sec > 0 ? '已设置注册开放时间，到点自动开放' : '已清除注册开放时间')
+    } catch {
+      toast.error('保存失败')
+      setOpenAtDraft(toDateTimeLocalValue(registrationOpenAt))
+    } finally {
+      setOpenAtSaving(false)
+    }
+  }
+
+  // 人数上限：输入框草稿失焦时保存；空 = 0（不限）
+  const saveRegistrationMaxUsers = async (value: string) => {
+    if (!token) return
+    const trimmed = value.trim()
+    let parsed = 0
+    if (trimmed !== '') {
+      if (!/^\d+$/.test(trimmed)) {
+        toast.error('人数上限需为 0 或正整数（0 = 不限）')
+        setMaxUsersDraft(registrationMaxUsers > 0 ? String(registrationMaxUsers) : '')
+        return
+      }
+      parsed = Number.parseInt(trimmed, 10)
+    }
+    if (parsed === registrationMaxUsers) return
+    setMaxUsersSaving(true)
+    try {
+      const result = await adminUpdateSettings(token, { registrationMaxUsers: parsed })
+      setRegistrationMaxUsers(result.registrationMaxUsers)
+      setMaxUsersDraft(result.registrationMaxUsers > 0 ? String(result.registrationMaxUsers) : '')
+      setRegisteredUserCount(result.registeredUserCount)
+      void useAuthStore.getState().probeConfig()
+      toast.success(parsed > 0 ? `已设置注册人数上限为 ${parsed}` : '已取消注册人数上限')
+    } catch {
+      toast.error('保存失败')
+      setMaxUsersDraft(registrationMaxUsers > 0 ? String(registrationMaxUsers) : '')
+    } finally {
+      setMaxUsersSaving(false)
     }
   }
 
@@ -376,6 +450,63 @@ export default function AdminPage() {
               <SelectItem value="closed">关闭注册</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div className="border-border/60 mt-3 flex w-full flex-wrap items-center gap-2 border-t pt-3">
+          <span className="text-sm">定时开放</span>
+          <span className="text-muted-foreground text-xs">
+            选定时间之前注册保持关闭（邀请码也不可用），登录页会显示开放日期；到点自动按上方模式开放
+          </span>
+          {registrationOpenAt > 0 && (
+            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+              {registrationOpenAt * 1000 > Date.now()
+                ? '尚未到开放时间，注册暂时关闭中'
+                : '已过开放时间，定时已完成，可清除'}
+            </span>
+          )}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <Input
+              type="datetime-local"
+              className="w-56"
+              value={openAtDraft}
+              disabled={openAtSaving}
+              onChange={e => setOpenAtDraft(e.target.value)}
+              onBlur={() => void saveRegistrationOpenAt(openAtDraft)}
+            />
+            {registrationOpenAt > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={openAtSaving}
+                onClick={() => {
+                  setOpenAtDraft('')
+                  void saveRegistrationOpenAt('')
+                }}
+              >
+                清除
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="border-border/60 mt-3 flex w-full flex-wrap items-center gap-2 border-t pt-3">
+          <span className="text-sm">人数上限</span>
+          <span className="text-muted-foreground text-xs">
+            自助注册人数上限，满员后登录页显示「注册名额已满」；站长后台建号不受限，删除用户会腾出名额。当前已注册{' '}
+            {registeredUserCount} 人
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              className="w-32"
+              placeholder="0 = 不限"
+              value={maxUsersDraft}
+              disabled={maxUsersSaving}
+              onChange={e => setMaxUsersDraft(e.target.value)}
+              onBlur={() => void saveRegistrationMaxUsers(maxUsersDraft)}
+            />
+          </div>
         </div>
       </div>
 

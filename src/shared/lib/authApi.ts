@@ -81,6 +81,10 @@ export interface AuthPublicConfig {
   registrationOpen: boolean
   /** 注册模式：开放 / 仅邀请码 / 关闭（旧后端无此字段时按 registrationOpen 推导） */
   registrationMode?: RegistrationMode
+  /** 注册定时开放时刻（unix 秒）：未到该时刻前注册关闭、登录页显示开放日期通知；0/缺失 = 未设置 */
+  registrationOpenAt?: number
+  /** 注册人数已达上限：登录页显示「注册名额已满」（上限数值本身不下发） */
+  registrationFull?: boolean
   turnstileSiteKey: string
   announcement: AnnouncementConfig | null
   /** 首页滚动公告（管理员后台设置；空字符串表示未设置，前端回退环境变量） */
@@ -145,6 +149,13 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
           : data.registrationOpen === true
             ? 'open'
             : 'closed',
+      registrationOpenAt:
+        typeof data.registrationOpenAt === 'number' &&
+        Number.isFinite(data.registrationOpenAt) &&
+        data.registrationOpenAt > 0
+          ? Math.floor(data.registrationOpenAt)
+          : 0,
+      registrationFull: data.registrationFull === true,
       turnstileSiteKey: typeof data.turnstileSiteKey === 'string' ? data.turnstileSiteKey : '',
       announcement,
       announcementBar: typeof data.announcementBar === 'string' ? data.announcementBar : '',
@@ -183,6 +194,8 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
       authEnabled: false,
       registrationOpen: false,
       registrationMode: 'closed' as const,
+      registrationOpenAt: 0,
+      registrationFull: false,
       turnstileSiteKey: '',
       announcement: null,
       announcementBar: '',
@@ -407,6 +420,12 @@ export interface InviteCodeRow {
 export interface AdminSettings {
   registrationOpen: boolean
   registrationMode: RegistrationMode
+  /** 注册定时开放时刻（unix 秒）：0 = 未设置 */
+  registrationOpenAt: number
+  /** 注册人数上限：0 = 不限 */
+  registrationMaxUsers: number
+  /** 当前注册用户数（后台展示用） */
+  registeredUserCount: number
   /** 电报上线通知配置（管理员后台维护） */
   tgBotToken: string
   tgChatId: string
@@ -449,6 +468,8 @@ export function adminUpdateSettings(
   patch: {
     registrationOpen?: boolean
     registrationMode?: RegistrationMode
+    registrationOpenAt?: number
+    registrationMaxUsers?: number
     tgBotToken?: string
     tgChatId?: string
     announcementEnabled?: boolean

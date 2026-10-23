@@ -1,6 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Lock, ShieldCheck, User, UserPlus, Wrench } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarClock,
+  Lock,
+  ShieldCheck,
+  User,
+  UserPlus,
+  Wrench,
+} from 'lucide-react'
 import { Input } from '@/shared/components/ui/input'
 import { Button } from '@/shared/components/ui/button'
 import { Spinner } from '@/shared/components/ui/spinner'
@@ -66,6 +75,22 @@ function TurnstileWidget({
   return <div ref={ref} className="flex justify-center" />
 }
 
+/** 注册定时开放时刻的登录页展示文案（北京时间）：同年省略年份，如「11月1日 20:00」 */
+function formatRegistrationOpenLabel(openAtSec: number): string {
+  const date = new Date(openAtSec * 1000)
+  const yearOf = (d: Date) => d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai', year: 'numeric' })
+  const withYear = yearOf(date) !== yearOf(new Date())
+  return date.toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    ...(withYear ? { year: 'numeric' as const } : {}),
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
 const FORM_HEADINGS: Record<FormMode, { title: string; desc: string }> = {
   account: { title: '欢迎回来', desc: '登录你的账号，继续观看' },
   master: { title: '站长验证', desc: '输入站长密码（即站点访问密码）进入' },
@@ -83,6 +108,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       (state.authConfig?.registrationOpen ? 'open' : 'closed'),
   )
   const registrationOpen = registrationMode !== 'closed'
+  // 定时开放未到点：注册入口换成开放日期通知（服务端注册接口同样拦截，前端只是展示口径）
+  const registrationOpenAt = useAuthStore(state => state.authConfig?.registrationOpenAt ?? 0)
+  const registrationScheduled = registrationOpenAt * 1000 > Date.now()
+  const registrationFull = useAuthStore(state => state.authConfig?.registrationFull ?? false)
   const turnstileSiteKey = useAuthStore(state => state.authConfig?.turnstileSiteKey ?? '')
   const siteClosed = useAuthStore(state => state.authConfig?.siteBehavior?.siteClosed ?? false)
   const siteClosedMessage = useAuthStore(
@@ -483,7 +512,14 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                       站长登录
                     </button>
                     {!siteClosed &&
-                      (registrationOpen ? (
+                      (registrationScheduled ? (
+                        <span className="flex items-center gap-1">
+                          <CalendarClock className="size-4" />
+                          注册将于 {formatRegistrationOpenLabel(registrationOpenAt)} 开放
+                        </span>
+                      ) : registrationFull ? (
+                        <span>注册名额已满</span>
+                      ) : registrationOpen ? (
                         <button
                           type="button"
                           className="hover:text-foreground flex items-center gap-1"

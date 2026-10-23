@@ -519,6 +519,57 @@ export async function getRegistrationMode(
   return (await isRegistrationOpen(db, env)) ? 'open' : 'closed'
 }
 
+// ---------- 注册定时开放 ----------
+
+/** 注册定时开放时刻（unix 秒）：后台 registration_open_at；0 = 未设置。未到该时刻前注册通道关闭（邀请码亦不可用），到点后按注册模式执行 */
+export async function getRegistrationOpenAt(db: D1Database): Promise<number> {
+  const raw = await getSetting(db, 'registration_open_at')
+  const parsed = Number.parseInt(raw ?? '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+// ---------- 注册人数上限 ----------
+
+/** 注册人数上限：后台 registration_max_users；0 = 不限 */
+export async function getRegistrationMaxUsers(db: D1Database): Promise<number> {
+  const raw = await getSetting(db, 'registration_max_users')
+  const parsed = Number.parseInt(raw ?? '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+/** 当前注册用户数（users 表行数；站长不在表内、不计） */
+export async function countRegisteredUsers(db: D1Database): Promise<number> {
+  const row = await db
+    .prepare('SELECT COUNT(*) AS total FROM users')
+    .first<{ total: number }>()
+  return row?.total ?? 0
+}
+
+/** 是否已满员（纯函数，可测）：上限为 0（不限）恒不满员 */
+export function registrationFull(maxUsers: number, currentCount: number): boolean {
+  return maxUsers > 0 && currentCount >= maxUsers
+}
+
+/** 自助注册是否因人数上限被拦（只拦注册接口，站长后台建号不受此限） */
+export async function isRegistrationFull(db: D1Database): Promise<boolean> {
+  const maxUsers = await getRegistrationMaxUsers(db)
+  if (maxUsers <= 0) return false
+  return registrationFull(maxUsers, await countRegisteredUsers(db))
+}
+
+/** 开放时刻的中文展示（北京时间，精确到分钟），用于注册拦截提示与登录页通知 */
+export function formatRegistrationOpenAt(openAtSec: number): string {
+  return new Date(openAtSec * 1000).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
 // ---------- 邀请码 ----------
 
 export interface InviteCodeRow {

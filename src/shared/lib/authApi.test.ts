@@ -24,6 +24,32 @@ describe('fetchAuthConfig', () => {
     expect((await fetchAuthConfig()).registrationMode).toBe('closed')
   })
 
+  it('透传注册定时开放时刻 registrationOpenAt（非法/缺失为 0）', async () => {
+    const stub = (payload: Record<string, unknown>) =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: true, json: async () => payload }),
+      )
+    stub({ authEnabled: true, registrationOpen: false, registrationOpenAt: 1893456000 })
+    expect((await fetchAuthConfig()).registrationOpenAt).toBe(1893456000)
+    stub({ authEnabled: true, registrationOpen: false })
+    expect((await fetchAuthConfig()).registrationOpenAt).toBe(0)
+    stub({ authEnabled: true, registrationOpen: false, registrationOpenAt: 'bogus' })
+    expect((await fetchAuthConfig()).registrationOpenAt).toBe(0)
+  })
+
+  it('透传注册满员标记 registrationFull（缺失为 false）', async () => {
+    const stub = (payload: Record<string, unknown>) =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: true, json: async () => payload }),
+      )
+    stub({ authEnabled: true, registrationOpen: true, registrationFull: true })
+    expect((await fetchAuthConfig()).registrationFull).toBe(true)
+    stub({ authEnabled: true, registrationOpen: true })
+    expect((await fetchAuthConfig()).registrationFull).toBe(false)
+  })
+
   it('透传管理员视频源字段 initialVideoSources', async () => {
     vi.stubGlobal(
       'fetch',
