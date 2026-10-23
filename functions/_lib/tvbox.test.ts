@@ -186,3 +186,59 @@ describe('分片吞吐测速的纯逻辑', () => {
     )
     expect(extractM3u8Url('<html>没有视频地址</html>')).toBe('')
   })
+
+describe('聚合详情的子请求预算', () => {
+  it('传入已知命中时不再逐源搜索，且详情带测速标签', async () => {
+    const { aggDetail } = await import('./tvbox')
+    const calls: string[] = []
+    const segBytes = new Uint8Array(300 * 1024)
+    const detailRecord = (name: string, ep: string) => ({
+      vod_id: '42',
+      vod_name: name,
+      vod_play_from: '主线',
+      vod_play_url: `第1集$${ep}`,
+    })
+    const stub = async (input: unknown) => {
+      const url = String(input)
+      calls.push(url)
+      if (url.includes('a.test') && url.includes('ids=')) {
+        return new Response(JSON.stringify({ list: [detailRecord('测试片', 'https://cdn.test/a.m3u8')] }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('b.test') && url.includes('ids=')) {
+        return new Response(JSON.stringify({ list: [detailRecord('测试片', 'https://cdn.test/b.m3u8')] }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.endsWith('.m3u8')) {
+        return new Response('#EXTM3U\n#EXTINF:10,\nseg0.ts', {
+          headers: { 'Content-Type': 'application/vnd.apple.mpegurl' },
+        })
+      }
+      if (url.includes('seg0.ts')) {
+        return new Response(segBytes, { headers: { 'Content-Type': 'video/mp2t' } })
+      }
+      return new Response('{}', { status: 404 })
+    }
+    const { vi } = await import('vitest')
+    vi.stubGlobal('fetch', stub)
+    try {
+      const sources = [
+        { id: 'a', name: '源A', api: 'https://a.test/api.php/provide/vod/' },
+        { id: 'b', name: '源B', api: 'https://b.test/api.php/provide/vod/' },
+      ]
+      const record = await aggDetail(sources, 'a', '42', [
+        { sourceId: 'a', vodId: '42', tier: 0 },
+        { sourceId: 'b', vodId: '42', tier: 0 },
+      ])
+      expect(record).not.toBeNull()
+      // 关键：全程没有发出任何 wd= 搜索请求
+      expect(calls.some(u => u.includes('wd='))).toBe(false)
+      // 两条线路都测通并带 ⚡ 吞吐标签
+      expect(String(record?.vod_play_from)).toContain('⚡')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})

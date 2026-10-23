@@ -398,9 +398,15 @@ export function formatThroughput(kbps: number): string {
   return `${Math.max(1, Math.round(kbps))}KB/s`
 }
 
+interface ProbeAttempt {
+  /** 撞上确定性失败（4xx）时置真：这类失败重试也没用，别浪费子请求预算 */
+  hardFail: boolean
+}
+
 async function fetchProbeText(
   url: string,
   timeoutMs: number,
+  attempt: ProbeAttempt,
 ): Promise<{ text: string; ms: number } | null> {
   const start = Date.now()
   try {
@@ -408,7 +414,10 @@ async function fetchProbeText(
       headers: { 'User-Agent': CMS_UA },
       signal: AbortSignal.timeout(timeoutMs),
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      if (res.status >= 400 && res.status < 500) attempt.hardFail = true
+      return null
+    }
     const text = await res.text()
     return { text, ms: Date.now() - start }
   } catch {
@@ -454,12 +463,13 @@ async function probeFromPlaylistText(
   text: string,
   playlistUrl: string,
   ttfbMs: number,
+  attempt: ProbeAttempt,
 ): Promise<PlaybackProbe> {
   let mediaUrl = playlistUrl
   let mediaText = text
   const variant = variantPlaylistUrl(text, playlistUrl)
   if (variant) {
-    const sub = await fetchProbeText(variant, 4000)
+    const sub = await fetchProbeText(variant, 4000, attempt)
     if (!sub) return { ok: false, kbps: 0, ttfbMs }
     mediaUrl = variant
     mediaText = sub.text
@@ -472,7 +482,10 @@ async function probeFromPlaylistText(
       headers: { 'User-Agent': CMS_UA },
       signal: AbortSignal.timeout(6000),
     })
-    if (!res.ok) return { ok: false, kbps: 0, ttfbMs }
+    if (!res.ok) {
+      if (res.status >= 400 && res.status < 500) attempt.hardFail = true
+      return { ok: false, kbps: 0, ttfbMs }
+    }
     const d = await measureDownload(res, segStart)
     return d.kbps > 0
       ? { ok: true, kbps: d.kbps, ttfbMs }
@@ -482,18 +495,25 @@ async function probeFromPlaylistText(
   }
 }
 
-async function probeViaPlaylist(episodeUrl: string, fallbackTtfbMs: number): Promise<PlaybackProbe> {
-  const playlist = await fetchProbeText(episodeUrl, 4000)
+async function probeViaPlaylist(
+  episodeUrl: string,
+  fallbackTtfbMs: number,
+  attempt: ProbeAttempt,
+): Promise<PlaybackProbe> {
+  const playlist = await fetchProbeText(episodeUrl, 4000, attempt)
   if (!playlist) return { ok: false, kbps: 0, ttfbMs: fallbackTtfbMs }
   if (!playlist.text.includes('#EXTM3U')) {
     return { ok: false, kbps: 0, ttfbMs: Math.min(playlist.ms, fallbackTtfbMs) }
   }
-  return probeFromPlaylistText(playlist.text, episodeUrl, playlist.ms)
+  return probeFromPlaylistText(playlist.text, episodeUrl, playlist.ms, attempt)
 }
 
-async function probePlaybackOnce(episodeUrl: string): Promise<PlaybackProbe> {
+async function probePlaybackOnce(
+  episodeUrl: string,
+  attempt: ProbeAttempt,
+): Promise<PlaybackProbe> {
   if (!episodeUrl) return PROBE_FAIL
-  if (/\.m3u8($|\?)/i.test(episodeUrl)) return probeViaPlaylist(episodeUrl, 9999)
+  if (/\.m3u8($|\?)/i.test(episodeUrl)) return probeViaPlaylist(episodeUrl, 9999, attempt)
   // 非 m3u8 地址：可能是直链媒体，也可能是解析/分享网页（量子、非凡等源的 /share、/play 页）
   const start = Date.now()
   let res: Response
@@ -506,19 +526,22 @@ async function probePlaybackOnce(episodeUrl: string): Promise<PlaybackProbe> {
     return PROBE_FAIL
   }
   const ttfbMs = Date.now() - start
-  if (!res.ok) return { ok: false, kbps: 0, ttfbMs }
+  if (!res.ok) {
+    if (res.status >= 400 && res.status < 500) attempt.hardFail = true
+    return { ok: false, kbps: 0, ttfbMs }
+  }
   const contentType = res.headers.get('content-type') ?? ''
   if (contentType.includes('mpegurl')) {
     const text = await res.text().catch(() => '')
     return text.includes('#EXTM3U')
-      ? probeFromPlaylistText(text, episodeUrl, ttfbMs)
+      ? probeFromPlaylistText(text, episodeUrl, ttfbMs, attempt)
       : { ok: false, kbps: 0, ttfbMs }
   }
   if (contentType.includes('text/')) {
     // 网页：提取其中的真实 m3u8 再测（与播放器解析同路），提不到就只留响应耗时兜底排序
     const text = await res.text().catch(() => '')
     const inner = extractM3u8Url(text)
-    if (inner && inner !== episodeUrl) return probeViaPlaylist(inner, ttfbMs)
+    if (inner && inner !== episodeUrl) return probeViaPlaylist(inner, ttfbMs, attempt)
     return { ok: false, kbps: 0, ttfbMs }
   }
   // 二进制直链媒体：就着这个响应把吞吐测完
@@ -528,16 +551,33 @@ async function probePlaybackOnce(episodeUrl: string): Promise<PlaybackProbe> {
     : { ok: false, kbps: 0, ttfbMs }
 }
 
+const probeCache = new Map<string, { at: number; probe: PlaybackProbe }>()
+const PROBE_OK_CACHE_MS = 10 * 60_000
+const PROBE_FAIL_CACHE_MS = 60_000
+
 /**
  * 播放测速：拉第一集首个视频分片的前 256KB 测真实下载吞吐，
  * 比只测清单响应时间接近真实播放得多；解析/分享页型源（量子、非凡等）
- * 先从页面提取真实 m3u8 再测。失败自动重试一次。
+ * 先从页面提取真实 m3u8 再测。瞬时失败（超时/网络抖动）自动重试一次，
+ * 确定性失败（4xx）不重试——Cloudflare 单请求子请求预算有限（免费版 50 个），
+ * 详情聚合已占大头，测速不能浪费。结果带缓存：成功 10 分钟、失败 1 分钟。
  * 测点在服务端，代表的是源站产能，不等同于电视本机直连速度。
  */
 export async function probePlaybackSpeed(episodeUrl: string): Promise<PlaybackProbe> {
-  const first = await probePlaybackOnce(episodeUrl)
-  if (first.ok) return first
-  return probePlaybackOnce(episodeUrl)
+  if (!episodeUrl) return PROBE_FAIL
+  const cached = probeCache.get(episodeUrl)
+  if (cached) {
+    const ttl = cached.probe.ok ? PROBE_OK_CACHE_MS : PROBE_FAIL_CACHE_MS
+    if (Date.now() - cached.at < ttl) return cached.probe
+  }
+  const attempt: ProbeAttempt = { hardFail: false }
+  let probe = await probePlaybackOnce(episodeUrl, attempt)
+  if (!probe.ok && !attempt.hardFail) {
+    probe = await probePlaybackOnce(episodeUrl, { hardFail: false })
+  }
+  if (probeCache.size > 300) probeCache.clear()
+  probeCache.set(episodeUrl, { at: Date.now(), probe })
+  return probe
 }
 
 export function splitPlayGroups(
@@ -576,10 +616,23 @@ const DETAIL_CACHE_MS = 5 * 60_000
  * 聚合详情：以主源记录为底，跨源找同名片（档位 ≤2），逐源取详情并测速，
  * 全部线路按（档位、速度）排序拼成一个多线路记录——APP 默认播第一条即最快源。
  */
+/** 跨源命中（调用方已搜到时传入，省去 aggDetail 里再逐源搜一遍的子请求） */
+export interface AggHit {
+  sourceId: string
+  vodId: string
+  tier: number
+}
+
+/** 详情最多拼多少条线路（主源 + 跨源）：受 Cloudflare 单请求子请求预算约束，必须封顶 */
+const MAX_DETAIL_CANDIDATES = 10
+/** 最多给多少条线路做分片测速（其余按档位排在后面，标签不带速度） */
+const MAX_PROBE_CANDIDATES = 8
+
 export async function aggDetail(
   sources: TvboxSource[],
   sourceId: string,
   vodId: string,
+  knownHits?: AggHit[],
 ): Promise<CmsRecord | null> {
   const cacheKey = `${sourceId}:${vodId}`
   const cached = detailCache.get(cacheKey)
@@ -602,25 +655,47 @@ export async function aggDetail(
     },
   ]
 
-  const others = sources.filter(s => s.id !== primary.id).slice(0, 11)
+  // 跨源候选组装：有现成命中就直接用（点墙路径刚搜过），没有才逐源现搜
+  let targets: Array<{ source: TvboxSource; vodId: string; tier: number }> = []
+  if (knownHits) {
+    const seen = new Set<string>([primary.id])
+    for (const hit of [...knownHits].sort((a, b) => a.tier - b.tier)) {
+      if (seen.has(hit.sourceId)) continue
+      const source = sources.find(s => s.id === hit.sourceId)
+      if (!source) continue
+      seen.add(hit.sourceId)
+      targets.push({ source, vodId: hit.vodId, tier: hit.tier })
+      if (targets.length >= MAX_DETAIL_CANDIDATES - 1) break
+    }
+  } else {
+    const others = sources
+      .filter(s => s.id !== primary.id)
+      .slice(0, MAX_DETAIL_CANDIDATES - 1)
+    const searched = await Promise.all(
+      others.map(async source => {
+        const search = await cmsVideolist(source.api, { wd: title, pg: 1 })
+        let best: { id: string; tier: number } | null = null
+        for (const item of search.list) {
+          const tier = titleTier(String(item.vod_name ?? ''), title)
+          if (tier > 2) continue
+          if (!best || tier < best.tier) best = { id: String(item.vod_id ?? ''), tier }
+          if (tier === 0) break
+        }
+        return best && best.id ? { source, vodId: best.id, tier: best.tier } : null
+      }),
+    )
+    targets = searched.filter((t): t is NonNullable<typeof t> => t !== null)
+  }
+
   const found = await Promise.all(
-    others.map(async source => {
-      const search = await cmsVideolist(source.api, { wd: title, pg: 1 })
-      let best: { id: string; tier: number } | null = null
-      for (const item of search.list) {
-        const tier = titleTier(String(item.vod_name ?? ''), title)
-        if (tier > 2) continue
-        if (!best || tier < best.tier) best = { id: String(item.vod_id ?? ''), tier }
-        if (tier === 0) break
-      }
-      if (!best || !best.id) return null
-      const detail = await cmsVideolist(source.api, { ids: best.id })
+    targets.map(async t => {
+      const detail = await cmsVideolist(t.source.api, { ids: t.vodId })
       const record = detail.list[0]
       if (!record) return null
       return {
-        source,
+        source: t.source,
         record,
-        tier: best.tier,
+        tier: t.tier,
         probe: { ...PROBE_FAIL },
         groups: splitPlayGroups(record.vod_play_from, record.vod_play_url),
       } as DetailCandidate
@@ -628,8 +703,10 @@ export async function aggDetail(
   )
   for (const c of found) if (c) candidates.push(c)
 
+  // 先按档位排，只给靠前的若干条测速（子请求预算有限，靠后的线路靠档位兜底）
+  candidates.sort((a, b) => a.tier - b.tier)
   await Promise.all(
-    candidates.map(async c => {
+    candidates.slice(0, MAX_PROBE_CANDIDATES).map(async c => {
       c.probe = await probePlaybackSpeed(firstEpisodeUrl(c.groups[0]?.episodes ?? []))
     }),
   )
@@ -797,18 +874,19 @@ export async function aggWallDetail(
       vod_play_url: '',
     }
   }
-  let primary: { sourceId: string; vodId: string } | null = null
-  let primaryTier = 99
+  // 命中按档位整理成 AggHit 传给 aggDetail 复用：点墙这一次请求里不再重复逐源搜索
+  const aggHits: AggHit[] = []
   for (const hit of hits) {
     const decoded = decodeAggId(String(hit.vod_id ?? ''))
     if (!decoded) continue
-    const tier = titleTier(String(hit.vod_name ?? ''), title)
-    if (tier < primaryTier) {
-      primaryTier = tier
-      primary = decoded
-      if (tier === 0) break
-    }
+    aggHits.push({
+      sourceId: decoded.sourceId,
+      vodId: decoded.vodId,
+      tier: titleTier(String(hit.vod_name ?? ''), title),
+    })
   }
-  if (!primary) return null
-  return aggDetail(sources, primary.sourceId, primary.vodId)
+  if (aggHits.length === 0) return null
+  aggHits.sort((a, b) => a.tier - b.tier)
+  const primary = aggHits[0]
+  return aggDetail(sources, primary.sourceId, primary.vodId, aggHits)
 }

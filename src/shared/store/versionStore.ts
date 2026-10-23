@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.12.2',
+    title: '修复 TVBox 详情页线路不显示测速标记',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '点豆瓣墙看详情时线路名上没有测速标记：一次详情请求里要逐源搜索、取详情再逐个测速，子请求数撞上 Cloudflare 单请求上限（免费版 50 个），排在最后的测速被整段掐掉。已改为复用搜索结果不再重复搜、线路与测速数量封顶、测速结果缓存、确定性失败不重试，测速标记恢复显示。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.12.1',
     title: 'TVBox 测速改测真实分片下载速度',
     date: formatDate('2026-10-23'),
