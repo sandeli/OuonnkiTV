@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.9.0',
+    title: '播放器显示剧名与集数',
+    date: formatDate('2026-10-23'),
+    features: [
+      '播放器左上角返回键旁显示当前剧名；多集剧集同时标注第几集，电影等单集内容只显示剧名。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.8.0',
     title: '关站维护模式',
     date: formatDate('2026-10-23'),

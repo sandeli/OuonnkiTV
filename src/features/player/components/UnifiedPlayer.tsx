@@ -1682,17 +1682,29 @@ export default function UnifiedPlayer() {
           )}
 
           <section className="relative overflow-hidden rounded-lg border border-border/60 bg-black/95 shadow-lg">
-            <button
-              type="button"
-              aria-label="返回上一页"
-              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
-              className={`absolute top-3 left-3 z-40 flex items-center gap-1 rounded-full border border-white/20 bg-black/20 py-1.5 pr-3.5 pl-2.5 text-sm text-white backdrop-blur-sm transition-[opacity,background-color] duration-300 hover:bg-black/35 ${
+            <div
+              className={`absolute top-3 left-3 z-40 flex max-w-[min(72%,600px)] items-center gap-2.5 transition-opacity duration-300 ${
                 controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
               }`}
             >
-              <ArrowLeft className="size-4" />
-              返回
-            </button>
+              <button
+                type="button"
+                aria-label="返回上一页"
+                onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-white/20 bg-black/20 py-1.5 pr-3.5 pl-2.5 text-sm text-white backdrop-blur-sm transition-colors duration-300 hover:bg-black/35"
+              >
+                <ArrowLeft className="size-4" />
+                返回
+              </button>
+              {title.trim() && (
+                <span className="min-w-0 truncate text-sm font-medium text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.85)]">
+                  {title.trim()}
+                  {detail.episodes.length > 1 && (
+                    <span className="text-white/75"> · 第{selectedEpisode + 1}集</span>
+                  )}
+                </span>
+              )}
+            </div>
             <div
               id="player"
               ref={containerRef}
