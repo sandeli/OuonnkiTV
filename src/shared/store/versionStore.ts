@@ -57,6 +57,18 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.10.2',
+    title: '关站维护生效链路修复',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '关站开关改为即时保存：拨动即生效，不再需要另点卡片底部的保存按钮（此前只拨开关不会写入设置，看起来像没生效）。',
+      '修复关站后已登录普通用户不被退出的问题：会话复查现在把关站拒绝（403）同样视为失效，退出后登录门刷新为维护页。',
+      '站长在首页顶部可见「关站维护中」提示条，确认站点状态（站长本人不受关站影响）。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.10.1',
     title: '换源列表排列整理',
     date: formatDate('2026-10-23'),

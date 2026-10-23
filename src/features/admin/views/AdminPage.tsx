@@ -61,6 +61,7 @@ export default function AdminPage() {
   const [sbTmdbQuality, setSbTmdbQuality] = useState('medium')
   const [sbDanmakuApiUrl, setSbDanmakuApiUrl] = useState('')
   const [sbSiteClosed, setSbSiteClosed] = useState(false)
+  const [sbClosedSaving, setSbClosedSaving] = useState(false)
   const [sbSiteClosedMessage, setSbSiteClosedMessage] = useState('')
   const [sbSaving, setSbSaving] = useState(false)
   const [doubanDataType, setDoubanDataType] = useState('direct')
@@ -220,6 +221,26 @@ export default function AdminPage() {
       toast.error(e instanceof Error ? e.message : '发送失败')
     } finally {
       setTgTesting(false)
+    }
+  }
+
+  // 关站开关即时保存（不等卡片底部的保存按钮，避免"开了开关却没生效"）
+  const handleToggleSiteClosed = async (checked: boolean) => {
+    if (!token) return
+    setSbSiteClosed(checked)
+    setSbClosedSaving(true)
+    try {
+      await adminUpdateSettings(token, {
+        siteClosed: checked,
+        siteClosedMessage: sbSiteClosedMessage.trim(),
+      })
+      void useAuthStore.getState().probeConfig()
+      toast.success(checked ? '关站维护已开启，全站对普通用户关闭' : '关站维护已关闭，站点恢复访问')
+    } catch {
+      setSbSiteClosed(!checked)
+      toast.error('关站设置保存失败，请重试')
+    } finally {
+      setSbClosedSaving(false)
     }
   }
 
@@ -669,10 +690,14 @@ export default function AdminPage() {
               <div>
                 <p className="text-sm font-medium">关站维护</p>
                 <p className="text-muted-foreground text-xs">
-                  开启后全站对普通用户关闭：登录页显示维护说明、只有站长能登录，已登录的普通用户会被自动退出。
+                  开启后全站对普通用户关闭：登录页显示维护说明、只有站长能登录，已登录的普通用户会被自动退出。开关即时生效，无需点下方保存。
                 </p>
               </div>
-              <Switch checked={sbSiteClosed} onCheckedChange={setSbSiteClosed} />
+              <Switch
+                checked={sbSiteClosed}
+                disabled={sbClosedSaving}
+                onCheckedChange={v => void handleToggleSiteClosed(v)}
+              />
             </div>
             {sbSiteClosed && (
               <div className="mt-3 flex flex-col gap-1.5">

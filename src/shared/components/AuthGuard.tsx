@@ -136,6 +136,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       const result = await revalidateSession()
       if (!cancelled && result === 'invalid') {
         setIsAuthenticated(false)
+        // 刷新公开配置：若是关站导致的失效，登录门要立刻换成维护页而不是普通登录框
+        void probeConfig()
       }
     }
     const timer = window.setInterval(() => void revalidate(), 60_000)
@@ -148,7 +150,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [isAuthenticated, gateMode, revalidateSession])
+  }, [isAuthenticated, gateMode, revalidateSession, probeConfig])
 
   useEffect(() => {
     if (!isAuthenticated || isDismissing) return

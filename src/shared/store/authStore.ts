@@ -173,7 +173,11 @@ export const useAuthStore = create<AuthStore>()(
           set({ user })
           return 'ok'
         } catch (error) {
-          if (error instanceof AuthApiError && error.status === 401) {
+          // 401 未登录/会话失效；403 为关站维护期间普通用户被拒——两者都应退出登录
+          if (
+            error instanceof AuthApiError &&
+            (error.status === 401 || error.status === 403)
+          ) {
             set({ token: null, user: null })
             return 'invalid'
           }
