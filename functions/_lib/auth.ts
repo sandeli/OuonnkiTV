@@ -243,6 +243,40 @@ export async function verifyPassword(
   return timingSafeEqualHex(actual, expectedHashHex)
 }
 
+export type ChangePasswordResult = 'ok' | 'wrong-current' | 'not-found'
+
+/**
+ * 修改密码：校验现密码 → 换新盐新哈希 → 吊销该用户的其他会话（保留 currentTokenHash 对应的当前会话）。
+ * 站长（user_id=0）不在 users 表内，调用方需提前拦下（其密码在环境变量中）。
+ */
+export async function changeUserPassword(
+  db: D1Database,
+  userId: number,
+  currentPassword: string,
+  newPassword: string,
+  currentTokenHash: string,
+): Promise<ChangePasswordResult> {
+  const row = await db
+    .prepare('SELECT password_hash AS passwordHash, password_salt AS passwordSalt FROM users WHERE id = ?')
+    .bind(userId)
+    .first<{ passwordHash: string; passwordSalt: string }>()
+  if (!row) return 'not-found'
+  if (!(await verifyPassword(currentPassword, row.passwordSalt, row.passwordHash))) {
+    return 'wrong-current'
+  }
+  const salt = randomHex(16)
+  const passwordHash = await hashPassword(newPassword, salt)
+  await db
+    .prepare('UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?')
+    .bind(passwordHash, salt, userId)
+    .run()
+  await db
+    .prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?')
+    .bind(userId, currentTokenHash)
+    .run()
+  return 'ok'
+}
+
 // ---------- 输入校验 ----------
 
 export function validateUsername(raw: unknown): string | null {
@@ -526,6 +560,30 @@ export async function getRegistrationOpenAt(db: D1Database): Promise<number> {
   const raw = await getSetting(db, 'registration_open_at')
   const parsed = Number.parseInt(raw ?? '', 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+/** 注册开放时段的结束时刻（unix 秒）：后台 registration_close_at；0 = 不设结束（到点开放后长期有效） */
+export async function getRegistrationCloseAt(db: D1Database): Promise<number> {
+  const raw = await getSetting(db, 'registration_close_at')
+  const parsed = Number.parseInt(raw ?? '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+export type RegistrationWindowState = 'before' | 'in' | 'after'
+
+/**
+ * 当前时刻在注册开放时段中的位置（纯函数，可测）：
+ * 未到开始 → before；已过结束 → after；其余（时段内，或两个边界都没设）→ in。
+ * 时段只是一层时间闸门，最终能否注册还看注册模式本身。
+ */
+export function registrationWindowState(
+  openAt: number,
+  closeAt: number,
+  now: number,
+): RegistrationWindowState {
+  if (openAt > 0 && now < openAt) return 'before'
+  if (closeAt > 0 && now >= closeAt) return 'after'
+  return 'in'
 }
 
 // ---------- 注册人数上限 ----------

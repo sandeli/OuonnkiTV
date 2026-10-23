@@ -122,6 +122,8 @@ export default function SettingsLayout() {
   const authMode = useAuthStore(state => state.authMode)
 
   const isServerAdmin = authMode === 'server' && authUser?.role === 'admin'
+  // 「关于项目」仅站长/管理员可见：服务器账号模式下普通用户不显示该模块（旧单密码模式为站长本人，不受限）
+  const isServerRegularUser = authMode === 'server' && !isServerAdmin
   const modules = isServerAdmin
     ? [
         ...settingsModules.slice(0, -1),
@@ -129,7 +131,9 @@ export default function SettingsLayout() {
         userModule,
         settingsModules[settingsModules.length - 1],
       ]
-    : settingsModules
+    : isServerRegularUser
+      ? settingsModules.filter(module => module.id !== 'about')
+      : settingsModules
 
   const activeModule =
     modules.find(module => location.pathname.startsWith(module.path)) || settingsModules[0]

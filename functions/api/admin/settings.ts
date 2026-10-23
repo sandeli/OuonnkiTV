@@ -2,6 +2,7 @@ import {
   DOUBAN_DATA_PROXY_TYPES,
   DOUBAN_IMAGE_PROXY_TYPES,
   countRegisteredUsers,
+  getRegistrationCloseAt,
   getRegistrationMaxUsers,
   getRegistrationMode,
   getRegistrationOpenAt,
@@ -47,6 +48,7 @@ export const onRequest = async (context: PagesContext) => {
       registrationOpen: await isRegistrationOpen(db, context.env),
       registrationMode: await getRegistrationMode(db, context.env),
       registrationOpenAt: await getRegistrationOpenAt(db),
+      registrationCloseAt: await getRegistrationCloseAt(db),
       registrationMaxUsers: await getRegistrationMaxUsers(db),
       registeredUserCount: await countRegisteredUsers(db),
       tgBotToken: tgNotify.botToken,
@@ -65,6 +67,7 @@ export const onRequest = async (context: PagesContext) => {
       registrationOpen?: unknown
       registrationMode?: unknown
       registrationOpenAt?: unknown
+      registrationCloseAt?: unknown
       registrationMaxUsers?: unknown
       tgBotToken?: unknown
       tgChatId?: unknown
@@ -109,6 +112,17 @@ export const onRequest = async (context: PagesContext) => {
       const openAt = Math.floor(body.registrationOpenAt)
       if (openAt >= 0 && openAt <= 4102444800) {
         await setSetting(db, 'registration_open_at', String(openAt))
+      }
+    }
+
+    // 注册开放时段结束时刻（unix 秒）：0 = 不设结束；只接受合理范围内的整数
+    if (
+      typeof body?.registrationCloseAt === 'number' &&
+      Number.isFinite(body.registrationCloseAt)
+    ) {
+      const closeAt = Math.floor(body.registrationCloseAt)
+      if (closeAt >= 0 && closeAt <= 4102444800) {
+        await setSetting(db, 'registration_close_at', String(closeAt))
       }
     }
 
@@ -226,6 +240,7 @@ export const onRequest = async (context: PagesContext) => {
       registrationOpen: await isRegistrationOpen(db, context.env),
       registrationMode: await getRegistrationMode(db, context.env),
       registrationOpenAt: await getRegistrationOpenAt(db),
+      registrationCloseAt: await getRegistrationCloseAt(db),
       registrationMaxUsers: await getRegistrationMaxUsers(db),
       registeredUserCount: await countRegisteredUsers(db),
       tgBotToken: tgNotifyAfter.botToken,

@@ -46,6 +46,9 @@ export default function AdminPage() {
   const [registrationOpenAt, setRegistrationOpenAt] = useState(0)
   const [openAtDraft, setOpenAtDraft] = useState('')
   const [openAtSaving, setOpenAtSaving] = useState(false)
+  const [registrationCloseAt, setRegistrationCloseAt] = useState(0)
+  const [closeAtDraft, setCloseAtDraft] = useState('')
+  const [closeAtSaving, setCloseAtSaving] = useState(false)
   const [registrationMaxUsers, setRegistrationMaxUsers] = useState(0)
   const [maxUsersDraft, setMaxUsersDraft] = useState('')
   const [maxUsersSaving, setMaxUsersSaving] = useState(false)
@@ -96,6 +99,8 @@ export default function AdminPage() {
       setRegistrationMode(settings.registrationMode)
       setRegistrationOpenAt(settings.registrationOpenAt)
       setOpenAtDraft(toDateTimeLocalValue(settings.registrationOpenAt))
+      setRegistrationCloseAt(settings.registrationCloseAt)
+      setCloseAtDraft(toDateTimeLocalValue(settings.registrationCloseAt))
       setRegistrationMaxUsers(settings.registrationMaxUsers)
       setMaxUsersDraft(settings.registrationMaxUsers > 0 ? String(settings.registrationMaxUsers) : '')
       setRegisteredUserCount(settings.registeredUserCount)
@@ -169,12 +174,17 @@ export default function AdminPage() {
     }
   }
 
-  // 定时开放：日期输入先存草稿，失焦（或点清除）时才写库，避免编辑到一半就触发保存
+  // 开放时段：日期输入先存草稿，失焦（或点清除）时才写库，避免编辑到一半就触发保存
   const saveRegistrationOpenAt = async (value: string) => {
     if (!token) return
     const sec = value ? Math.floor(new Date(value).getTime() / 1000) : 0
     if (value && !Number.isFinite(sec)) {
       toast.error('日期无效')
+      return
+    }
+    if (sec > 0 && registrationCloseAt > 0 && sec >= registrationCloseAt) {
+      toast.error('开始时间需早于结束时间')
+      setOpenAtDraft(toDateTimeLocalValue(registrationOpenAt))
       return
     }
     if (sec === registrationOpenAt) return
@@ -184,12 +194,40 @@ export default function AdminPage() {
       setRegistrationOpenAt(result.registrationOpenAt)
       setOpenAtDraft(toDateTimeLocalValue(result.registrationOpenAt))
       void useAuthStore.getState().probeConfig()
-      toast.success(sec > 0 ? '已设置注册开放时间，到点自动开放' : '已清除注册开放时间')
+      toast.success(sec > 0 ? '已设置注册开放开始时间' : '已清除开始时间')
     } catch {
       toast.error('保存失败')
       setOpenAtDraft(toDateTimeLocalValue(registrationOpenAt))
     } finally {
       setOpenAtSaving(false)
+    }
+  }
+
+  const saveRegistrationCloseAt = async (value: string) => {
+    if (!token) return
+    const sec = value ? Math.floor(new Date(value).getTime() / 1000) : 0
+    if (value && !Number.isFinite(sec)) {
+      toast.error('日期无效')
+      return
+    }
+    if (sec > 0 && registrationOpenAt > 0 && sec <= registrationOpenAt) {
+      toast.error('结束时间需晚于开始时间')
+      setCloseAtDraft(toDateTimeLocalValue(registrationCloseAt))
+      return
+    }
+    if (sec === registrationCloseAt) return
+    setCloseAtSaving(true)
+    try {
+      const result = await adminUpdateSettings(token, { registrationCloseAt: sec })
+      setRegistrationCloseAt(result.registrationCloseAt)
+      setCloseAtDraft(toDateTimeLocalValue(result.registrationCloseAt))
+      void useAuthStore.getState().probeConfig()
+      toast.success(sec > 0 ? '已设置注册开放结束时间' : '已清除结束时间')
+    } catch {
+      toast.error('保存失败')
+      setCloseAtDraft(toDateTimeLocalValue(registrationCloseAt))
+    } finally {
+      setCloseAtSaving(false)
     }
   }
 
@@ -451,41 +489,75 @@ export default function AdminPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="border-border/60 mt-3 flex w-full flex-wrap items-center gap-2 border-t pt-3">
-          <span className="text-sm">定时开放</span>
-          <span className="text-muted-foreground text-xs">
-            选定时间之前注册保持关闭（邀请码也不可用），登录页会显示开放日期；到点自动按上方模式开放
-          </span>
-          {registrationOpenAt > 0 && (
-            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-              {registrationOpenAt * 1000 > Date.now()
-                ? '尚未到开放时间，注册暂时关闭中'
-                : '已过开放时间，定时已完成，可清除'}
+        <div className="border-border/60 mt-3 w-full border-t pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm">开放时段</span>
+            <span className="text-muted-foreground text-xs">
+              时段之外注册保持关闭（邀请码也不可用），登录页会显示开放日期；时段内自动按上方模式开放。开始、结束可只设其一
             </span>
-          )}
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            <Input
-              type="datetime-local"
-              className="w-56"
-              value={openAtDraft}
-              disabled={openAtSaving}
-              onChange={e => setOpenAtDraft(e.target.value)}
-              onBlur={() => void saveRegistrationOpenAt(openAtDraft)}
-            />
-            {registrationOpenAt > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={openAtSaving}
-                onClick={() => {
-                  setOpenAtDraft('')
-                  void saveRegistrationOpenAt('')
-                }}
-              >
-                清除
-              </Button>
+            {(registrationOpenAt > 0 || registrationCloseAt > 0) && (
+              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                {registrationOpenAt > 0 && Math.floor(Date.now() / 1000) < registrationOpenAt
+                  ? '尚未开始，注册暂时关闭中'
+                  : registrationCloseAt > 0 && Math.floor(Date.now() / 1000) >= registrationCloseAt
+                    ? '时段已结束，注册关闭中'
+                    : registrationCloseAt > 0
+                      ? '正在开放时段内，到结束时间自动关闭'
+                      : '正在开放中（未设结束时间）'}
+              </span>
             )}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <label className="flex items-center gap-2 text-xs">
+              开始
+              <Input
+                type="datetime-local"
+                className="w-52"
+                value={openAtDraft}
+                disabled={openAtSaving}
+                onChange={e => setOpenAtDraft(e.target.value)}
+                onBlur={() => void saveRegistrationOpenAt(openAtDraft)}
+              />
+              {registrationOpenAt > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={openAtSaving}
+                  onClick={() => {
+                    setOpenAtDraft('')
+                    void saveRegistrationOpenAt('')
+                  }}
+                >
+                  清除
+                </Button>
+              )}
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              结束
+              <Input
+                type="datetime-local"
+                className="w-52"
+                value={closeAtDraft}
+                disabled={closeAtSaving}
+                onChange={e => setCloseAtDraft(e.target.value)}
+                onBlur={() => void saveRegistrationCloseAt(closeAtDraft)}
+              />
+              {registrationCloseAt > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={closeAtSaving}
+                  onClick={() => {
+                    setCloseAtDraft('')
+                    void saveRegistrationCloseAt('')
+                  }}
+                >
+                  清除
+                </Button>
+              )}
+            </label>
           </div>
         </div>
         <div className="border-border/60 mt-3 flex w-full flex-wrap items-center gap-2 border-t pt-3">

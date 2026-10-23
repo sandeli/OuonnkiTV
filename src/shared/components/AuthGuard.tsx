@@ -108,9 +108,16 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       (state.authConfig?.registrationOpen ? 'open' : 'closed'),
   )
   const registrationOpen = registrationMode !== 'closed'
-  // 定时开放未到点：注册入口换成开放日期通知（服务端注册接口同样拦截，前端只是展示口径）
+  // 开放时段：未开始时注册入口换成开放日期通知、已结束时显示结束提示（服务端注册接口同样拦截，前端只是展示口径）
   const registrationOpenAt = useAuthStore(state => state.authConfig?.registrationOpenAt ?? 0)
-  const registrationScheduled = registrationOpenAt * 1000 > Date.now()
+  const registrationCloseAt = useAuthStore(state => state.authConfig?.registrationCloseAt ?? 0)
+  const nowSec = Math.floor(Date.now() / 1000)
+  const registrationWindow: 'before' | 'in' | 'after' =
+    registrationOpenAt > 0 && nowSec < registrationOpenAt
+      ? 'before'
+      : registrationCloseAt > 0 && nowSec >= registrationCloseAt
+        ? 'after'
+        : 'in'
   const registrationFull = useAuthStore(state => state.authConfig?.registrationFull ?? false)
   const turnstileSiteKey = useAuthStore(state => state.authConfig?.turnstileSiteKey ?? '')
   const siteClosed = useAuthStore(state => state.authConfig?.siteBehavior?.siteClosed ?? false)
@@ -512,11 +519,15 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                       站长登录
                     </button>
                     {!siteClosed &&
-                      (registrationScheduled ? (
+                      (registrationWindow === 'before' ? (
                         <span className="flex items-center gap-1">
                           <CalendarClock className="size-4" />
                           注册将于 {formatRegistrationOpenLabel(registrationOpenAt)} 开放
+                          {registrationCloseAt > 0 &&
+                            `，${formatRegistrationOpenLabel(registrationCloseAt)} 截止`}
                         </span>
+                      ) : registrationWindow === 'after' ? (
+                        <span>注册开放时段已结束</span>
                       ) : registrationFull ? (
                         <span>注册名额已满</span>
                       ) : registrationOpen ? (

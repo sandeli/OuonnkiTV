@@ -81,8 +81,10 @@ export interface AuthPublicConfig {
   registrationOpen: boolean
   /** 注册模式：开放 / 仅邀请码 / 关闭（旧后端无此字段时按 registrationOpen 推导） */
   registrationMode?: RegistrationMode
-  /** 注册定时开放时刻（unix 秒）：未到该时刻前注册关闭、登录页显示开放日期通知；0/缺失 = 未设置 */
+  /** 注册开放时段开始时刻（unix 秒）：未到该时刻前注册关闭、登录页显示开放日期通知；0/缺失 = 未设置 */
   registrationOpenAt?: number
+  /** 注册开放时段结束时刻（unix 秒）：超过后注册关闭；0/缺失 = 不设结束 */
+  registrationCloseAt?: number
   /** 注册人数已达上限：登录页显示「注册名额已满」（上限数值本身不下发） */
   registrationFull?: boolean
   turnstileSiteKey: string
@@ -155,6 +157,12 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
         data.registrationOpenAt > 0
           ? Math.floor(data.registrationOpenAt)
           : 0,
+      registrationCloseAt:
+        typeof data.registrationCloseAt === 'number' &&
+        Number.isFinite(data.registrationCloseAt) &&
+        data.registrationCloseAt > 0
+          ? Math.floor(data.registrationCloseAt)
+          : 0,
       registrationFull: data.registrationFull === true,
       turnstileSiteKey: typeof data.turnstileSiteKey === 'string' ? data.turnstileSiteKey : '',
       announcement,
@@ -195,6 +203,7 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
       registrationOpen: false,
       registrationMode: 'closed' as const,
       registrationOpenAt: 0,
+      registrationCloseAt: 0,
       registrationFull: false,
       turnstileSiteKey: '',
       announcement: null,
@@ -420,8 +429,10 @@ export interface InviteCodeRow {
 export interface AdminSettings {
   registrationOpen: boolean
   registrationMode: RegistrationMode
-  /** 注册定时开放时刻（unix 秒）：0 = 未设置 */
+  /** 注册开放时段开始时刻（unix 秒）：0 = 未设置 */
   registrationOpenAt: number
+  /** 注册开放时段结束时刻（unix 秒）：0 = 不设结束 */
+  registrationCloseAt: number
   /** 注册人数上限：0 = 不限 */
   registrationMaxUsers: number
   /** 当前注册用户数（后台展示用） */
@@ -450,6 +461,19 @@ export function fetchTvboxInfo(token: string): Promise<TvboxInfo> {
   return request<TvboxInfo>('/api/user/tvbox', { method: 'GET' }, token)
 }
 
+/** 修改当前账号密码（服务端校验现密码；成功后其他设备的会话会被踢下线，当前设备保持登录） */
+export function changePassword(
+  token: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ ok: true }> {
+  return request<{ ok: true }>(
+    '/api/user/password',
+    { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) },
+    token,
+  )
+}
+
 /** 重置 TVBox 令牌（旧配置地址立即失效） */
 export function resetTvboxToken(token: string): Promise<TvboxInfo> {
   return request<TvboxInfo>(
@@ -469,6 +493,7 @@ export function adminUpdateSettings(
     registrationOpen?: boolean
     registrationMode?: RegistrationMode
     registrationOpenAt?: number
+    registrationCloseAt?: number
     registrationMaxUsers?: number
     tgBotToken?: string
     tgChatId?: string

@@ -5,9 +5,11 @@ import {
   ensureSchema,
   findUsableInvite,
   formatRegistrationOpenAt,
+  getRegistrationCloseAt,
   getRegistrationMode,
   getRegistrationOpenAt,
   isRegistrationFull,
+  registrationWindowState,
   getRequestGeo,
   hashPassword,
   isSiteClosed,
@@ -38,10 +40,15 @@ export const onRequest = async (context: PagesContext) => {
     return json({ error: '站点维护中，暂停注册' }, 403)
   }
 
-  // 定时开放未到点：注册通道关闭（邀请码也不可用），到点后才按注册模式执行
+  // 开放时段之外：注册通道关闭（邀请码也不可用），时段内才按注册模式执行
   const registrationOpenAt = await getRegistrationOpenAt(db)
-  if (registrationOpenAt > nowSeconds()) {
+  const registrationCloseAt = await getRegistrationCloseAt(db)
+  const windowState = registrationWindowState(registrationOpenAt, registrationCloseAt, nowSeconds())
+  if (windowState === 'before') {
     return json({ error: `注册将于 ${formatRegistrationOpenAt(registrationOpenAt)} 开放` }, 403)
+  }
+  if (windowState === 'after') {
+    return json({ error: '本次注册开放时段已结束' }, 403)
   }
 
   const registrationMode = await getRegistrationMode(db, context.env)

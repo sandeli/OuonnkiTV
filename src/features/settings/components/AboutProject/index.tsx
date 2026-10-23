@@ -1,6 +1,7 @@
 import { TgysLogo } from '@/shared/components/icons'
 import { Badge } from '@/shared/components/ui/badge'
 import { Github, History, Sparkles } from 'lucide-react'
+import { Navigate } from 'react-router'
 import { useVersionStore } from '@/shared/store/versionStore'
 import { useAuthStore } from '@/shared/store/authStore'
 import { SettingsPageShell, SettingsSection } from '../common'
@@ -11,6 +12,13 @@ export default function AboutProject() {
   const canViewChangelog = useAuthStore(
     state => state.authMode === 'server' && state.user?.role === 'admin',
   )
+  // 本页仅站长/管理员可见：服务器账号模式下普通用户直达也跳回设置首页（菜单里同样不显示）
+  const isServerRegularUser = useAuthStore(
+    state => state.authMode === 'server' && state.user?.role !== 'admin',
+  )
+  if (isServerRegularUser) {
+    return <Navigate to="/settings/source" replace />
+  }
   const latestUpdate = updateHistory[0]
 
   return (

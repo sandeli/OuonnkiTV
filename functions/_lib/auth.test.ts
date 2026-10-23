@@ -5,11 +5,14 @@ import {
   DEFAULT_USER_VALID_DAYS,
   defaultUserExpiresAt,
   generateInviteCode,
+  changeUserPassword,
   formatRegistrationOpenAt,
+  getRegistrationCloseAt,
   getRegistrationMaxUsers,
   getRegistrationMode,
   getRegistrationOpenAt,
   registrationFull,
+  registrationWindowState,
   isSiteClosed,
   readSiteBehavior,
   hashPassword,
@@ -113,6 +116,26 @@ describe('注册模式', () => {
     expect(formatRegistrationOpenAt(1893456000)).toContain('2030年1月1日')
     expect(formatRegistrationOpenAt(1893456000)).toContain('08:00')
   })
+  it('注册开放时段结束时刻：未设置/非法为 0，合法时间戳原样读出', async () => {
+    expect(await getRegistrationCloseAt(fakeDb({}))).toBe(0)
+    expect(await getRegistrationCloseAt(fakeDb({ registration_close_at: 'bogus' }))).toBe(0)
+    expect(
+      await getRegistrationCloseAt(fakeDb({ registration_close_at: '1893456000' })),
+    ).toBe(1893456000)
+  })
+  it('开放时段位置判断：开始前 before、结束后 after、时段内或未设边界 in', () => {
+    const open = 2000
+    const close = 3000
+    expect(registrationWindowState(open, close, 1999)).toBe('before')
+    expect(registrationWindowState(open, close, 2000)).toBe('in')
+    expect(registrationWindowState(open, close, 2999)).toBe('in')
+    expect(registrationWindowState(open, close, 3000)).toBe('after')
+    // 只设开始：到点后长期 in；只设结束：到点前 in、到点后 after；都没设恒 in
+    expect(registrationWindowState(open, 0, 9999)).toBe('in')
+    expect(registrationWindowState(0, close, 2000)).toBe('in')
+    expect(registrationWindowState(0, close, 3000)).toBe('after')
+    expect(registrationWindowState(0, 0, 12345)).toBe('in')
+  })
   it('注册人数上限：未设置/0/非法为 0（不限），合法整数原样读出', async () => {
     expect(await getRegistrationMaxUsers(fakeDb({}))).toBe(0)
     expect(await getRegistrationMaxUsers(fakeDb({ registration_max_users: '0' }))).toBe(0)
@@ -124,6 +147,68 @@ describe('注册模式', () => {
     expect(registrationFull(100, 99)).toBe(false)
     expect(registrationFull(100, 100)).toBe(true)
     expect(registrationFull(100, 101)).toBe(true)
+  })
+})
+
+describe('修改密码', () => {
+  /** 内存假 D1：只实现 changeUserPassword 用到的三条语句 */
+  function fakeUserDb(
+    user: { passwordHash: string; passwordSalt: string } | null,
+    sessionHashes: string[],
+  ) {
+    const state = {
+      user: user ? { ...user } : null,
+      sessions: [...sessionHashes],
+    }
+    const db = {
+      prepare: (sql: string) => ({
+        bind: (...args: unknown[]) => ({
+          first: async () =>
+            sql.includes('FROM users') && state.user
+              ? { passwordHash: state.user.passwordHash, passwordSalt: state.user.passwordSalt }
+              : null,
+          run: async () => {
+            if (sql.includes('UPDATE users') && state.user) {
+              state.user.passwordHash = args[0] as string
+              state.user.passwordSalt = args[1] as string
+            }
+            if (sql.includes('DELETE FROM sessions')) {
+              const keep = args[1] as string
+              state.sessions = state.sessions.filter(h => h === keep)
+            }
+            return { success: true }
+          },
+        }),
+      }),
+    }
+    return { db: db as unknown as D1Database, state }
+  }
+
+  it('现密码不对拒绝且不改任何东西', async () => {
+    const salt = 'aa'.repeat(16)
+    const hash = await hashPassword('old-pass', salt)
+    const { db, state } = fakeUserDb({ passwordHash: hash, passwordSalt: salt }, ['tok_cur', 'tok_other'])
+    const result = await changeUserPassword(db, 5, 'WRONG-pass', 'new-pass-1', 'tok_cur')
+    expect(result).toBe('wrong-current')
+    expect(state.user?.passwordHash).toBe(hash)
+    expect(state.sessions).toEqual(['tok_cur', 'tok_other'])
+  })
+
+  it('现密码正确：换哈希、旧密码失效新密码生效、其他会话被踢', async () => {
+    const salt = 'bb'.repeat(16)
+    const hash = await hashPassword('old-pass', salt)
+    const { db, state } = fakeUserDb({ passwordHash: hash, passwordSalt: salt }, ['tok_cur', 'tok_other'])
+    const result = await changeUserPassword(db, 5, 'old-pass', 'new-pass-1', 'tok_cur')
+    expect(result).toBe('ok')
+    expect(state.user).not.toBeNull()
+    expect(await verifyPassword('old-pass', state.user!.passwordSalt, state.user!.passwordHash)).toBe(false)
+    expect(await verifyPassword('new-pass-1', state.user!.passwordSalt, state.user!.passwordHash)).toBe(true)
+    expect(state.sessions).toEqual(['tok_cur'])
+  })
+
+  it('用户不存在返回 not-found', async () => {
+    const { db } = fakeUserDb(null, [])
+    expect(await changeUserPassword(db, 99, 'whatever', 'new-pass-1', 'tok_cur')).toBe('not-found')
   })
 })
 

@@ -38,6 +38,18 @@ describe('fetchAuthConfig', () => {
     expect((await fetchAuthConfig()).registrationOpenAt).toBe(0)
   })
 
+  it('透传注册开放时段结束时刻 registrationCloseAt（非法/缺失为 0）', async () => {
+    const stub = (payload: Record<string, unknown>) =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: true, json: async () => payload }),
+      )
+    stub({ authEnabled: true, registrationOpen: true, registrationCloseAt: 1893456000 })
+    expect((await fetchAuthConfig()).registrationCloseAt).toBe(1893456000)
+    stub({ authEnabled: true, registrationOpen: true })
+    expect((await fetchAuthConfig()).registrationCloseAt).toBe(0)
+  })
+
   it('透传注册满员标记 registrationFull（缺失为 false）', async () => {
     const stub = (payload: Record<string, unknown>) =>
       vi.stubGlobal(
