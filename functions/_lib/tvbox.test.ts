@@ -157,3 +157,32 @@ describe('豆瓣图片墙', () => {
     expect(items[1].vod_pic).toBe('')
   })
 })
+
+describe('分片吞吐测速的纯逻辑', () => {
+  it('主清单取子清单、媒体清单取首分片（相对地址解析）', async () => {
+    const { firstSegmentUrl, variantPlaylistUrl } = await import('./tvbox')
+    const master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=1280x720\nsub/index.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=400000\nlow.m3u8'
+    expect(variantPlaylistUrl(master, 'https://cdn.tv/live/main.m3u8')).toBe(
+      'https://cdn.tv/live/sub/index.m3u8',
+    )
+    expect(variantPlaylistUrl('#EXTM3U\n#EXTINF:10,\nseg0.ts', 'https://cdn.tv/a.m3u8')).toBe('')
+    const media = '#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXTINF:9.9,\nseg-0.ts\n#EXTINF:9.9,\nseg-1.ts'
+    expect(firstSegmentUrl(media, 'https://cdn.tv/v/abc.m3u8?token=1')).toBe(
+      'https://cdn.tv/v/seg-0.ts',
+    )
+    expect(firstSegmentUrl('#EXTM3U\n#EXT-X-ENDLIST', 'https://cdn.tv/a.m3u8')).toBe('')
+  })
+  it('吞吐格式化', async () => {
+    const { formatThroughput } = await import('./tvbox')
+    expect(formatThroughput(850)).toBe('850KB/s')
+    expect(formatThroughput(2048)).toBe('2.0MB/s')
+    expect(formatThroughput(0.2)).toBe('1KB/s')
+  })
+})
+  it('从分享页文本提取 m3u8（保留查询串）', async () => {
+    const { extractM3u8Url } = await import('./tvbox')
+    expect(extractM3u8Url('var u="https://cdn.tv/x/index.m3u8?token=abc";')).toBe(
+      'https://cdn.tv/x/index.m3u8?token=abc',
+    )
+    expect(extractM3u8Url('<html>没有视频地址</html>')).toBe('')
+  })

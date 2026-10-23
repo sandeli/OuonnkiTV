@@ -351,21 +351,193 @@ export async function aggList(
   return merged
 }
 
-/** 测速：GET 到响应头即计时（与网页端探测同口径），失败记 9999 */
-export async function probeSpeed(url: string, timeoutMs = 2500): Promise<number> {
-  if (!url) return 9999
+/** 播放测速结果：ok=分片吞吐测通；kbps=分片下载吞吐（KB/s）；ttfbMs=清单响应耗时（兜底排序用） */
+export interface PlaybackProbe {
+  ok: boolean
+  kbps: number
+  ttfbMs: number
+}
+
+const PROBE_FAIL: PlaybackProbe = { ok: false, kbps: 0, ttfbMs: 9999 }
+const PROBE_BYTES = 256 * 1024
+
+/** 从主清单取第一个子清单地址（相对地址按清单自身地址解析）；非主清单返回空 */
+export function variantPlaylistUrl(playlistText: string, baseUrl: string): string {
+  if (!playlistText.includes('#EXT-X-STREAM-INF')) return ''
+  for (const line of playlistText.split(/\r?\n/)) {
+    const t = line.trim()
+    if (t && !t.startsWith('#')) {
+      try {
+        return new URL(t, baseUrl).toString()
+      } catch {
+        return ''
+      }
+    }
+  }
+  return ''
+}
+
+/** 从媒体清单取第一个分片地址；取不到返回空 */
+export function firstSegmentUrl(playlistText: string, baseUrl: string): string {
+  for (const line of playlistText.split(/\r?\n/)) {
+    const t = line.trim()
+    if (t && !t.startsWith('#')) {
+      try {
+        return new URL(t, baseUrl).toString()
+      } catch {
+        return ''
+      }
+    }
+  }
+  return ''
+}
+
+/** 吞吐展示：≥1024KB/s 显示 MB/s */
+export function formatThroughput(kbps: number): string {
+  if (kbps >= 1024) return `${(kbps / 1024).toFixed(1)}MB/s`
+  return `${Math.max(1, Math.round(kbps))}KB/s`
+}
+
+async function fetchProbeText(
+  url: string,
+  timeoutMs: number,
+): Promise<{ text: string; ms: number } | null> {
   const start = Date.now()
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': CMS_UA },
       signal: AbortSignal.timeout(timeoutMs),
     })
-    const ms = Date.now() - start
-    void res.body?.cancel().catch(() => {})
-    return res.ok || res.status === 301 || res.status === 302 ? ms : 9999
+    if (!res.ok) return null
+    const text = await res.text()
+    return { text, ms: Date.now() - start }
   } catch {
-    return 9999
+    return null
   }
+}
+
+/** 从已打开的响应体测下载吞吐（分片与直链媒体共用，读满 PROBE_BYTES 即停） */
+async function measureDownload(
+  res: Response,
+  start: number,
+): Promise<{ kbps: number; ttfbMs: number }> {
+  let bytes = 0
+  let ttfbMs = 9999
+  if (!res.body) return { kbps: 0, ttfbMs }
+  try {
+    const reader = res.body.getReader()
+    while (bytes < PROBE_BYTES) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (ttfbMs === 9999) ttfbMs = Date.now() - start
+      bytes += value?.byteLength ?? 0
+    }
+    void reader.cancel().catch(() => {})
+  } catch {
+    if (bytes === 0) return { kbps: 0, ttfbMs }
+  }
+  const seconds = (Date.now() - start) / 1000
+  if (bytes < 16 * 1024 || seconds <= 0) return { kbps: 0, ttfbMs }
+  return { kbps: bytes / 1024 / seconds, ttfbMs }
+}
+
+const M3U8_IN_TEXT = /https?:\/\/[^\s"'<>]+?\.m3u8(?:\?[^\s"'<>]*)?/
+
+/** 在网页文本（解析页/分享页）里提取首个 m3u8 地址，取不到返回空 */
+export function extractM3u8Url(text: string): string {
+  const m = text.match(M3U8_IN_TEXT)
+  return m ? m[0] : ''
+}
+
+/** 已拿到清单文本：解析主/媒体清单 → 测首分片吞吐 */
+async function probeFromPlaylistText(
+  text: string,
+  playlistUrl: string,
+  ttfbMs: number,
+): Promise<PlaybackProbe> {
+  let mediaUrl = playlistUrl
+  let mediaText = text
+  const variant = variantPlaylistUrl(text, playlistUrl)
+  if (variant) {
+    const sub = await fetchProbeText(variant, 4000)
+    if (!sub) return { ok: false, kbps: 0, ttfbMs }
+    mediaUrl = variant
+    mediaText = sub.text
+  }
+  const segment = firstSegmentUrl(mediaText, mediaUrl)
+  if (!segment) return { ok: false, kbps: 0, ttfbMs }
+  const segStart = Date.now()
+  try {
+    const res = await fetch(segment, {
+      headers: { 'User-Agent': CMS_UA },
+      signal: AbortSignal.timeout(6000),
+    })
+    if (!res.ok) return { ok: false, kbps: 0, ttfbMs }
+    const d = await measureDownload(res, segStart)
+    return d.kbps > 0
+      ? { ok: true, kbps: d.kbps, ttfbMs }
+      : { ok: false, kbps: 0, ttfbMs }
+  } catch {
+    return { ok: false, kbps: 0, ttfbMs }
+  }
+}
+
+async function probeViaPlaylist(episodeUrl: string, fallbackTtfbMs: number): Promise<PlaybackProbe> {
+  const playlist = await fetchProbeText(episodeUrl, 4000)
+  if (!playlist) return { ok: false, kbps: 0, ttfbMs: fallbackTtfbMs }
+  if (!playlist.text.includes('#EXTM3U')) {
+    return { ok: false, kbps: 0, ttfbMs: Math.min(playlist.ms, fallbackTtfbMs) }
+  }
+  return probeFromPlaylistText(playlist.text, episodeUrl, playlist.ms)
+}
+
+async function probePlaybackOnce(episodeUrl: string): Promise<PlaybackProbe> {
+  if (!episodeUrl) return PROBE_FAIL
+  if (/\.m3u8($|\?)/i.test(episodeUrl)) return probeViaPlaylist(episodeUrl, 9999)
+  // 非 m3u8 地址：可能是直链媒体，也可能是解析/分享网页（量子、非凡等源的 /share、/play 页）
+  const start = Date.now()
+  let res: Response
+  try {
+    res = await fetch(episodeUrl, {
+      headers: { 'User-Agent': CMS_UA },
+      signal: AbortSignal.timeout(6000),
+    })
+  } catch {
+    return PROBE_FAIL
+  }
+  const ttfbMs = Date.now() - start
+  if (!res.ok) return { ok: false, kbps: 0, ttfbMs }
+  const contentType = res.headers.get('content-type') ?? ''
+  if (contentType.includes('mpegurl')) {
+    const text = await res.text().catch(() => '')
+    return text.includes('#EXTM3U')
+      ? probeFromPlaylistText(text, episodeUrl, ttfbMs)
+      : { ok: false, kbps: 0, ttfbMs }
+  }
+  if (contentType.includes('text/')) {
+    // 网页：提取其中的真实 m3u8 再测（与播放器解析同路），提不到就只留响应耗时兜底排序
+    const text = await res.text().catch(() => '')
+    const inner = extractM3u8Url(text)
+    if (inner && inner !== episodeUrl) return probeViaPlaylist(inner, ttfbMs)
+    return { ok: false, kbps: 0, ttfbMs }
+  }
+  // 二进制直链媒体：就着这个响应把吞吐测完
+  const d = await measureDownload(res, start)
+  return d.kbps > 0
+    ? { ok: true, kbps: d.kbps, ttfbMs }
+    : { ok: false, kbps: 0, ttfbMs }
+}
+
+/**
+ * 播放测速：拉第一集首个视频分片的前 256KB 测真实下载吞吐，
+ * 比只测清单响应时间接近真实播放得多；解析/分享页型源（量子、非凡等）
+ * 先从页面提取真实 m3u8 再测。失败自动重试一次。
+ * 测点在服务端，代表的是源站产能，不等同于电视本机直连速度。
+ */
+export async function probePlaybackSpeed(episodeUrl: string): Promise<PlaybackProbe> {
+  const first = await probePlaybackOnce(episodeUrl)
+  if (first.ok) return first
+  return probePlaybackOnce(episodeUrl)
 }
 
 export function splitPlayGroups(
@@ -393,7 +565,7 @@ interface DetailCandidate {
   source: TvboxSource
   record: CmsRecord
   tier: number
-  speed: number
+  probe: PlaybackProbe
   groups: Array<{ from: string; episodes: string[] }>
 }
 
@@ -425,7 +597,7 @@ export async function aggDetail(
       source: primary,
       record: primaryRecord,
       tier: 0,
-      speed: 9999,
+      probe: { ...PROBE_FAIL },
       groups: splitPlayGroups(primaryRecord.vod_play_from, primaryRecord.vod_play_url),
     },
   ]
@@ -449,7 +621,7 @@ export async function aggDetail(
         source,
         record,
         tier: best.tier,
-        speed: 9999,
+        probe: { ...PROBE_FAIL },
         groups: splitPlayGroups(record.vod_play_from, record.vod_play_url),
       } as DetailCandidate
     }),
@@ -458,10 +630,17 @@ export async function aggDetail(
 
   await Promise.all(
     candidates.map(async c => {
-      c.speed = await probeSpeed(firstEpisodeUrl(c.groups[0]?.episodes ?? []))
+      c.probe = await probePlaybackSpeed(firstEpisodeUrl(c.groups[0]?.episodes ?? []))
     }),
   )
-  candidates.sort((a, b) => a.tier - b.tier || a.speed - b.speed)
+  // 同档内：测通的优先，吞吐高的优先，吞吐接近时清单响应快的优先
+  candidates.sort(
+    (a, b) =>
+      a.tier - b.tier ||
+      Number(b.probe.ok) - Number(a.probe.ok) ||
+      b.probe.kbps - a.probe.kbps ||
+      a.probe.ttfbMs - b.probe.ttfbMs,
+  )
 
   const lineNames: string[] = []
   const lineUrls: string[] = []
@@ -469,8 +648,8 @@ export async function aggDetail(
     c.groups.slice(0, 3).forEach((group, idx) => {
       const label =
         idx === 0
-          ? c.speed < 9999
-            ? `[⚡${c.speed}ms] ${c.source.name}`
+          ? c.probe.ok
+            ? `[⚡${formatThroughput(c.probe.kbps)}] ${c.source.name}`
             : c.source.name
           : `${c.source.name}·线路${idx + 1}`
       lineNames.push(label)

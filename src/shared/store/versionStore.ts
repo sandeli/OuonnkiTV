@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.12.1',
+    title: 'TVBox 测速改测真实分片下载速度',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      'TVBox 聚合站的线路测速升级：此前只测播放清单的响应毫秒数，清单回得快不代表视频播得流畅。现在改为实测第一集首个视频分片的下载吞吐（线路标签显示如 ⚡2.0MB/s）；量子、非凡这类给分享页地址的源会先解析出真实播放地址再测。失败自动重试一次，同名同档内按吞吐排序，第一条更贴近真实最快。说明：测点仍在服务端，代表源站产能，与电视本机直连速度大体一致但不完全等同。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.12.0',
     title: 'TVBox 聚合站首页变豆瓣图片墙',
     date: formatDate('2026-10-23'),
