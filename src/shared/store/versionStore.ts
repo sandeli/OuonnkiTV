@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.10.0',
+    title: '换源列表显示清晰度',
+    date: formatDate('2026-10-23'),
+    features: [
+      '播放页换源列表中，每个源名后标注该源的清晰度（如 1080p、540p、2K、4K）：随测速一并探测第一集清单的分辨率，多档位取最高档；清单读不到分辨率的源不标注。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.9.0',
     title: '播放器显示剧名与集数',
     date: formatDate('2026-10-23'),

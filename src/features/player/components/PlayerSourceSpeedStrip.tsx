@@ -13,6 +13,7 @@ import type { PlayerSourceOption } from '@/features/player/hooks'
 interface PlayerSourceSpeedStripProps {
   options: PlayerSourceOption[]
   latencies: Map<string, number>
+  qualities: Map<string, string>
   probedCodes: Set<string>
   selectedSourceCode: string
   onSourceChange: (sourceCode: string) => void
@@ -42,6 +43,7 @@ function speedDotClass(latency: number): string {
 export function PlayerSourceSpeedStrip({
   options,
   latencies,
+  qualities,
   probedCodes,
   selectedSourceCode,
   onSourceChange,
@@ -108,6 +110,7 @@ export function PlayerSourceSpeedStrip({
             {options.map(option => {
               const active = option.sourceCode === selectedSourceCode
               const latency = latencies.get(option.sourceCode)
+              const quality = qualities.get(option.sourceCode)
               const probed = probedCodes.has(option.sourceCode)
               const label = displaySourceName(option.sourceName)
               return (
@@ -120,7 +123,14 @@ export function PlayerSourceSpeedStrip({
                   aria-label={`切换到视频源 ${label}`}
                   onClick={() => onSourceChange(option.sourceCode)}
                 >
-                  <span className="truncate">{label}</span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate">{label}</span>
+                    {quality && (
+                      <span className="shrink-0 text-[11px] font-semibold opacity-90">
+                        {quality}
+                      </span>
+                    )}
+                  </span>
                   {latency !== undefined ? (
                     <span className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums opacity-80">
                       <span className={cn('size-1.5 rounded-full', speedDotClass(latency))} />

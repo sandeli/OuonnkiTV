@@ -1803,6 +1803,7 @@ export default function UnifiedPlayer() {
               <PlayerSourceSpeedStrip
                 options={sourceSpeed.options}
                 latencies={sourceSpeed.latencies}
+                qualities={sourceSpeed.qualities}
                 probedCodes={sourceSpeed.probedCodes}
                 selectedSourceCode={resolvedSourceCode}
                 onSourceChange={handleAnySourceChange}
@@ -1938,6 +1939,7 @@ export default function UnifiedPlayer() {
             <PlayerSourceSpeedStrip
               options={sourceSpeed.options}
               latencies={sourceSpeed.latencies}
+                qualities={sourceSpeed.qualities}
               probedCodes={sourceSpeed.probedCodes}
               selectedSourceCode={resolvedSourceCode}
               onSourceChange={handleAnySourceChange}

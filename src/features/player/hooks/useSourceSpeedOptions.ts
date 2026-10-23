@@ -4,6 +4,7 @@ import { useCmsClient } from '@/shared/hooks'
 import { useApiStore } from '@/shared/store/apiStore'
 import { getTitleMatchTier } from '@/features/search/hooks/directSearch.utils'
 import type { PlayerSourceOption } from './useTmdbPlayback'
+import { parsePlaylistQuality } from './playlistQuality'
 
 interface UseSourceSpeedOptionsArgs {
   /** TMDB 路由：候选源由 useTmdbPlayback 提供，不再另行搜索 */
@@ -19,6 +20,8 @@ interface SourceSpeedState {
   options: PlayerSourceOption[]
   /** 源 code -> 播放线路首字节耗时（毫秒） */
   latencies: Map<string, number>
+  /** 源 code -> 清晰度标签（如 1080p / 2K / 4K）；清单里读不到分辨率的源没有 */
+  qualities: Map<string, string>
   /** 已完成探测（成功或失败）的源 code */
   probedCodes: Set<string>
   /** 是否仍在发现/测速 */
@@ -55,8 +58,10 @@ export function useSourceSpeedOptions({
   const [discovered, setDiscovered] = useState<PlayerSourceOption[]>([])
   const [discovering, setDiscovering] = useState(false)
   const [latencies, setLatencies] = useState<Map<string, number>>(new Map())
+  const [qualities, setQualities] = useState<Map<string, string>>(new Map())
   const [probedCodes, setProbedCodes] = useState<Set<string>>(new Set())
   const latencyRef = useRef<Map<string, number>>(new Map())
+  const qualityRef = useRef<Map<string, string>>(new Map())
   const doneRef = useRef<Set<string>>(new Set())
   const enqueuedRef = useRef<Set<string>>(new Set())
   const queueRef = useRef<PlayerSourceOption[]>([])
@@ -66,10 +71,12 @@ export function useSourceSpeedOptions({
   // ① 重置：标题或路由类型变化时清空上一部影片的候选与测速（必须最先声明）
   useEffect(() => {
     latencyRef.current = new Map()
+    qualityRef.current = new Map()
     doneRef.current = new Set()
     enqueuedRef.current = new Set()
     queueRef.current = []
     setLatencies(new Map())
+    setQualities(new Map())
     setProbedCodes(new Set())
     setDiscovered([])
     setDiscovering(false)
@@ -145,12 +152,16 @@ export function useSourceSpeedOptions({
 
   // 播放线路探测：取详情第一集地址，浏览器直连计时到响应头（结果按源 code 记录，幂等）
   const runProbe = useCallback(async (option: PlayerSourceOption) => {
-    const finish = (latency: number | null) => {
+    const finish = (latency: number | null, quality: string | null = null) => {
       doneRef.current.add(option.sourceCode)
       setProbedCodes(new Set(doneRef.current))
       if (latency !== null) {
         latencyRef.current.set(option.sourceCode, latency)
         setLatencies(new Map(latencyRef.current))
+      }
+      if (quality !== null) {
+        qualityRef.current.set(option.sourceCode, quality)
+        setQualities(new Map(qualityRef.current))
       }
     }
     const source: VideoSource | undefined = videoApisRef.current.find(
@@ -187,9 +198,16 @@ export function useSourceSpeedOptions({
           cache: 'no-store',
           signal: controller.signal,
         })
+        // 耗时以响应头到达为准（与既有测速口径一致）；随后读清单文本解析清晰度，
+        // 读不到/媒体清单无分辨率信息时不记录，列表里就不显示标签
         const latency = Math.round(performance.now() - start)
-        void response.body?.cancel().catch(() => {})
-        finish(latency)
+        let quality: string | null = null
+        try {
+          quality = parsePlaylistQuality(await response.text())
+        } catch {
+          quality = null
+        }
+        finish(latency, quality)
       } finally {
         clearTimeout(timer)
       }
@@ -235,5 +253,5 @@ export function useSourceSpeedOptions({
 
   const isWorking = discovering || probedCodes.size < baseOptions.length
 
-  return { options, latencies, probedCodes, isWorking, discovering }
+  return { options, latencies, qualities, probedCodes, isWorking, discovering }
 }
