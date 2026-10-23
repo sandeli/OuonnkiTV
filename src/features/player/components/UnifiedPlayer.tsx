@@ -677,8 +677,6 @@ export default function UnifiedPlayer() {
   ])
 
   const playerRef = useRef<Artplayer | null>(null)
-  // 控制栏「小窗」按钮的回调：按钮在播放器构造时先注册，进/退小窗的逻辑在播放器就绪后赋值到这里
-  const miniToggleRef = useRef<(() => void) | null>(null)
   // 播放器控制栏显隐（artplayer 'control' 事件驱动），返回键与底部控制栏同步淡入淡出
   const [controlsVisible, setControlsVisible] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -817,19 +815,6 @@ export default function UnifiedPlayer() {
             }),
           ]
         : [],
-      controls: [
-        {
-          // 页内小窗：不依赖浏览器原生画中画接口，Via 等不支持画中画的浏览器也能用
-          name: 'mini',
-          position: 'right',
-          index: 45,
-          tooltip: '小窗播放',
-          html: '<i class="art-icon flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2"/><rect x="12.5" y="12" width="6" height="4.5" rx="1" fill="currentColor"/></svg></i>',
-          click: () => {
-            miniToggleRef.current?.()
-          },
-        },
-      ],
       customType: {
         m3u8: function (video: HTMLMediaElement, url: string, art: Artplayer) {
           const artWithHls = art as ArtplayerWithHls
@@ -958,20 +943,13 @@ export default function UnifiedPlayer() {
       const preferredFullscreenControl = isMobileNow
         ? (fullscreenControl ?? fullscreenWebControl)
         : (fullscreenControl ?? fullscreenWebControl)
-      // 画中画与小窗按钮在手机非全屏时也要保留：精简逻辑最初只留全屏，把它们一起藏了，用户找不到入口
-      const pipControl = art.controls['pip'] as HTMLElement | undefined
-      const miniControl = art.controls['mini'] as HTMLElement | undefined
       const rightControls = Array.from(
         art.template.$controlsRight.querySelectorAll<HTMLElement>('.art-control'),
       )
 
       if (isMobileNow && !isFullscreenActive) {
         rightControls.forEach(control => {
-          const keepVisible =
-            control === preferredFullscreenControl ||
-            control === pipControl ||
-            control === miniControl
-          control.style.display = keepVisible ? '' : 'none'
+          control.style.display = control === preferredFullscreenControl ? '' : 'none'
         })
       } else {
         rightControls.forEach(control => {
@@ -1116,10 +1094,9 @@ export default function UnifiedPlayer() {
     const throttledTimeUpdate = _.throttle(timeUpdateHandler, TIME_UPDATE_INTERVAL)
     art.on('video:timeupdate', throttledTimeUpdate)
 
-    // 小窗（迷你）模式：进入/退出逻辑由「滚动自动触发」与「控制栏小窗按钮」共用一份。
-    // Artplayer 内置 autoMini 监听 window.scroll，但应用使用 Radix ScrollArea 管理滚动，
-    // window.scroll 永远不触发，所以自动触发改监听 ScrollArea viewport 的 scroll 事件；
-    // 手动按钮随时可点，不依赖浏览器原生画中画接口（Via 等浏览器也能用页内小窗）。
+    // 自动迷你（小窗）：Artplayer 内置 autoMini 监听 window.scroll，
+    // 但应用使用 Radix ScrollArea 管理滚动，window.scroll 永远不触发。
+    // 这里监听 ScrollArea viewport 的 scroll 事件，手动切换 art.mini 并校正小窗位置。
     let miniCleanup: (() => void) | undefined
     if (containerRef.current) {
       const playerSection = containerRef.current.closest('section')
@@ -1163,10 +1140,6 @@ export default function UnifiedPlayer() {
         if (playerRef.current) playerRef.current.mini = false
         if (playerSection) playerSection.style.minHeight = ''
       }
-      miniToggleRef.current = () => {
-        if (isMini) exitMini()
-        else enterMini()
-      }
       // 用户点小窗自带的关闭按钮时 artplayer 直接退出 mini，这里同步本地状态与占位高度
       const syncMiniState = (state: boolean) => {
         if (!state && isMini) {
@@ -1189,7 +1162,6 @@ export default function UnifiedPlayer() {
         window.removeEventListener('resize', handleViewportChange)
         window.removeEventListener('orientationchange', handleViewportChange)
         art.off('mini', syncMiniState)
-        miniToggleRef.current = null
         if (playerRef.current) {
           playerRef.current.mini = false
         }

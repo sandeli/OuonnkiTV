@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.14.1',
+    title: '去掉小窗与画中画按钮的常驻显示',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '按反馈恢复原样：去掉 v2.14.0 新增的控制栏「小窗」按钮；手机非全屏时右侧控制栏恢复为只显示全屏按钮（v2.13.2 起常驻的画中画按钮一并取消）。播放设置里的画中画开关、滚动触发的自动迷你播放器都不受影响，桌面端显示不变。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.14.0',
     title: '播放器新增小窗按钮，内核升级 artplayer 5.4.0',
     date: formatDate('2026-10-23'),
