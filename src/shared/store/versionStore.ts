@@ -57,6 +57,17 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.12.0',
+    title: 'TVBox 聚合站首页变豆瓣图片墙',
+    date: formatDate('2026-10-23'),
+    features: [
+      'TVBox 接口的聚合站首页改为豆瓣图片墙，分类与网站首页完全一致（热门电影、国产剧、韩剧、美剧、日剧、热门综艺、热门动漫、豆瓣高分、经典电影），海报带豆瓣评分。',
+      '在电视 APP 里点击墙上任意海报，会自动跨源搜索这部片并按实测速度排好线路，默认播放最快的一条；搜不到的片会明确提示。已添加过接口的用户无需换地址，重新打开 APP 即可。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.11.0',
     title: 'TVBox 接口：电视上用影视/OK影视看本站的源',
     date: formatDate('2026-10-23'),

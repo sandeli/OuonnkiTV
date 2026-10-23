@@ -4,6 +4,7 @@ import {
   MASTER_USER_ID,
   nowSeconds,
   randomHex,
+  readDoubanProxySettings,
   readManagedSourceEnabled,
   type AuthEnv,
   type D1Database,
@@ -165,7 +166,7 @@ export function buildCmsUrl(api: string, query: string): string {
   return `${url}/api.php/provide/vod/?${query}`
 }
 
-type CmsRecord = Record<string, unknown>
+export type CmsRecord = Record<string, unknown>
 
 interface CmsListData {
   list: CmsRecord[]
@@ -490,4 +491,145 @@ export async function aggDetail(
   if (detailCache.size > 200) detailCache.clear()
   detailCache.set(cacheKey, { at: Date.now(), record })
   return record
+}
+
+// ---------- 豆瓣图片墙（聚合站首页，与网站首页同款分类） ----------
+
+export interface DoubanWallCategory {
+  label: string
+  type: 'movie' | 'tv'
+  tag: string
+}
+
+/** 与网站首页 src/shared/lib/douban.ts 的 DOUBAN_CATEGORIES 逐项一致（顺序即展示顺序） */
+export const DOUBAN_WALL_CATEGORIES: DoubanWallCategory[] = [
+  { label: '热门电影', type: 'movie', tag: '热门' },
+  { label: '国产剧', type: 'tv', tag: '国产剧' },
+  { label: '韩剧', type: 'tv', tag: '韩剧' },
+  { label: '美剧', type: 'tv', tag: '美剧' },
+  { label: '日剧', type: 'tv', tag: '日剧' },
+  { label: '热门综艺', type: 'tv', tag: '综艺' },
+  // 豆瓣 tv 侧没有「动画」标签，动漫的官方标签是「日本动画」，用错恒返回空
+  { label: '热门动漫', type: 'tv', tag: '日本动画' },
+  { label: '豆瓣高分', type: 'movie', tag: '豆瓣高分' },
+  { label: '经典电影', type: 'movie', tag: '经典' },
+]
+
+const WALL_ID_PREFIX = 'wall__'
+
+export function encodeWallId(title: string): string {
+  return `${WALL_ID_PREFIX}${title}`
+}
+
+export function decodeWallTitle(id: string): string | null {
+  if (!id.startsWith(WALL_ID_PREFIX)) return null
+  const title = id.slice(WALL_ID_PREFIX.length).trim()
+  return title || null
+}
+
+/** 豆瓣条目 → 图片墙条目：vod_id 编入片名，点击后走「按片名聚合」详情 */
+export function mapDoubanSubjects(subjects: unknown[]): CmsRecord[] {
+  const items: CmsRecord[] = []
+  for (const raw of subjects) {
+    const s = (raw ?? {}) as CmsRecord
+    const title = String(s.title ?? '').trim()
+    if (!title) continue
+    const cover = String(s.cover ?? '').trim()
+    items.push({
+      vod_id: encodeWallId(title),
+      vod_name: title,
+      // TVBox 生态的防盗链约定：图片地址后拼 @Referer/@User-Agent 提示
+      vod_pic: cover
+        ? `${cover}@Referer=https://movie.douban.com/@User-Agent=${CMS_UA}`
+        : '',
+      vod_remarks: s.rate ? `⭐ ${String(s.rate)}` : '',
+    })
+  }
+  return items
+}
+
+const wallCache = new Map<string, { at: number; items: CmsRecord[] }>()
+const WALL_CACHE_MS = 10 * 60_000
+const WALL_PAGE_LIMIT = 60
+
+/** 拉一页豆瓣分类墙（服务端直拉，遵循管理员的豆瓣数据代理设置：自定义前缀 / cmliussss 换域名） */
+export async function fetchDoubanWall(
+  db: D1Database,
+  category: DoubanWallCategory,
+  pg: number,
+): Promise<CmsRecord[]> {
+  const cacheKey = `${category.type}:${category.tag}:${pg}`
+  const cached = wallCache.get(cacheKey)
+  if (cached && Date.now() - cached.at < WALL_CACHE_MS) return cached.items
+
+  const target =
+    `https://movie.douban.com/j/search_subjects?type=${category.type}` +
+    `&tag=${encodeURIComponent(category.tag)}&sort=recommend` +
+    `&page_limit=${WALL_PAGE_LIMIT}&page_start=${(pg - 1) * WALL_PAGE_LIMIT}`
+
+  let requestUrl = target
+  try {
+    const proxy = await readDoubanProxySettings(db)
+    if (proxy.dataType === 'custom' && proxy.dataUrl.trim()) {
+      requestUrl = `${proxy.dataUrl.trim()}${encodeURIComponent(target)}`
+    } else if (proxy.dataType === 'cmliussss-cdn-tencent') {
+      requestUrl = target.replace('movie.douban.com', 'movie.douban.cmliussss.net')
+    } else if (proxy.dataType === 'cmliussss-cdn-ali') {
+      requestUrl = target.replace('movie.douban.com', 'movie.douban.cmliussss.com')
+    }
+  } catch {
+    // 读不到代理设置就直拉
+  }
+
+  let items: CmsRecord[] = []
+  try {
+    const res = await fetch(requestUrl, {
+      headers: { 'User-Agent': CMS_UA, Referer: 'https://movie.douban.com/' },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (res.ok) {
+      const data = (await res.json()) as { subjects?: unknown }
+      items = mapDoubanSubjects(Array.isArray(data.subjects) ? data.subjects : [])
+    }
+  } catch {
+    items = []
+  }
+  if (wallCache.size > 100) wallCache.clear()
+  wallCache.set(cacheKey, { at: Date.now(), items })
+  return items
+}
+
+/**
+ * 图片墙点击 → 按片名聚合详情：先跨源搜片名（档位 ≤2），
+ * 挑最佳命中作主源走 aggDetail（跨源匹配 + 测速排序多线路），APP 默认播第一条即最快。
+ */
+export async function aggWallDetail(
+  sources: TvboxSource[],
+  title: string,
+): Promise<CmsRecord | null> {
+  const hits = await aggSearch(sources, title, 1)
+  if (hits.length === 0) {
+    return {
+      vod_id: encodeWallId(title),
+      vod_name: title,
+      vod_remarks: '未找到可播放的源',
+      vod_content: '本站的源里暂时没有这部片，可以换个片名在站内搜索试试。',
+      vod_play_from: '',
+      vod_play_url: '',
+    }
+  }
+  let primary: { sourceId: string; vodId: string } | null = null
+  let primaryTier = 99
+  for (const hit of hits) {
+    const decoded = decodeAggId(String(hit.vod_id ?? ''))
+    if (!decoded) continue
+    const tier = titleTier(String(hit.vod_name ?? ''), title)
+    if (tier < primaryTier) {
+      primaryTier = tier
+      primary = decoded
+      if (tier === 0) break
+    }
+  }
+  if (!primary) return null
+  return aggDetail(sources, primary.sourceId, primary.vodId)
 }

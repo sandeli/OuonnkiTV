@@ -120,3 +120,40 @@ describe('协议拼装', () => {
     expect(groups[1].from).toBe('源B')
   })
 })
+
+describe('豆瓣图片墙', () => {
+  it('分类与网站首页一致（9 个，含日本动画标签）', async () => {
+    const { DOUBAN_WALL_CATEGORIES } = await import('./tvbox')
+    expect(DOUBAN_WALL_CATEGORIES.map(c => c.label)).toEqual([
+      '热门电影',
+      '国产剧',
+      '韩剧',
+      '美剧',
+      '日剧',
+      '热门综艺',
+      '热门动漫',
+      '豆瓣高分',
+      '经典电影',
+    ])
+    expect(DOUBAN_WALL_CATEGORIES.find(c => c.label === '热门动漫')?.tag).toBe('日本动画')
+  })
+  it('墙 id 编解码', async () => {
+    const { decodeWallTitle, encodeWallId } = await import('./tvbox')
+    expect(decodeWallTitle(encodeWallId('凡人修仙传'))).toBe('凡人修仙传')
+    expect(decodeWallTitle('ikun__123')).toBeNull()
+    expect(decodeWallTitle('wall__')).toBeNull()
+  })
+  it('豆瓣条目映射：海报带防盗链提示，评分进备注，无标题跳过', async () => {
+    const { mapDoubanSubjects } = await import('./tvbox')
+    const items = mapDoubanSubjects([
+      { title: '片甲', cover: 'https://img1.doubanio.com/x.jpg', rate: '8.7' },
+      { title: '', cover: 'https://img1.doubanio.com/y.jpg' },
+      { title: '片乙' },
+    ])
+    expect(items).toHaveLength(2)
+    expect(items[0].vod_id).toBe('wall__片甲')
+    expect(String(items[0].vod_pic)).toContain('@Referer=https://movie.douban.com/')
+    expect(items[0].vod_remarks).toBe('⭐ 8.7')
+    expect(items[1].vod_pic).toBe('')
+  })
+})
