@@ -566,6 +566,49 @@ export interface TgNotifyConfig {
 }
 
 /** 电报通知配置（管理员后台设置，存 settings 表） */
+export const TMDB_LANGUAGES = ['zh-CN', 'zh-TW', 'en-US', 'ja-JP'] as const
+export const TMDB_IMAGE_QUALITIES = ['low', 'medium', 'high'] as const
+
+/** 站点级「系统行为」设置（管理员后台维护，下发给全站客户端；仅包含已保存过的字段，未保存的为 undefined，客户端据此回退本地/环境默认值） */
+export interface SiteBehaviorSettings {
+  updateLogEnabled?: boolean
+  scrollChromeAnimationEnabled?: boolean
+  tmdbApiToken?: string
+  tmdbEnabled?: boolean
+  tmdbApiBaseUrl?: string
+  tmdbImageBaseUrl?: string
+  tmdbLanguage?: string
+  tmdbImageQuality?: string
+}
+
+export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSettings> {
+  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality] =
+    await Promise.all([
+      getSetting(db, 'site_update_log_enabled'),
+      getSetting(db, 'site_scroll_chrome_animation'),
+      getSetting(db, 'tmdb_api_token'),
+      getSetting(db, 'tmdb_enabled'),
+      getSetting(db, 'tmdb_api_base_url'),
+      getSetting(db, 'tmdb_image_base_url'),
+      getSetting(db, 'tmdb_language'),
+      getSetting(db, 'tmdb_image_quality'),
+    ])
+  const out: SiteBehaviorSettings = {}
+  if (updateLog !== null) out.updateLogEnabled = updateLog === '1'
+  if (scrollAnim !== null) out.scrollChromeAnimationEnabled = scrollAnim === '1'
+  if (tmdbToken !== null) out.tmdbApiToken = tmdbToken
+  if (tmdbEnabled !== null) out.tmdbEnabled = tmdbEnabled === '1'
+  if (tmdbApiBase !== null) out.tmdbApiBaseUrl = tmdbApiBase
+  if (tmdbImageBase !== null) out.tmdbImageBaseUrl = tmdbImageBase
+  if (tmdbLang !== null && (TMDB_LANGUAGES as readonly string[]).includes(tmdbLang)) {
+    out.tmdbLanguage = tmdbLang
+  }
+  if (tmdbQuality !== null && (TMDB_IMAGE_QUALITIES as readonly string[]).includes(tmdbQuality)) {
+    out.tmdbImageQuality = tmdbQuality
+  }
+  return out
+}
+
 export async function readTgNotifyConfig(db: D1Database): Promise<TgNotifyConfig> {
   const [botToken, chatId] = await Promise.all([
     getSetting(db, 'tg_notify_bot_token'),

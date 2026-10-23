@@ -6,6 +6,7 @@ import {
   json,
   readManagedSourceEnabled,
   readDoubanProxySettings,
+  readSiteBehavior,
   type PagesContext,
 } from '../../_lib/auth'
 
@@ -23,6 +24,7 @@ export const onRequest = async (context: PagesContext) => {
       doubanProxy: DEFAULT_DOUBAN_PROXY,
       initialVideoSources: '',
       managedSourceEnabled: {} as Record<string, boolean>,
+      siteBehavior: {},
     })
   }
   await ensureSchema(db)
@@ -51,5 +53,6 @@ export const onRequest = async (context: PagesContext) => {
     doubanProxy,
     initialVideoSources: videoSources ?? '',
     managedSourceEnabled,
+    siteBehavior: await readSiteBehavior(db),
   })
 }

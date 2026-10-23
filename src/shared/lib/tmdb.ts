@@ -4,6 +4,7 @@ import { parseOptions } from 'tmdb-ts/dist/utils/parseOptions.js'
 import { useSettingStore } from '@/shared/store/settingStore'
 import type { TmdbMediaItem, TmdbMediaType } from '../types/tmdb'
 import { getPublicEnv } from '@/shared/config/runtimeEnv'
+import { getSiteBehavior } from '@/shared/config/api.config'
 
 export const DEFAULT_TMDB_API_BASE_URL = 'https://api.themoviedb.org/3'
 export const DEFAULT_TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/'
@@ -83,6 +84,7 @@ function normalizeImageBaseUrlCandidate(candidate: string | undefined | null): s
 export function resolveTmdbApiBaseUrl(): string {
   const settingsValue = useSettingStore.getState().system.tmdbApiBaseUrl
   return (
+    normalizeApiBaseUrlCandidate(getSiteBehavior().tmdbApiBaseUrl) ??
     normalizeApiBaseUrlCandidate(settingsValue) ??
     normalizeApiBaseUrlCandidate(getPublicEnv('TGYS_TMDB_API_BASE_URL')) ??
     DEFAULT_TMDB_API_BASE_URL
@@ -92,6 +94,7 @@ export function resolveTmdbApiBaseUrl(): string {
 export function resolveTmdbImageBaseUrl(): string {
   const settingsValue = useSettingStore.getState().system.tmdbImageBaseUrl
   return (
+    normalizeImageBaseUrlCandidate(getSiteBehavior().tmdbImageBaseUrl) ??
     normalizeImageBaseUrlCandidate(settingsValue) ??
     normalizeImageBaseUrlCandidate(getPublicEnv('TGYS_TMDB_IMAGE_BASE_URL')) ??
     DEFAULT_TMDB_IMAGE_BASE_URL
@@ -132,6 +135,9 @@ function ensureTmdbApiPatched(): void {
  * 优先使用用户手动配置的 token，其次使用环境变量 token
  */
 function resolveTmdbToken(): string | undefined {
+  // 站点优先：管理员后台填写的令牌全站生效；其次本地手动令牌，最后环境变量
+  const siteToken = getSiteBehavior().tmdbApiToken?.trim()
+  if (siteToken) return siteToken
   const userToken = useSettingStore.getState().system.tmdbApiToken
   if (userToken) return userToken
   const envToken = getPublicEnv('TGYS_TMDB_API_TOKEN')
@@ -158,6 +164,10 @@ const POSTER_SIZE_MAP = { low: 'w342', medium: 'w500', high: 'w780' } as const
 const BACKDROP_SIZE_MAP = { low: 'w780', medium: 'w1280', high: 'original' } as const
 
 function getImageQuality(): 'low' | 'medium' | 'high' {
+  const siteQuality = getSiteBehavior().tmdbImageQuality
+  if (siteQuality === 'low' || siteQuality === 'medium' || siteQuality === 'high') {
+    return siteQuality
+  }
   return useSettingStore.getState().system.tmdbImageQuality
 }
 

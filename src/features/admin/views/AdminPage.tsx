@@ -52,6 +52,16 @@ export default function AdminPage() {
   const [announcementSaving, setAnnouncementSaving] = useState(false)
   const [announcementBar, setAnnouncementBar] = useState('')
   const [announcementBarSaving, setAnnouncementBarSaving] = useState(false)
+  // 系统行为（站点级）：TMDB 与两个行为开关，保存后全站生效
+  const [sbUpdateLog, setSbUpdateLog] = useState(true)
+  const [sbScrollAnim, setSbScrollAnim] = useState(false)
+  const [sbTmdbToken, setSbTmdbToken] = useState('')
+  const [sbTmdbEnabled, setSbTmdbEnabled] = useState(false)
+  const [sbTmdbApiBase, setSbTmdbApiBase] = useState('')
+  const [sbTmdbImageBase, setSbTmdbImageBase] = useState('')
+  const [sbTmdbLanguage, setSbTmdbLanguage] = useState('zh-CN')
+  const [sbTmdbQuality, setSbTmdbQuality] = useState('medium')
+  const [sbSaving, setSbSaving] = useState(false)
   const [doubanDataType, setDoubanDataType] = useState('direct')
   const [doubanDataUrl, setDoubanDataUrl] = useState('')
   const [doubanImageType, setDoubanImageType] = useState('server')
@@ -83,6 +93,15 @@ export default function AdminPage() {
       setDoubanImageType(settings.doubanProxy.imageType)
       setDoubanImageUrl(settings.doubanProxy.imageUrl)
       setVideoSources(settings.videoSources)
+      const sb = settings.siteBehavior ?? {}
+      setSbUpdateLog(sb.updateLogEnabled ?? true)
+      setSbScrollAnim(sb.scrollChromeAnimationEnabled ?? false)
+      setSbTmdbToken(sb.tmdbApiToken ?? '')
+      setSbTmdbEnabled(sb.tmdbEnabled ?? false)
+      setSbTmdbApiBase(sb.tmdbApiBaseUrl ?? '')
+      setSbTmdbImageBase(sb.tmdbImageBaseUrl ?? '')
+      setSbTmdbLanguage(sb.tmdbLanguage ?? 'zh-CN')
+      setSbTmdbQuality(sb.tmdbImageQuality ?? 'medium')
     } catch {
       toast.error('加载管理员数据失败')
     }
@@ -197,6 +216,32 @@ export default function AdminPage() {
       toast.error(e instanceof Error ? e.message : '发送失败')
     } finally {
       setTgTesting(false)
+    }
+  }
+
+  const handleSaveSiteBehavior = async () => {
+    if (!token) return
+    setSbSaving(true)
+    try {
+      const result = await adminUpdateSettings(token, {
+        siteUpdateLogEnabled: sbUpdateLog,
+        siteScrollChromeAnimationEnabled: sbScrollAnim,
+        tmdbApiToken: sbTmdbToken,
+        tmdbEnabled: sbTmdbEnabled,
+        tmdbApiBaseUrl: sbTmdbApiBase,
+        tmdbImageBaseUrl: sbTmdbImageBase,
+        tmdbLanguage: sbTmdbLanguage,
+        tmdbImageQuality: sbTmdbQuality,
+      })
+      const sb = result.siteBehavior ?? {}
+      setSbTmdbToken(sb.tmdbApiToken ?? '')
+      // 刷新公开配置，让本站（含自己）立即按新设置执行
+      void useAuthStore.getState().probeConfig()
+      toast.success('系统行为已保存，全站生效')
+    } catch {
+      toast.error('保存系统行为失败')
+    } finally {
+      setSbSaving(false)
     }
   }
 
@@ -601,6 +646,112 @@ export default function AdminPage() {
         >
           前往用户管理
         </Button>
+      </div>
+
+      {/* 系统行为（站点级）：原「系统设置 → 系统行为」，在此维护、全站生效 */}
+      <div className="border-border bg-card mb-6 rounded-xl border p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold">系统行为</span>
+          <span className="text-muted-foreground text-xs">
+            站点级设置，保存后对全站用户生效（TMDB 令牌在此填写即可，不需要再去 Cloudflare 配环境变量）
+          </span>
+        </div>
+        <div className="mt-4 flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">自动显示更新日志</p>
+              <p className="text-muted-foreground text-xs">检测到新版本时自动弹出更新说明窗口（更新日志仅管理员可见）。</p>
+            </div>
+            <Switch checked={sbUpdateLog} onCheckedChange={setSbUpdateLog} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">滚动收起导航动画</p>
+              <p className="text-muted-foreground text-xs">
+                下滑时收起顶部导航和侧边栏，上滑恢复。
+                <span className="text-destructive font-semibold">该动画性能消耗较高，建议仅在设备性能充足时开启。</span>
+              </p>
+            </div>
+            <Switch checked={sbScrollAnim} onCheckedChange={setSbScrollAnim} />
+          </div>
+          <div>
+            <p className="text-sm font-medium">TMDB API Token</p>
+            <p className="text-muted-foreground mb-2 text-xs">填 v4 读令牌（themoviedb.org 申请），保存后全站生效；清空并保存即停用站点令牌。</p>
+            <Input
+              type="password"
+              className="max-w-xl"
+              placeholder="输入 TMDB API Token（v4 读令牌）"
+              value={sbTmdbToken}
+              onChange={e => setSbTmdbToken(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">TMDB 智能模式</p>
+              <p className="text-muted-foreground text-xs">启用后通过 TMDB 获取影片元数据、海报和推荐内容，关闭后仅使用视频源数据。</p>
+            </div>
+            <Switch
+              checked={sbTmdbEnabled}
+              disabled={!sbTmdbToken.trim()}
+              onCheckedChange={setSbTmdbEnabled}
+            />
+          </div>
+          <div className="flex flex-wrap gap-4">
+            <div>
+              <p className="mb-2 text-sm font-medium">TMDB API Base URL</p>
+              <Input
+                className="w-72"
+                placeholder="https://api.themoviedb.org/3"
+                value={sbTmdbApiBase}
+                onChange={e => setSbTmdbApiBase(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">TMDB 图片 Base URL</p>
+              <Input
+                className="w-72"
+                placeholder="https://image.tmdb.org/t/p/"
+                value={sbTmdbImageBase}
+                onChange={e => setSbTmdbImageBase(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">TMDB 内容语言</p>
+              <Select value={sbTmdbLanguage} onValueChange={setSbTmdbLanguage}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="zh-CN">简体中文</SelectItem>
+                  <SelectItem value="zh-TW">繁體中文</SelectItem>
+                  <SelectItem value="en-US">English</SelectItem>
+                  <SelectItem value="ja-JP">日本語</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">TMDB 图片质量</p>
+              <Select value={sbTmdbQuality} onValueChange={setSbTmdbQuality}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">低（w342）</SelectItem>
+                  <SelectItem value="medium">中（w500/w780）</SelectItem>
+                  <SelectItem value="high">高（original）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Button size="sm" disabled={sbSaving} onClick={() => void handleSaveSiteBehavior()}>
+              {sbSaving ? '保存中…' : '保存系统行为'}
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* 更新日志（与站内版本记录同一份数据，每次更新同步维护） */}

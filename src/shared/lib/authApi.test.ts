@@ -59,6 +59,33 @@ describe('fetchAuthConfig', () => {
     expect(config.managedSourceEnabled).toEqual({ a: false, b: true })
   })
 
+  it('透传站点系统行为 siteBehavior（过滤非法枚举与非布尔值）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          authEnabled: true,
+          siteBehavior: {
+            tmdbApiToken: 'site-token-123',
+            tmdbEnabled: true,
+            tmdbLanguage: 'zh-CN',
+            tmdbImageQuality: 'ultra',
+            updateLogEnabled: 'yes',
+            scrollChromeAnimationEnabled: false,
+          },
+        }),
+      }),
+    )
+    const config = await fetchAuthConfig()
+    expect(config.siteBehavior).toEqual({
+      tmdbApiToken: 'site-token-123',
+      tmdbEnabled: true,
+      tmdbLanguage: 'zh-CN',
+      scrollChromeAnimationEnabled: false,
+    })
+  })
+
   it('缺失 initialVideoSources 时默认为空串（回退环境变量）', async () => {
     vi.stubGlobal(
       'fetch',

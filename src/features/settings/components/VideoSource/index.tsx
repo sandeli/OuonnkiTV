@@ -7,6 +7,7 @@ import {
   ArrowUpDown,
   Loader2,
   GripVertical,
+  RotateCcw,
 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -40,6 +41,7 @@ import VideoSourceEditDialog from './VideoSourceEditDialog'
 import SubscriptionSourceDialog from './SubscriptionSourceDialog'
 import { URLSourceModal, TextSourceModal } from './ImportSourceModal'
 import { SettingsSection } from '../common'
+import { ConfirmModal } from '@/shared/components/common/ConfirmModal'
 import { v4 as uuidv4 } from 'uuid'
 import type { VideoApi } from '@/shared/types'
 import type { VideoSource } from '@tgys/cms-core'
@@ -53,6 +55,7 @@ export default function VideoSource() {
     reorderVideoAPIs,
     managedSourceIds,
     setVideoSourcesEnabled,
+    resetVideoSources,
   } = useApiStore()
 
   // 管理员统一提供的源：站长（及旧单密码模式的机主）可见可管；
@@ -112,6 +115,19 @@ export default function VideoSource() {
   // 订阅源详情弹窗状态
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
   const [viewingSource, setViewingSource] = useState<VideoSource | null>(null)
+
+  // 重置确认弹窗状态
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+
+  // 重置视频源：清掉本设备上自加/导入的源，恢复站点默认源（订阅独立存储，不受影响）
+  const handleResetSources = async () => {
+    try {
+      await resetVideoSources()
+      toast.success('已重置：本地添加的源已清除，恢复为站点默认源')
+    } catch {
+      toast.error('重置失败，请重试')
+    }
+  }
 
   // 导入弹窗状态
   const [urlSourceModalOpen, setUrlSourceModalOpen] = useState(false)
@@ -271,6 +287,15 @@ export default function VideoSource() {
         open={detailDialogOpen}
         onOpenChange={setDetailDialogOpen}
       />
+      <ConfirmModal
+        isOpen={resetConfirmOpen}
+        onClose={() => setResetConfirmOpen(false)}
+        onConfirm={handleResetSources}
+        title="重置视频源？"
+        description="将清除当前设备上你自己添加、导入的全部视频源（包括启停状态与排序），恢复为站点默认源（管理员后台托管源与站点初始源）。订阅不会被删除，订阅中的源会重新同步。此操作不可恢复。"
+        confirmText="确认重置"
+        isDestructive
+      />
       <URLSourceModal open={urlSourceModalOpen} onOpenChange={setUrlSourceModalOpen} />
       <TextSourceModal open={textSourceModalOpen} onOpenChange={setTextSourceModalOpen} />
 
@@ -327,6 +352,17 @@ export default function VideoSource() {
                   <CircleCheckBig className="mr-1 size-3.5" />
                 )}
                 {isAllSelected ? '全部停用' : '全部启用'}
+              </Button>
+            )}
+            {visibleAPIs.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3"
+                onClick={() => setResetConfirmOpen(true)}
+              >
+                <RotateCcw className="mr-1 size-3.5" />
+                重置源
               </Button>
             )}
             <ActionDropdown

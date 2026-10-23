@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { getTmdbClient, normalizeToMediaItem } from '@/shared/lib/tmdb'
 import { useSettingStore } from '@/shared/store/settingStore'
+import { getSiteBehavior } from '@/shared/config/api.config'
 import { isTmdbEnabled } from '@/shared/hooks/useTmdbMode'
 import type { TmdbMediaItem } from '@/shared/types/tmdb'
 
@@ -63,7 +64,7 @@ export function useSearchSuggestions(): UseSearchSuggestionsReturn {
         const res = await client.search.multi({
           query: query.trim(),
           page: 1,
-          language: useSettingStore.getState().system.tmdbLanguage as TmdbSearchLanguage,
+          language: (getSiteBehavior().tmdbLanguage ?? useSettingStore.getState().system.tmdbLanguage) as TmdbSearchLanguage,
           include_adult: false,
         })
 

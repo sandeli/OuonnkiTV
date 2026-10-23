@@ -34,6 +34,39 @@ export const DEFAULT_DOUBAN_PROXY: DoubanProxyConfig = {
 
 export type RegistrationMode = 'open' | 'invite' | 'closed'
 
+/** 站点级「系统行为」设置（管理员后台维护、经公共配置下发全站；字段缺失 = 管理员未设置，客户端回退本地/环境默认） */
+export interface SiteBehaviorConfig {
+  updateLogEnabled?: boolean
+  scrollChromeAnimationEnabled?: boolean
+  tmdbApiToken?: string
+  tmdbEnabled?: boolean
+  tmdbApiBaseUrl?: string
+  tmdbImageBaseUrl?: string
+  tmdbLanguage?: string
+  tmdbImageQuality?: string
+}
+
+export function sanitizeSiteBehavior(raw: unknown): SiteBehaviorConfig {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const r = raw as Record<string, unknown>
+  const out: SiteBehaviorConfig = {}
+  if (typeof r.updateLogEnabled === 'boolean') out.updateLogEnabled = r.updateLogEnabled
+  if (typeof r.scrollChromeAnimationEnabled === 'boolean') {
+    out.scrollChromeAnimationEnabled = r.scrollChromeAnimationEnabled
+  }
+  if (typeof r.tmdbApiToken === 'string') out.tmdbApiToken = r.tmdbApiToken
+  if (typeof r.tmdbEnabled === 'boolean') out.tmdbEnabled = r.tmdbEnabled
+  if (typeof r.tmdbApiBaseUrl === 'string') out.tmdbApiBaseUrl = r.tmdbApiBaseUrl
+  if (typeof r.tmdbImageBaseUrl === 'string') out.tmdbImageBaseUrl = r.tmdbImageBaseUrl
+  if (r.tmdbLanguage === 'zh-CN' || r.tmdbLanguage === 'zh-TW' || r.tmdbLanguage === 'en-US' || r.tmdbLanguage === 'ja-JP') {
+    out.tmdbLanguage = r.tmdbLanguage
+  }
+  if (r.tmdbImageQuality === 'low' || r.tmdbImageQuality === 'medium' || r.tmdbImageQuality === 'high') {
+    out.tmdbImageQuality = r.tmdbImageQuality
+  }
+  return out
+}
+
 export interface AuthPublicConfig {
   authEnabled: boolean
   registrationOpen: boolean
@@ -49,6 +82,8 @@ export interface AuthPublicConfig {
   initialVideoSources?: string
   /** 管理员对托管源的显式开关表（id→布尔）：表中源全站按此开关使用，未入表按源文件默认 */
   managedSourceEnabled?: Record<string, boolean>
+  /** 站点级「系统行为」设置（管理员后台维护）：含 TMDB 令牌/开关等，配置后全站生效 */
+  siteBehavior?: SiteBehaviorConfig
 }
 
 export class AuthApiError extends Error {
@@ -132,6 +167,7 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
               ),
             )
           : {},
+      siteBehavior: sanitizeSiteBehavior(data.siteBehavior),
     }
   } catch {
     return {
@@ -368,6 +404,8 @@ export interface AdminSettings {
   videoSources: string
   /** 管理员对托管源的显式开关表（id→布尔） */
   managedSourceEnabled: Record<string, boolean>
+  /** 站点级「系统行为」设置（管理员后台维护） */
+  siteBehavior: SiteBehaviorConfig
 }
 
 export function adminGetSettings(token: string): Promise<AdminSettings> {
@@ -390,6 +428,14 @@ export function adminUpdateSettings(
     doubanImageProxyUrl?: string
     videoSources?: string
     managedSourceEnabled?: Record<string, boolean>
+    siteUpdateLogEnabled?: boolean
+    siteScrollChromeAnimationEnabled?: boolean
+    tmdbApiToken?: string
+    tmdbEnabled?: boolean
+    tmdbApiBaseUrl?: string
+    tmdbImageBaseUrl?: string
+    tmdbLanguage?: string
+    tmdbImageQuality?: string
   },
 ): Promise<{ ok: boolean } & AdminSettings> {
   return request('/api/admin/settings', { method: 'POST', body: JSON.stringify(patch) }, token)

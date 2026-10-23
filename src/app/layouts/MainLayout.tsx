@@ -24,12 +24,17 @@ export default function MainLayout() {
     state => state.authMode === 'server' && state.user?.role === 'admin',
   )
   const { system } = useSettingStore()
+  // 站点级行为设置（管理员后台维护）：设置了就全站按站点的来，未设置回退本地
+  const siteBehavior = useAuthStore(state => state.authConfig?.siteBehavior)
+  const effectiveUpdateLogEnabled = siteBehavior?.updateLogEnabled ?? system.isUpdateLogEnabled
+  const effectiveScrollChromeAnimation =
+    siteBehavior?.scrollChromeAnimationEnabled ?? system.isScrollChromeAnimationEnabled
   const { initializeEnvSources } = useApiStore()
   const { initializeEnvSubscriptions } = useSubscriptionStore()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const isChromeVisible = useScrollChromeVisibility({
-    enabled: system.isScrollChromeAnimationEnabled,
+    enabled: effectiveScrollChromeAnimation,
     scrollRootSelector: '[data-main-scroll-area]',
     resetKey: location.pathname,
   })
@@ -63,10 +68,10 @@ export default function MainLayout() {
 
   // 版本更新检查（仅管理员：普通用户不弹更新日志）
   useEffect(() => {
-    if (canViewChangelog && hasNewVersion() && system.isUpdateLogEnabled) {
+    if (canViewChangelog && hasNewVersion() && effectiveUpdateLogEnabled) {
       setShowUpdateModal(true)
     }
-  }, [canViewChangelog, hasNewVersion, setShowUpdateModal, system.isUpdateLogEnabled])
+  }, [canViewChangelog, hasNewVersion, setShowUpdateModal, effectiveUpdateLogEnabled])
 
   return (
     <SidebarProvider
@@ -81,12 +86,12 @@ export default function MainLayout() {
     >
       <Navigation
         hidden={!isChromeVisible}
-        enableScrollAnimation={system.isScrollChromeAnimationEnabled}
+        enableScrollAnimation={effectiveScrollChromeAnimation}
       />
       <div className="flex flex-1 overflow-hidden">
         <SideBar
           hidden={!isChromeVisible}
-          enableScrollAnimation={system.isScrollChromeAnimationEnabled}
+          enableScrollAnimation={effectiveScrollChromeAnimation}
         />
         <SidebarInset className="h-full overflow-hidden">
           <div className="h-full p-2 md:pl-1">

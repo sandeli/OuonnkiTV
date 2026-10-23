@@ -22,6 +22,8 @@ export default function SystemSettings() {
   const canViewChangelog = useAuthStore(
     state => state.authMode === 'server' && state.user?.role === 'admin',
   )
+  // 服务器模式下「系统行为」已移至管理员后台做站点级设置；仅旧单密码模式在此保留本地版
+  const authMode = useAuthStore(state => state.authMode)
 
   const hasEnvToken = Boolean(getPublicEnv('TGYS_TMDB_API_TOKEN'))
   const hasUserToken = Boolean(system.tmdbApiToken)
@@ -41,6 +43,7 @@ export default function SystemSettings() {
       <DoubanProxySettings />
       <SearchSettings />
       <ThemeSettings />
+      {authMode !== 'server' && (
       <SettingsSection
         title="系统行为"
         description="控制系统级交互与提示策略。"
@@ -197,6 +200,7 @@ export default function SystemSettings() {
           </>
         )}
       </SettingsSection>
+      )}
     </SettingsPageShell>
   )
 }

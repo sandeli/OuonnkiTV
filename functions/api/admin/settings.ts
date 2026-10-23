@@ -7,6 +7,9 @@ import {
   json,
   readManagedSourceEnabled,
   readDoubanProxySettings,
+  readSiteBehavior,
+  TMDB_IMAGE_QUALITIES,
+  TMDB_LANGUAGES,
   readJson,
   readTgNotifyConfig,
   requireAdmin,
@@ -47,6 +50,7 @@ export const onRequest = async (context: PagesContext) => {
       doubanProxy: await readDoubanProxySettings(db),
       videoSources: (await getSetting(db, 'initial_video_sources')) ?? '',
       managedSourceEnabled: await readManagedSourceEnabled(db),
+      siteBehavior: await readSiteBehavior(db),
     })
   }
 
@@ -65,6 +69,14 @@ export const onRequest = async (context: PagesContext) => {
       doubanImageProxyUrl?: unknown
       videoSources?: unknown
       managedSourceEnabled?: unknown
+      siteUpdateLogEnabled?: unknown
+      siteScrollChromeAnimationEnabled?: unknown
+      tmdbApiToken?: unknown
+      tmdbEnabled?: unknown
+      tmdbApiBaseUrl?: unknown
+      tmdbImageBaseUrl?: unknown
+      tmdbLanguage?: unknown
+      tmdbImageQuality?: unknown
     }>(context.request)
 
     if (typeof body?.registrationOpen === 'boolean') {
@@ -124,6 +136,37 @@ export const onRequest = async (context: PagesContext) => {
     if (typeof body?.doubanImageProxyUrl === 'string') {
       await setSetting(db, 'douban_image_proxy_url', body.doubanImageProxyUrl.trim().slice(0, 500))
     }
+    if (typeof body?.siteUpdateLogEnabled === 'boolean') {
+      await setSetting(db, 'site_update_log_enabled', body.siteUpdateLogEnabled ? '1' : '0')
+    }
+    if (typeof body?.siteScrollChromeAnimationEnabled === 'boolean') {
+      await setSetting(db, 'site_scroll_chrome_animation', body.siteScrollChromeAnimationEnabled ? '1' : '0')
+    }
+    if (typeof body?.tmdbApiToken === 'string') {
+      await setSetting(db, 'tmdb_api_token', body.tmdbApiToken.trim().slice(0, 600))
+    }
+    if (typeof body?.tmdbEnabled === 'boolean') {
+      await setSetting(db, 'tmdb_enabled', body.tmdbEnabled ? '1' : '0')
+    }
+    if (typeof body?.tmdbApiBaseUrl === 'string') {
+      await setSetting(db, 'tmdb_api_base_url', body.tmdbApiBaseUrl.trim().slice(0, 500))
+    }
+    if (typeof body?.tmdbImageBaseUrl === 'string') {
+      await setSetting(db, 'tmdb_image_base_url', body.tmdbImageBaseUrl.trim().slice(0, 500))
+    }
+    if (
+      typeof body?.tmdbLanguage === 'string' &&
+      (TMDB_LANGUAGES as readonly string[]).includes(body.tmdbLanguage)
+    ) {
+      await setSetting(db, 'tmdb_language', body.tmdbLanguage)
+    }
+    if (
+      typeof body?.tmdbImageQuality === 'string' &&
+      (TMDB_IMAGE_QUALITIES as readonly string[]).includes(body.tmdbImageQuality)
+    ) {
+      await setSetting(db, 'tmdb_image_quality', body.tmdbImageQuality)
+    }
+
     if (typeof body?.videoSources === 'string') {
       // 管理员视频源：与 TGYS_INITIAL_VIDEO_SOURCES 同格式（远程 JSON 地址或内联 JSON），
       // 非空时客户端优先用它，留空表示回退环境变量
@@ -149,6 +192,7 @@ export const onRequest = async (context: PagesContext) => {
       doubanProxy: await readDoubanProxySettings(db),
       videoSources: (await getSetting(db, 'initial_video_sources')) ?? '',
       managedSourceEnabled: await readManagedSourceEnabled(db),
+      siteBehavior: await readSiteBehavior(db),
     })
   }
 

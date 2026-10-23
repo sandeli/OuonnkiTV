@@ -3,6 +3,7 @@ import type { AppendToResponseMovieKey, AppendToResponseTvKey } from 'tmdb-ts'
 import { useTmdbStore } from '../store/tmdbStore'
 import { getTmdbClient, normalizeToMediaItem } from '../lib/tmdb'
 import { useSettingStore } from '../store/settingStore'
+import { getSiteBehavior } from '../config/api.config'
 import type { TmdbMediaType, TmdbMovieDetail, TmdbTvDetail } from '../types/tmdb'
 
 interface RecommendationSource {
@@ -312,7 +313,7 @@ export function useTmdbRecommendations(
 export function useTmdbDetail<T extends TmdbMovieDetail | TmdbTvDetail>(
   id: number | undefined,
   mediaType: TmdbMediaType,
-  language = useSettingStore.getState().system.tmdbLanguage,
+  language = getSiteBehavior().tmdbLanguage ?? useSettingStore.getState().system.tmdbLanguage,
 ) {
   const [detail, setDetail] = useState<T | null>(null)
   const [loading, setLoading] = useState(false)
