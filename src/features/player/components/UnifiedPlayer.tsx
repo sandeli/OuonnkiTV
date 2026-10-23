@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { createPortal } from 'react-dom'
 import Artplayer from 'artplayer'
+
+// artplayer 5.4.0 起 FULLSCREEN_WEB_IN_BODY 默认改为 true（网页全屏时把播放器节点挪到 body 下），
+// 本站播放器嵌在布局容器内、尺寸与迷你播放器逻辑都依赖原位置，钉回旧行为避免全屏时节点迁移出问题
+Artplayer.FULLSCREEN_WEB_IN_BODY = false
 import artplayerPluginDanmuku from 'artplayer-plugin-danmuku'
 import type Hls from 'hls.js'
 import type { HlsConfig } from 'hls.js'
@@ -673,6 +677,8 @@ export default function UnifiedPlayer() {
   ])
 
   const playerRef = useRef<Artplayer | null>(null)
+  // 控制栏「小窗」按钮的回调：按钮在播放器构造时先注册，进/退小窗的逻辑在播放器就绪后赋值到这里
+  const miniToggleRef = useRef<(() => void) | null>(null)
   // 播放器控制栏显隐（artplayer 'control' 事件驱动），返回键与底部控制栏同步淡入淡出
   const [controlsVisible, setControlsVisible] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -811,6 +817,19 @@ export default function UnifiedPlayer() {
             }),
           ]
         : [],
+      controls: [
+        {
+          // 页内小窗：不依赖浏览器原生画中画接口，Via 等不支持画中画的浏览器也能用
+          name: 'mini',
+          position: 'right',
+          index: 45,
+          tooltip: '小窗播放',
+          html: '<i class="art-icon flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2"/><rect x="12.5" y="12" width="6" height="4.5" rx="1" fill="currentColor"/></svg></i>',
+          click: () => {
+            miniToggleRef.current?.()
+          },
+        },
+      ],
       customType: {
         m3u8: function (video: HTMLMediaElement, url: string, art: Artplayer) {
           const artWithHls = art as ArtplayerWithHls
@@ -939,8 +958,9 @@ export default function UnifiedPlayer() {
       const preferredFullscreenControl = isMobileNow
         ? (fullscreenControl ?? fullscreenWebControl)
         : (fullscreenControl ?? fullscreenWebControl)
-      // 画中画按钮在手机非全屏时也要保留：精简逻辑最初只留全屏，把它一起藏了，用户找不到入口
+      // 画中画与小窗按钮在手机非全屏时也要保留：精简逻辑最初只留全屏，把它们一起藏了，用户找不到入口
       const pipControl = art.controls['pip'] as HTMLElement | undefined
+      const miniControl = art.controls['mini'] as HTMLElement | undefined
       const rightControls = Array.from(
         art.template.$controlsRight.querySelectorAll<HTMLElement>('.art-control'),
       )
@@ -948,7 +968,9 @@ export default function UnifiedPlayer() {
       if (isMobileNow && !isFullscreenActive) {
         rightControls.forEach(control => {
           const keepVisible =
-            control === preferredFullscreenControl || control === pipControl
+            control === preferredFullscreenControl ||
+            control === pipControl ||
+            control === miniControl
           control.style.display = keepVisible ? '' : 'none'
         })
       } else {
@@ -1094,84 +1116,114 @@ export default function UnifiedPlayer() {
     const throttledTimeUpdate = _.throttle(timeUpdateHandler, TIME_UPDATE_INTERVAL)
     art.on('video:timeupdate', throttledTimeUpdate)
 
-    // 手动实现 autoMini：Artplayer 内置 autoMini 监听 window.scroll，
-    // 但应用使用 Radix ScrollArea 管理滚动，window.scroll 永远不触发。
-    // 这里监听 ScrollArea viewport 的 scroll 事件，手动切换 art.mini。
+    // 小窗（迷你）模式：进入/退出逻辑由「滚动自动触发」与「控制栏小窗按钮」共用一份。
+    // Artplayer 内置 autoMini 监听 window.scroll，但应用使用 Radix ScrollArea 管理滚动，
+    // window.scroll 永远不触发，所以自动触发改监听 ScrollArea viewport 的 scroll 事件；
+    // 手动按钮随时可点，不依赖浏览器原生画中画接口（Via 等浏览器也能用页内小窗）。
     let miniCleanup: (() => void) | undefined
-    if (playbackRef.current.isAutoMiniEnabled && containerRef.current) {
-      const scrollViewport = document.querySelector(
-        '[data-main-scroll-area] [data-slot="scroll-area-viewport"]',
-      ) as HTMLElement | null
+    if (containerRef.current) {
       const playerSection = containerRef.current.closest('section')
+      let isMini = false
+      const VISIBILITY_GAP = 50
+      const applyMiniPosition = () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const miniEl = (playerRef.current as any)?.template?.$mini as HTMLElement | undefined
+        if (!miniEl) return
 
-      if (scrollViewport && playerSection) {
-        let isMini = false
-        const VISIBILITY_GAP = 50
-        const applyMiniPosition = () => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const miniEl = (playerRef.current as any)?.template?.$mini as HTMLElement | undefined
-          if (!miniEl) return
+        const isMobile = window.matchMedia('(max-width: 639px)').matches
+        const isTablet = window.matchMedia('(min-width: 640px) and (max-width: 1023px)').matches
+        const currentRect = miniEl.getBoundingClientRect()
+        const rect = computeMiniPlayerRect({
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          currentWidth: currentRect.width,
+          currentHeight: currentRect.height,
+          isMobile,
+          isTablet,
+        })
 
-          const isMobile = window.matchMedia('(max-width: 639px)').matches
-          const isTablet = window.matchMedia('(min-width: 640px) and (max-width: 1023px)').matches
-          const currentRect = miniEl.getBoundingClientRect()
-          const rect = computeMiniPlayerRect({
-            viewportWidth: window.innerWidth,
-            viewportHeight: window.innerHeight,
-            currentWidth: currentRect.width,
-            currentHeight: currentRect.height,
-            isMobile,
-            isTablet,
-          })
-
-          miniEl.style.width = `${rect.width}px`
-          miniEl.style.height = `${rect.height}px`
-          miniEl.style.top = `${rect.top}px`
-          miniEl.style.left = `${rect.left}px`
+        miniEl.style.width = `${rect.width}px`
+        miniEl.style.height = `${rect.height}px`
+        miniEl.style.top = `${rect.top}px`
+        miniEl.style.left = `${rect.left}px`
+      }
+      const enterMini = () => {
+        if (isMini || !playerRef.current) return
+        // 进入迷你模式前固定 section 高度，防止 fixed 定位导致布局塌陷
+        if (playerSection) {
+          playerSection.style.minHeight = `${playerSection.getBoundingClientRect().height}px`
         }
-        const handleViewportChange = _.throttle(() => {
-          if (!isMini) return
-          requestAnimationFrame(applyMiniPosition)
-        }, 120)
+        isMini = true
+        playerRef.current.mini = true
+        requestAnimationFrame(applyMiniPosition)
+      }
+      const exitMini = () => {
+        if (!isMini) return
+        isMini = false
+        if (playerRef.current) playerRef.current.mini = false
+        if (playerSection) playerSection.style.minHeight = ''
+      }
+      miniToggleRef.current = () => {
+        if (isMini) exitMini()
+        else enterMini()
+      }
+      // 用户点小窗自带的关闭按钮时 artplayer 直接退出 mini，这里同步本地状态与占位高度
+      const syncMiniState = (state: boolean) => {
+        if (!state && isMini) {
+          isMini = false
+          if (playerSection) playerSection.style.minHeight = ''
+        } else if (state && !isMini) {
+          isMini = true
+        }
+      }
+      art.on('mini', syncMiniState)
+      const handleViewportChange = _.throttle(() => {
+        if (!isMini) return
+        requestAnimationFrame(applyMiniPosition)
+      }, 120)
+      window.addEventListener('resize', handleViewportChange, { passive: true })
+      window.addEventListener('orientationchange', handleViewportChange)
 
-        const checkVisibility = _.throttle(() => {
-          if (!playerRef.current) return
+      miniCleanup = () => {
+        handleViewportChange.cancel()
+        window.removeEventListener('resize', handleViewportChange)
+        window.removeEventListener('orientationchange', handleViewportChange)
+        art.off('mini', syncMiniState)
+        miniToggleRef.current = null
+        if (playerRef.current) {
+          playerRef.current.mini = false
+        }
+        if (playerSection) playerSection.style.minHeight = ''
+      }
 
-          const scrollRect = scrollViewport.getBoundingClientRect()
-          const sectionRect = playerSection.getBoundingClientRect()
+      // 自动迷你：开关开启时，播放器滚出可视区域自动进小窗、滚回来自动退出
+      if (playbackRef.current.isAutoMiniEnabled) {
+        const scrollViewport = document.querySelector(
+          '[data-main-scroll-area] [data-slot="scroll-area-viewport"]',
+        ) as HTMLElement | null
+        if (scrollViewport && playerSection) {
+          const checkVisibility = _.throttle(() => {
+            if (!playerRef.current) return
 
-          // section 底部在滚动区域顶部以下且 section 顶部在滚动区域底部以上，则可见
-          const isVisible =
-            sectionRect.bottom > scrollRect.top + VISIBILITY_GAP &&
-            sectionRect.top < scrollRect.bottom - VISIBILITY_GAP
+            const scrollRect = scrollViewport.getBoundingClientRect()
+            const sectionRect = playerSection.getBoundingClientRect()
 
-          if (!isVisible && !isMini) {
-            // 进入迷你模式前固定 section 高度，防止 fixed 定位导致布局塌陷
-            playerSection.style.minHeight = `${sectionRect.height}px`
-            isMini = true
-            playerRef.current.mini = true
-            requestAnimationFrame(applyMiniPosition)
-          } else if (isVisible && isMini) {
-            isMini = false
-            playerRef.current.mini = false
-            playerSection.style.minHeight = ''
+            // section 底部在滚动区域顶部以下且 section 顶部在滚动区域底部以上，则可见
+            const isVisible =
+              sectionRect.bottom > scrollRect.top + VISIBILITY_GAP &&
+              sectionRect.top < scrollRect.bottom - VISIBILITY_GAP
+
+            if (!isVisible) enterMini()
+            else exitMini()
+          }, 200)
+
+          scrollViewport.addEventListener('scroll', checkVisibility, { passive: true })
+          const baseCleanup = miniCleanup
+          miniCleanup = () => {
+            checkVisibility.cancel()
+            scrollViewport.removeEventListener('scroll', checkVisibility)
+            baseCleanup()
           }
-        }, 200)
-
-        scrollViewport.addEventListener('scroll', checkVisibility, { passive: true })
-        window.addEventListener('resize', handleViewportChange, { passive: true })
-        window.addEventListener('orientationchange', handleViewportChange)
-
-        miniCleanup = () => {
-          checkVisibility.cancel()
-          handleViewportChange.cancel()
-          scrollViewport.removeEventListener('scroll', checkVisibility)
-          window.removeEventListener('resize', handleViewportChange)
-          window.removeEventListener('orientationchange', handleViewportChange)
-          if (playerRef.current) {
-            playerRef.current.mini = false
-          }
-          playerSection.style.minHeight = ''
         }
       }
     }
