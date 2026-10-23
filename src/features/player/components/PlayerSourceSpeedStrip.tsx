@@ -106,7 +106,7 @@ export function PlayerSourceSpeedStrip({
       </CollapsibleTrigger>
       <CollapsibleContent className="overflow-hidden border-t border-border/45 p-3 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 data-[state=closed]:duration-200 data-[state=open]:duration-300 md:p-4">
         <ScrollArea className="max-h-44 sm:max-h-56">
-          <div className="grid grid-cols-2 gap-2 pr-2 sm:flex sm:flex-wrap">
+          <div className="grid grid-cols-2 gap-2 pr-2">
             {options.map(option => {
               const active = option.sourceCode === selectedSourceCode
               const latency = latencies.get(option.sourceCode)
@@ -118,7 +118,7 @@ export function PlayerSourceSpeedStrip({
                   key={option.sourceCode}
                   size="sm"
                   variant={active ? 'default' : 'secondary'}
-                  className="w-full min-w-0 justify-between gap-2 rounded-full sm:w-auto sm:max-w-[260px]"
+                  className="w-full min-w-0 justify-between gap-2 rounded-full"
                   aria-current={active ? 'true' : undefined}
                   aria-label={`切换到视频源 ${label}`}
                   onClick={() => onSourceChange(option.sourceCode)}

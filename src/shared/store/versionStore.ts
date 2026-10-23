@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.10.1',
+    title: '换源列表排列整理',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '换源列表改为等宽两列网格：每颗源按钮同宽、延迟数值统一右对齐，不再按内容长短参差换行。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.10.0',
     title: '换源列表显示清晰度',
     date: formatDate('2026-10-23'),
