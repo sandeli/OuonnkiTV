@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.7.1',
+    title: '导入视频源：兼容 KVideo 格式并如实上报',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '设置页导入视频源不再静默丢条目：KVideo 格式（baseUrl / enabled 字段）会被自动识别为地址与开关，与管理员初始源的兼容逻辑一致；导入结果如实显示成功与跳过数量，不再虚报文件里的条数。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.7.0',
     title: '弹幕接口搬进管理员后台',
     date: formatDate('2026-10-23'),

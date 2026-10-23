@@ -52,8 +52,15 @@ export function URLSourceModal({
       }
       const sources = await response.json()
       if (Array.isArray(sources)) {
-        importVideoAPIs(sources)
-        toast.success(`成功导入 ${sources.length} 个视频源`)
+        const result = importVideoAPIs(sources)
+        if (result.imported > 0) {
+          toast.success(`成功导入 ${result.imported} 个视频源`)
+        }
+        if (result.skipped > 0) {
+          toast.warning(`跳过 ${result.skipped} 个无效条目`, {
+            description: result.errors.slice(0, 3).join('；'),
+          })
+        }
         onOpenChange(false)
         reset()
       } else {
@@ -148,8 +155,15 @@ export function TextSourceModal({
   const onSubmit = (data: TextSchema) => {
     try {
       const sources = JSON.parse(data.content)
-      importVideoAPIs(sources)
-      toast.success(`成功导入 ${sources.length} 个视频源`)
+      const result = importVideoAPIs(sources)
+      if (result.imported > 0) {
+        toast.success(`成功导入 ${result.imported} 个视频源`)
+      }
+      if (result.skipped > 0) {
+        toast.warning(`跳过 ${result.skipped} 个无效条目`, {
+          description: result.errors.slice(0, 3).join('；'),
+        })
+      }
       onOpenChange(false)
       reset()
     } catch (error) {

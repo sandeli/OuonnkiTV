@@ -10,6 +10,7 @@ import {
   deselectAllSources,
   getEnabledSources,
   importSources,
+  type ImportResult,
 } from '@tgys/cms-core/source'
 import {
   getInitialVideoSources,
@@ -22,6 +23,15 @@ import { INITIAL_CONFIG } from '@/shared/config/initialConfig'
 
 // 保持向后兼容的类型别名
 export type VideoApi = VideoSource
+
+/**
+ * 用户导入的源条目：除标准字段外，还允许携带 KVideo 格式的兼容字段
+ *（baseUrl 完整接口地址、enabled 开关），导入时会自动归一化。
+ */
+export type VideoSourceImportInput = Partial<VideoSource> & {
+  baseUrl?: string
+  enabled?: boolean
+}
 
 interface ApiState {
   // 视频源列表
@@ -52,8 +62,8 @@ interface ApiActions {
   initializeEnvSources: () => Promise<number>
   // 按 id 批量设置启用状态（普通用户在管理页对自己可见的源做全选/全不选）
   setVideoSourcesEnabled: (ids: string[], enabled: boolean) => void
-  // 批量导入视频源
-  importVideoAPIs: (apis: VideoSource[]) => void
+  // 批量导入视频源（返回真实的导入结果：成功/跳过数量与原因）
+  importVideoAPIs: (apis: VideoSourceImportInput[]) => ImportResult
   // 获取选中的视频源
   getSelectedAPIs: () => VideoSource[]
   // 重置视频源
@@ -229,21 +239,27 @@ export const useApiStore = create<ApiStore>()(
           })
         },
 
-        importVideoAPIs: (apis: VideoSource[]) => {
+        importVideoAPIs: (apis: VideoSourceImportInput[]) => {
+          let result: ImportResult = { success: true, imported: 0, skipped: 0, errors: [] }
           set(state => {
             const store = toSourceStore(state)
-            // 为没有ID的源生成UUID
-            const apisWithIds = apis.map(api => ({
+            // 兼容 KVideo 源格式：baseUrl（完整接口地址）等价于 url，enabled 等价于 isEnabled。
+            // 与管理员初始源解析（parseVideoSources）保持一致，避免同一份源列表在用户导入时被静默跳过。
+            const normalized: Partial<VideoSource>[] = apis.map(api => ({
               ...api,
+              url: api.url || api.baseUrl,
+              isEnabled: api.isEnabled ?? api.enabled ?? true,
               id: api.id || uuidv4(),
             }))
-            const { store: newStore } = importSources(store, apisWithIds, {
+            const { store: newStore, result: importResult } = importSources(store, normalized, {
               defaultTimeout: useSettingStore.getState().network.defaultTimeout,
               defaultRetry: useSettingStore.getState().network.defaultRetry,
               skipInvalid: true,
             })
             state.videoAPIs = fromSourceStore(newStore)
+            result = importResult
           })
+          return result
         },
 
         getSelectedAPIs: () => {

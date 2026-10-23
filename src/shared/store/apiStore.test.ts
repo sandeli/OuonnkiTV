@@ -192,3 +192,56 @@ describe('apiStore 手动添加与已有源同名同址', () => {
     expect(state.videoAPIs.map(s => s.id)).toEqual(['new-1', 'local-1'])
   })
 })
+
+describe('apiStore 用户导入视频源', () => {
+  beforeEach(() => {
+    useApiStore.setState({
+      videoAPIs: [],
+      managedSourceIds: [],
+      managedTrackingVersion: 1,
+      adFilteringEnabled: true,
+    })
+    setAdminSources('')
+  })
+
+  it('兼容 KVideo 格式：baseUrl 映射为 url，enabled 映射为开关', () => {
+    const result = useApiStore.getState().importVideoAPIs([
+      {
+        name: 'KVideo源',
+        baseUrl: 'https://k.example/api.php/provide/vod',
+        enabled: false,
+      } as never,
+    ])
+    expect(result.imported).toBe(1)
+    expect(result.skipped).toBe(0)
+    const state = useApiStore.getState()
+    expect(state.videoAPIs).toHaveLength(1)
+    expect(state.videoAPIs[0].url).toBe('https://k.example/api.php/provide/vod')
+    expect(state.videoAPIs[0].isEnabled).toBe(false)
+    // 禁用的源不参与搜索选择
+    expect(state.getSelectedAPIs()).toHaveLength(0)
+  })
+
+  it('无效条目被跳过并如实上报数量', () => {
+    const result = useApiStore.getState().importVideoAPIs([
+      { name: '好源', url: 'https://ok.example/api.php/provide/vod' },
+      { name: '缺地址的源' },
+      { url: 'https://noname.example/api.php/provide/vod' },
+    ] as never)
+    expect(result.imported).toBe(1)
+    expect(result.skipped).toBe(2)
+    expect(result.errors).toHaveLength(2)
+    expect(useApiStore.getState().videoAPIs).toHaveLength(1)
+    expect(useApiStore.getState().videoAPIs[0].name).toBe('好源')
+  })
+
+  it('重复条目计入跳过，不产生重复', () => {
+    const entry = { name: '源', url: 'https://dup.example/api.php/provide/vod' } as never
+    const first = useApiStore.getState().importVideoAPIs([entry])
+    const second = useApiStore.getState().importVideoAPIs([entry])
+    expect(first.imported).toBe(1)
+    expect(second.imported).toBe(0)
+    expect(second.skipped).toBe(1)
+    expect(useApiStore.getState().videoAPIs).toHaveLength(1)
+  })
+})
