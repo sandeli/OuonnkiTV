@@ -7,6 +7,7 @@ import {
   getRegistrationMode,
   getRequestGeo,
   hashPassword,
+  isSiteClosed,
   json,
   type InviteCodeRow,
   nowSeconds,
@@ -30,6 +31,9 @@ export const onRequest = async (context: PagesContext) => {
   const db = context.env.TGYS_DB
   if (!db) return json({ error: '账号系统未配置' }, 503)
   await ensureSchema(db)
+  if (await isSiteClosed(db)) {
+    return json({ error: '站点维护中，暂停注册' }, 403)
+  }
 
   const registrationMode = await getRegistrationMode(db, context.env)
   if (registrationMode === 'closed') {

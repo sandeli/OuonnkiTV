@@ -46,6 +46,10 @@ export interface SiteBehaviorConfig {
   tmdbImageQuality?: string
   /** 站点默认弹幕接口地址（管理员后台维护）；优先级低于用户个人设置、高于部署变量 */
   danmakuApiUrl?: string
+  /** 关站维护开关（管理员后台维护）：开启后仅站长可登录 */
+  siteClosed?: boolean
+  /** 关站说明（维护页展示） */
+  siteClosedMessage?: string
 }
 
 export function sanitizeSiteBehavior(raw: unknown): SiteBehaviorConfig {
@@ -61,6 +65,8 @@ export function sanitizeSiteBehavior(raw: unknown): SiteBehaviorConfig {
   if (typeof r.tmdbApiBaseUrl === 'string') out.tmdbApiBaseUrl = r.tmdbApiBaseUrl
   if (typeof r.tmdbImageBaseUrl === 'string') out.tmdbImageBaseUrl = r.tmdbImageBaseUrl
   if (typeof r.danmakuApiUrl === 'string') out.danmakuApiUrl = r.danmakuApiUrl
+  if (typeof r.siteClosed === 'boolean') out.siteClosed = r.siteClosed
+  if (typeof r.siteClosedMessage === 'string') out.siteClosedMessage = r.siteClosedMessage
   if (r.tmdbLanguage === 'zh-CN' || r.tmdbLanguage === 'zh-TW' || r.tmdbLanguage === 'en-US' || r.tmdbLanguage === 'ja-JP') {
     out.tmdbLanguage = r.tmdbLanguage
   }
@@ -191,10 +197,14 @@ interface SessionResponse {
   user: AuthUser
 }
 
-export function loginAccount(username: string, password: string): Promise<SessionResponse> {
+export function loginAccount(
+  username: string,
+  password: string,
+  turnstileToken?: string,
+): Promise<SessionResponse> {
   return request<SessionResponse>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, turnstileToken }),
   })
 }
 
@@ -440,6 +450,8 @@ export function adminUpdateSettings(
     tmdbLanguage?: string
     tmdbImageQuality?: string
     danmakuApiUrl?: string
+    siteClosed?: boolean
+    siteClosedMessage?: string
   },
 ): Promise<{ ok: boolean } & AdminSettings> {
   return request('/api/admin/settings', { method: 'POST', body: JSON.stringify(patch) }, token)

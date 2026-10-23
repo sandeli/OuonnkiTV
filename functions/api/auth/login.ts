@@ -2,12 +2,14 @@ import {
   createSession,
   ensureSchema,
   getRequestGeo,
+  isSiteClosed,
   json,
   MASTER_USER_ID,
   notifyUserLoginTg,
   nowSeconds,
   readJson,
   verifyPassword,
+  verifyTurnstile,
   type PagesContext,
   type SessionUser,
 } from '../../_lib/auth'
@@ -15,6 +17,7 @@ import {
 interface LoginBody {
   username?: unknown
   password?: unknown
+  turnstileToken?: unknown
 }
 
 export const onRequest = async (context: PagesContext) => {
@@ -40,9 +43,21 @@ export const onRequest = async (context: PagesContext) => {
     // 站长登录：用户名 admin + 环境变量 TGYS_ACCESS_PASSWORD
     const masterPassword = context.env.TGYS_ACCESS_PASSWORD ?? ''
     if (!masterPassword) return json({ error: '站长登录未启用' }, 403)
+    // 关站维护期间站长登录必须先过人机验证（防关站时爆破站长密码）；
+    // 未配置 Turnstile 密钥时 verifyTurnstile 直接放行
+    if (await isSiteClosed(db)) {
+      const token = typeof body?.turnstileToken === 'string' ? body.turnstileToken : undefined
+      if (!(await verifyTurnstile(context.env, token))) {
+        return json({ error: '人机验证失败，请重试' }, 403)
+      }
+    }
     if (password !== masterPassword) return json({ error: '用户名或密码错误' }, 401)
     sessionUser = { userId: MASTER_USER_ID, username: 'admin', role: 'admin', isMaster: true }
   } else {
+    // 关站维护：普通账号一律拒绝登录（站长走上面的主账号分支，不受影响）
+    if (await isSiteClosed(db)) {
+      return json({ error: '站点维护中，仅管理员可登录' }, 403)
+    }
     const row = await db
       .prepare(
         'SELECT id, username, password_hash AS passwordHash, password_salt AS passwordSalt, role, disabled, expires_at AS expiresAt, tg_watch AS tgWatch FROM users WHERE username = ?',

@@ -60,6 +60,8 @@ export default function AdminPage() {
   const [sbTmdbLanguage, setSbTmdbLanguage] = useState('zh-CN')
   const [sbTmdbQuality, setSbTmdbQuality] = useState('medium')
   const [sbDanmakuApiUrl, setSbDanmakuApiUrl] = useState('')
+  const [sbSiteClosed, setSbSiteClosed] = useState(false)
+  const [sbSiteClosedMessage, setSbSiteClosedMessage] = useState('')
   const [sbSaving, setSbSaving] = useState(false)
   const [doubanDataType, setDoubanDataType] = useState('direct')
   const [doubanDataUrl, setDoubanDataUrl] = useState('')
@@ -102,6 +104,8 @@ export default function AdminPage() {
       setSbTmdbLanguage(sb.tmdbLanguage ?? 'zh-CN')
       setSbTmdbQuality(sb.tmdbImageQuality ?? 'medium')
       setSbDanmakuApiUrl(sb.danmakuApiUrl ?? '')
+      setSbSiteClosed(sb.siteClosed ?? false)
+      setSbSiteClosedMessage(sb.siteClosedMessage ?? '')
     } catch {
       toast.error('加载管理员数据失败')
     }
@@ -233,6 +237,8 @@ export default function AdminPage() {
         tmdbLanguage: sbTmdbLanguage,
         tmdbImageQuality: sbTmdbQuality,
         danmakuApiUrl: sbDanmakuApiUrl,
+        siteClosed: sbSiteClosed,
+        siteClosedMessage: sbSiteClosedMessage.trim(),
       })
       const sb = result.siteBehavior ?? {}
       setSbTmdbToken(sb.tmdbApiToken ?? '')
@@ -658,6 +664,30 @@ export default function AdminPage() {
           </span>
         </div>
         <div className="mt-4 flex flex-col gap-4">
+          <div className="rounded-lg bg-amber-500/10 px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">关站维护</p>
+                <p className="text-muted-foreground text-xs">
+                  开启后全站对普通用户关闭：登录页显示维护说明、只有站长能登录，已登录的普通用户会被自动退出。
+                </p>
+              </div>
+              <Switch checked={sbSiteClosed} onCheckedChange={setSbSiteClosed} />
+            </div>
+            {sbSiteClosed && (
+              <div className="mt-3 flex flex-col gap-1.5">
+                <label className="text-xs font-medium" htmlFor="closedMessage">关站说明（显示在维护页）</label>
+                <Textarea
+                  id="closedMessage"
+                  rows={2}
+                  placeholder="本站正在维护升级，暂时无法访问，请稍后再来。"
+                  value={sbSiteClosedMessage}
+                  onChange={ev => setSbSiteClosedMessage(ev.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">留空时显示默认文案。</p>
+              </div>
+            )}
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-medium">自动显示更新日志</p>

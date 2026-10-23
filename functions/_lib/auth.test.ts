@@ -6,6 +6,8 @@ import {
   defaultUserExpiresAt,
   generateInviteCode,
   getRegistrationMode,
+  isSiteClosed,
+  readSiteBehavior,
   hashPassword,
   inviteCodeStatus,
   randomHex,
@@ -93,6 +95,21 @@ describe('注册模式', () => {
       await getRegistrationMode(fakeDb({ registration_mode: 'open', registration_open: '0' }), env),
     ).toBe('open')
     expect(await getRegistrationMode(fakeDb({ registration_mode: 'bogus' }), env)).toBe('open')
+  })
+})
+
+describe('关站维护', () => {
+  it('isSiteClosed 只认 site_closed=1', async () => {
+    expect(await isSiteClosed(fakeDb({}))).toBe(false)
+    expect(await isSiteClosed(fakeDb({ site_closed: '0' }))).toBe(false)
+    expect(await isSiteClosed(fakeDb({ site_closed: '1' }))).toBe(true)
+  })
+  it('readSiteBehavior 带出关站开关与说明', async () => {
+    const b = await readSiteBehavior(fakeDb({ site_closed: '1', site_closed_message: '今晚维护' }))
+    expect(b.siteClosed).toBe(true)
+    expect(b.siteClosedMessage).toBe('今晚维护')
+    const b2 = await readSiteBehavior(fakeDb({}))
+    expect(b2.siteClosed).toBeUndefined()
   })
 })
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Lock, ShieldCheck, User, UserPlus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Lock, ShieldCheck, User, UserPlus, Wrench } from 'lucide-react'
 import { Input } from '@/shared/components/ui/input'
 import { Button } from '@/shared/components/ui/button'
 import { Spinner } from '@/shared/components/ui/spinner'
@@ -84,6 +84,11 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   )
   const registrationOpen = registrationMode !== 'closed'
   const turnstileSiteKey = useAuthStore(state => state.authConfig?.turnstileSiteKey ?? '')
+  const siteClosed = useAuthStore(state => state.authConfig?.siteBehavior?.siteClosed ?? false)
+  const siteClosedMessage = useAuthStore(
+    state => state.authConfig?.siteBehavior?.siteClosedMessage ?? '',
+  )
+  const [showClosedLogin, setShowClosedLogin] = useState(false)
 
   const [gateMode, setGateMode] = useState<GateMode | null>(null)
   const [formMode, setFormMode] = useState<FormMode>('account')
@@ -205,9 +210,13 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   }
 
   const handleMasterLogin = async () => {
+    if (siteClosed && turnstileSiteKey && !turnstileToken) {
+      toast.error('请先完成人机验证')
+      return
+    }
     setIsLoading(true)
     await new Promise(resolve => setTimeout(resolve, 300))
-    const success = await login(password)
+    const success = await login(password, siteClosed ? turnstileToken || undefined : undefined)
     if (success) {
       handleSuccess()
     } else {
@@ -221,8 +230,16 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       toast.error('请输入用户名和密码')
       return
     }
+    if (siteClosed && turnstileSiteKey && !turnstileToken) {
+      toast.error('请先完成人机验证')
+      return
+    }
     setIsLoading(true)
-    const result = await loginWithAccount(username.trim(), password)
+    const result = await loginWithAccount(
+      username.trim(),
+      password,
+      siteClosed ? turnstileToken || undefined : undefined,
+    )
     if (result.ok) {
       handleSuccess()
     } else {
@@ -333,6 +350,34 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         {/* 右侧表单区 — 移动端占满剩余空间，桌面端右侧半屏 */}
         <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-8 py-12 md:px-16">
           <div className="w-full max-w-sm space-y-8">
+            {gateMode === 'server' && siteClosed && !showClosedLogin ? (
+              <motion.div
+                initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.5, delay: 0.15, ease: easeOutQuad }}
+                className="space-y-4"
+              >
+                <div className="bg-muted/70 ring-border/60 flex size-12 items-center justify-center rounded-xl ring-1">
+                  <Wrench className="text-muted-foreground size-5" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold">站点维护中</h1>
+                  <p className="text-muted-foreground mt-1.5 text-sm whitespace-pre-line">
+                    {siteClosedMessage.trim() || '本站正在维护升级，暂时无法访问，请稍后再来。'}
+                  </p>
+                </div>
+                <Button
+                  className="h-11 w-full rounded-full"
+                  onClick={() => setShowClosedLogin(true)}
+                >
+                  管理员登录
+                </Button>
+                <p className="text-muted-foreground text-center text-xs">
+                  维护期间仅管理员可登录
+                </p>
+              </motion.div>
+            ) : (
+              <>
             {/* 信息区域 */}
             <motion.div
               initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
@@ -365,6 +410,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
             >
               {gateMode === 'legacy' || formMode === 'master' ? (
                 <>
+                  {siteClosed && (
+                    <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+                  )}
                   <div className="flex items-center gap-2">
                     <Input
                       type="password"
@@ -412,6 +460,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                     onChange={e => setPassword(e.target.value)}
                     className="h-11 rounded-full"
                   />
+                  {siteClosed && (
+                    <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+                  )}
                   <Button
                     ref={buttonRef}
                     className="h-11 w-full rounded-full"
@@ -429,18 +480,19 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                       <ShieldCheck className="size-4" />
                       站长登录
                     </button>
-                    {registrationOpen ? (
-                      <button
-                        type="button"
-                        className="hover:text-foreground flex items-center gap-1"
-                        onClick={() => switchForm('register')}
-                      >
-                        <User className="size-4" />
-                        {registrationMode === 'invite' ? '邀请码注册' : '注册账号'}
-                      </button>
-                    ) : (
-                      <span>注册已关闭</span>
-                    )}
+                    {!siteClosed &&
+                      (registrationOpen ? (
+                        <button
+                          type="button"
+                          className="hover:text-foreground flex items-center gap-1"
+                          onClick={() => switchForm('register')}
+                        >
+                          <User className="size-4" />
+                          {registrationMode === 'invite' ? '邀请码注册' : '注册账号'}
+                        </button>
+                      ) : (
+                        <span>注册已关闭</span>
+                      ))}
                   </div>
                 </>
               ) : (
@@ -499,6 +551,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                 </>
               )}
             </motion.div>
+              </>
+            )}
           </div>
         </div>
       </div>

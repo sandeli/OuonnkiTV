@@ -70,6 +70,8 @@ describe('fetchAuthConfig', () => {
             tmdbApiToken: 'site-token-123',
             tmdbEnabled: true,
             danmakuApiUrl: 'https://danmaku.example.com',
+            siteClosed: true,
+            siteClosedMessage: '维护中，今晚恢复',
             tmdbLanguage: 'zh-CN',
             tmdbImageQuality: 'ultra',
             updateLogEnabled: 'yes',
@@ -83,6 +85,8 @@ describe('fetchAuthConfig', () => {
       tmdbApiToken: 'site-token-123',
       tmdbEnabled: true,
       danmakuApiUrl: 'https://danmaku.example.com',
+      siteClosed: true,
+      siteClosedMessage: '维护中，今晚恢复',
       tmdbLanguage: 'zh-CN',
       scrollChromeAnimationEnabled: false,
     })

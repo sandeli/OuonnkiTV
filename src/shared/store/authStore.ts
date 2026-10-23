@@ -43,7 +43,7 @@ type PersistedAuthState = Pick<AuthState, 'token' | 'user' | 'sessionToken' | 's
 interface AuthActions {
   probeConfig: () => Promise<AuthPublicConfig>
   /** 账号登录（server 模式） */
-  loginWithAccount: (username: string, password: string) => Promise<AuthResult>
+  loginWithAccount: (username: string, password: string, turnstileToken?: string) => Promise<AuthResult>
   /** 注册（server 模式，注册成功即登录） */
   register: (
     username: string,
@@ -52,7 +52,7 @@ interface AuthActions {
     inviteCode?: string,
   ) => Promise<AuthResult>
   /** 单密码登录：server 模式下即站长登录（admin），legacy 模式下是原访问密码 */
-  login: (password: string) => Promise<boolean>
+  login: (password: string, turnstileToken?: string) => Promise<boolean>
   logout: () => Promise<void>
   validateSession: () => Promise<boolean>
   /** 定时复查：ok 正常 / invalid 会话已失效（被踢、禁用、到期）/ error 网络异常（不清会话） */
@@ -106,9 +106,9 @@ export const useAuthStore = create<AuthStore>()(
         return probePromise
       },
 
-      loginWithAccount: async (username, password) => {
+      loginWithAccount: async (username, password, turnstileToken) => {
         try {
-          const { token, user } = await loginAccount(username, password)
+          const { token, user } = await loginAccount(username, password, turnstileToken)
           set({ token, user, isInitialized: true })
           return { ok: true }
         } catch (error) {
@@ -137,10 +137,10 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      login: async (password: string) => {
+      login: async (password: string, turnstileToken?: string) => {
         // server 模式：单密码即站长登录
         if (get().authMode === 'server') {
-          const result = await get().loginWithAccount('admin', password)
+          const result = await get().loginWithAccount('admin', password, turnstileToken)
           return result.ok
         }
 

@@ -57,6 +57,18 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.8.0',
+    title: '关站维护模式',
+    date: formatDate('2026-10-23'),
+    features: [
+      '管理员后台「系统行为」新增「关站维护」开关与关站说明：开启后登录页显示维护页，全站对普通用户关闭。',
+      '关站期间只有站长能登录，注册暂停；已登录的普通用户会被自动退出。',
+      '关站期间站长登录须通过人机验证（Turnstile），防止站长密码被爆破。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.7.1',
     title: '导入视频源：兼容 KVideo 格式并如实上报',
     date: formatDate('2026-10-23'),

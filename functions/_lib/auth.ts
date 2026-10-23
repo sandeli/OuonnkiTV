@@ -342,6 +342,11 @@ export async function deleteSession(db: D1Database, request: Request): Promise<v
   await db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(tokenHash).run()
 }
 
+/** 站点是否处于关站维护状态（管理员后台开关，settings 键 site_closed） */
+export async function isSiteClosed(db: D1Database): Promise<boolean> {
+  return (await getSetting(db, 'site_closed')) === '1'
+}
+
 export async function requireUser(
   context: PagesContext,
 ): Promise<{ db: D1Database; user: SessionUser } | Response> {
@@ -350,6 +355,11 @@ export async function requireUser(
   await ensureSchema(db)
   const user = await getSessionUser(db, context.request)
   if (!user) return json({ error: '未登录或登录已过期' }, 401)
+  // 关站维护期间仅站长（主账号）可继续使用，其余会话一律拒绝，
+  // 客户端复查会话失败后会退出登录并展示维护页
+  if (user.userId !== MASTER_USER_ID && (await isSiteClosed(db))) {
+    return json({ error: '站点维护中，仅管理员可登录' }, 403)
+  }
   return { db, user }
 }
 
@@ -581,10 +591,14 @@ export interface SiteBehaviorSettings {
   tmdbImageQuality?: string
   /** 站点默认弹幕接口地址（弹弹play 兼容接口）；优先级低于用户个人设置、高于部署变量 */
   danmakuApiUrl?: string
+  /** 关站维护：开启后仅站长可登录，普通用户会话一律拒绝 */
+  siteClosed?: boolean
+  /** 关站说明（展示在维护页）；未填时客户端用默认文案 */
+  siteClosedMessage?: string
 }
 
 export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSettings> {
-  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality, danmakuUrl] =
+  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality, danmakuUrl, closedFlag, closedMessage] =
     await Promise.all([
       getSetting(db, 'site_update_log_enabled'),
       getSetting(db, 'site_scroll_chrome_animation'),
@@ -595,6 +609,8 @@ export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSett
       getSetting(db, 'tmdb_language'),
       getSetting(db, 'tmdb_image_quality'),
       getSetting(db, 'site_danmaku_api_url'),
+      getSetting(db, 'site_closed'),
+      getSetting(db, 'site_closed_message'),
     ])
   const out: SiteBehaviorSettings = {}
   if (updateLog !== null) out.updateLogEnabled = updateLog === '1'
@@ -610,6 +626,8 @@ export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSett
     out.tmdbImageQuality = tmdbQuality
   }
   if (danmakuUrl !== null) out.danmakuApiUrl = danmakuUrl
+  if (closedFlag !== null) out.siteClosed = closedFlag === '1'
+  if (closedMessage !== null) out.siteClosedMessage = closedMessage
   return out
 }
 

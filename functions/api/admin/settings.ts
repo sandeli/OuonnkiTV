@@ -78,6 +78,8 @@ export const onRequest = async (context: PagesContext) => {
       tmdbLanguage?: unknown
       tmdbImageQuality?: unknown
       danmakuApiUrl?: unknown
+      siteClosed?: unknown
+      siteClosedMessage?: unknown
     }>(context.request)
 
     if (typeof body?.registrationOpen === 'boolean') {
@@ -166,6 +168,12 @@ export const onRequest = async (context: PagesContext) => {
       (TMDB_IMAGE_QUALITIES as readonly string[]).includes(body.tmdbImageQuality)
     ) {
       await setSetting(db, 'tmdb_image_quality', body.tmdbImageQuality)
+    }
+    if (typeof body?.siteClosed === 'boolean') {
+      await setSetting(db, 'site_closed', body.siteClosed ? '1' : '0')
+    }
+    if (typeof body?.siteClosedMessage === 'string') {
+      await setSetting(db, 'site_closed_message', body.siteClosedMessage.trim().slice(0, 500))
     }
     if (typeof body?.danmakuApiUrl === 'string') {
       // 站点默认弹幕接口：优先级低于用户个人设置、高于部署变量 TGYS_DANMAKU_API_URL；留空表示不设置
