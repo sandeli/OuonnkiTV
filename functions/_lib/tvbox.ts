@@ -623,10 +623,12 @@ export interface AggHit {
   tier: number
 }
 
-/** 详情最多拼多少条线路（主源 + 跨源）：受 Cloudflare 单请求子请求预算约束，必须封顶 */
-const MAX_DETAIL_CANDIDATES = 10
+/** 聚合详情最多取几个源（主源 + 跨源）：与 MoonTV 同款取前 8 个，也受 Cloudflare 单请求子请求预算约束 */
+const MAX_DETAIL_CANDIDATES = 8
 /** 最多给多少条线路做分片测速（其余按档位排在后面，标签不带速度） */
 const MAX_PROBE_CANDIDATES = 8
+/** 测速分批大小：全并发会把子请求预算半路耗尽、随机打死一片；分批保证靠前的线路先测完 */
+const PROBE_BATCH_SIZE = 3
 
 export async function aggDetail(
   sources: TvboxSource[],
@@ -703,13 +705,17 @@ export async function aggDetail(
   )
   for (const c of found) if (c) candidates.push(c)
 
-  // 先按档位排，只给靠前的若干条测速（子请求预算有限，靠后的线路靠档位兜底）
+  // 先按档位排，只给靠前的若干条测速；分批按优先级推进，
+  // 预算不够时只影响末尾线路，用户真正会播的前几条必有测速结果
   candidates.sort((a, b) => a.tier - b.tier)
-  await Promise.all(
-    candidates.slice(0, MAX_PROBE_CANDIDATES).map(async c => {
-      c.probe = await probePlaybackSpeed(firstEpisodeUrl(c.groups[0]?.episodes ?? []))
-    }),
-  )
+  const toProbe = candidates.slice(0, MAX_PROBE_CANDIDATES)
+  for (let i = 0; i < toProbe.length; i += PROBE_BATCH_SIZE) {
+    await Promise.all(
+      toProbe.slice(i, i + PROBE_BATCH_SIZE).map(async c => {
+        c.probe = await probePlaybackSpeed(firstEpisodeUrl(c.groups[0]?.episodes ?? []))
+      }),
+    )
+  }
   // 同档内：测通的优先，吞吐高的优先，吞吐接近时清单响应快的优先
   candidates.sort(
     (a, b) =>
@@ -719,19 +725,21 @@ export async function aggDetail(
       a.probe.ttfbMs - b.probe.ttfbMs,
   )
 
+  // MoonTV 同款逻辑：每个源只出一条线路、线路里只含第一集（正片），按速度排序。
+  // 旧逻辑把各源完整剧集拼进一个详情（集数参差），影视（FongMi）5.6.4 切线路对集时
+  // 踩中自身空值 bug 崩溃；单集线路没有跨线路对集这一步，从形状上避开。
+  // 看后续集数走各源直连站（配置里每个源都有独立站点，与 MoonTV 一致）。
   const lineNames: string[] = []
   const lineUrls: string[] = []
   for (const c of candidates) {
-    c.groups.slice(0, 3).forEach((group, idx) => {
-      const label =
-        idx === 0
-          ? c.probe.ok
-            ? `[⚡${formatThroughput(c.probe.kbps)}] ${c.source.name}`
-            : c.source.name
-          : `${c.source.name}·线路${idx + 1}`
-      lineNames.push(label)
-      lineUrls.push(group.episodes.join('#'))
-    })
+    const url = firstEpisodeUrl(c.groups[0]?.episodes ?? [])
+    if (!url) continue
+    lineNames.push(
+      c.probe.ok
+        ? `[⚡${formatThroughput(c.probe.kbps)}] ${c.source.name}`
+        : c.source.name,
+    )
+    lineUrls.push(`正片$${url}`)
   }
   if (lineNames.length === 0) return primaryRecord
 
@@ -888,5 +896,10 @@ export async function aggWallDetail(
   if (aggHits.length === 0) return null
   aggHits.sort((a, b) => a.tier - b.tier)
   const primary = aggHits[0]
-  return aggDetail(sources, primary.sourceId, primary.vodId, aggHits)
+  const record = await aggDetail(sources, primary.sourceId, primary.vodId, aggHits)
+  if (!record) return null
+  // 详情 id 固定为 wall__<片名>，不随「这次哪个源测速最快」漂移：
+  // 主源 id 每次可能不同，APP 的历史/收藏按 id 对号，漂移会让历史对不上、
+  // 切线路时更容易踩中影视 5.6.4 的空值崩溃。注意 aggDetail 的记录带缓存共享，只覆写副本。
+  return { ...record, vod_id: encodeWallId(title) }
 }

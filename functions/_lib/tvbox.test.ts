@@ -242,3 +242,98 @@ describe('聚合详情的子请求预算', () => {
     }
   })
 })
+
+describe('聚合详情的 APP 崩溃缓解', () => {
+  it('图片墙详情的 vod_id 固定为 wall__<片名>，不随主源漂移', async () => {
+    const { aggWallDetail } = await import('./tvbox')
+    const detailRecord = {
+      vod_id: '77',
+      vod_name: '墙片甲',
+      vod_play_from: '主线',
+      vod_play_url: '第1集$https://cdn.test/wa.m3u8',
+    }
+    const stub = async (input: unknown) => {
+      const url = String(input)
+      if (url.includes('wd=')) {
+        return new Response(
+          JSON.stringify({ list: [{ vod_id: '77', vod_name: '墙片甲' }] }),
+          { headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.includes('ids=')) {
+        return new Response(JSON.stringify({ list: [detailRecord] }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response('{}', { status: 404 })
+    }
+    const { vi } = await import('vitest')
+    vi.stubGlobal('fetch', stub)
+    try {
+      const sources = [
+        { id: 'wa', name: '源WA', api: 'https://wa.test/api.php/provide/vod/' },
+        { id: 'wb', name: '源WB', api: 'https://wb.test/api.php/provide/vod/' },
+      ]
+      const record = await aggWallDetail(sources, '墙片甲')
+      expect(record).not.toBeNull()
+      expect(record?.vod_id).toBe('wall__墙片甲')
+      // MoonTV 同款：每条线路里只含第一集（桩对两个源返回同一详情，故两条线相同）
+      const wallUrls = String(record?.vod_play_url).split('$$$')
+      expect(wallUrls.length).toBeGreaterThan(0)
+      for (const u of wallUrls) expect(u).toBe('正片$https://cdn.test/wa.m3u8')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('MoonTV 同款：每个源只出一条线路、只含第一集（正片）', async () => {
+    const { aggDetail } = await import('./tvbox')
+    const stub = async (input: unknown) => {
+      const url = String(input)
+      if (url.includes('ids=')) {
+        const host = new URL(url).hostname
+        return new Response(
+          JSON.stringify({
+            list: [
+              {
+                vod_id: '9',
+                vod_name: '多线片',
+                vod_play_from: '一线$$$二线',
+                vod_play_url: `第1集$https://cdn.test/${host}/1.m3u8#第2集$https://cdn.test/${host}/1e2.m3u8$$$第1集$https://cdn.test/${host}/2.m3u8`,
+              },
+            ],
+          }),
+          { headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response('{}', { status: 404 })
+    }
+    const { vi } = await import('vitest')
+    vi.stubGlobal('fetch', stub)
+    try {
+      const ids = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6']
+      const sources = ids.map(id => ({
+        id,
+        name: `源${id}`,
+        api: `https://${id}.test/api.php/provide/vod/`,
+      }))
+      const record = await aggDetail(
+        sources,
+        'c1',
+        '9',
+        ids.map(id => ({ sourceId: id, vodId: '9', tier: 0 })),
+      )
+      expect(record).not.toBeNull()
+      const froms = String(record?.vod_play_from).split('$$$')
+      const urls = String(record?.vod_play_url).split('$$$')
+      // 6 个源 = 6 条线路；每条只含第一集：正片$<第一组第一集地址>，不带后续集数和其他线路组
+      expect(froms).toHaveLength(6)
+      expect(urls).toHaveLength(6)
+      for (const u of urls) {
+        expect(u).toMatch(/^正片\$https:\/\/cdn\.test\/c\d\.test\/1\.m3u8$/)
+      }
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
