@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getInitialVideoSources, loadVideoSources } from './api.config'
+import { getInitialVideoSources, loadVideoSources, mergeManagedSourceLists } from './api.config'
 import { useAuthStore } from '@/shared/store/authStore'
 
 describe('loadVideoSources', () => {
@@ -59,5 +59,35 @@ describe('getInitialVideoSources 管理员视频源优先级', () => {
     })
     const sources = await getInitialVideoSources()
     expect(sources).toEqual([])
+  })
+
+  it('站长全站源与基础托管源合并：同 id 以全站源为准、独有追加在后、siteWide 透传', async () => {
+    useAuthStore.setState({
+      authConfig: {
+        initialVideoSources:
+          '[{"id":"base1","name":"后台源一","url":"https://base1.example/api"},{"id":"shared","name":"旧名","url":"https://shared.example/api"}]',
+        siteWideSources:
+          '[{"id":"shared","name":"站长改名","url":"https://shared.example/api","siteWide":true},{"id":"own1","name":"站长源","url":"https://own.example/api","siteWide":true}]',
+      } as never,
+    })
+    const sources = await getInitialVideoSources()
+    expect(sources.map(s => s.id)).toEqual(['base1', 'shared', 'own1'])
+    expect(sources.find(s => s.id === 'shared')?.name).toBe('站长改名')
+    expect(sources.find(s => s.id === 'own1')?.siteWide).toBe(true)
+    expect(sources.find(s => s.id === 'base1')?.siteWide).toBeUndefined()
+  })
+})
+
+describe('mergeManagedSourceLists', () => {
+  const mk = (id: string, name = id) =>
+    ({ id, name, url: `https://${id}.example/api`, isEnabled: true }) as never
+  it('extra 为空时原样返回 base', () => {
+    const base = [mk('a')]
+    expect(mergeManagedSourceLists(base, [])).toBe(base)
+  })
+  it('同 id 覆盖并保持 extra 顺序追加', () => {
+    const out = mergeManagedSourceLists([mk('a'), mk('b')], [mk('b', 'B2'), mk('c')])
+    expect(out.map(s => s.id)).toEqual(['a', 'b', 'c'])
+    expect(out.find(s => s.id === 'b')?.name).toBe('B2')
   })
 })

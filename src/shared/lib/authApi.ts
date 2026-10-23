@@ -95,6 +95,8 @@ export interface AuthPublicConfig {
   doubanProxy: DoubanProxyConfig
   /** 管理员后台设置的视频源（与 TGYS_INITIAL_VIDEO_SOURCES 同格式）；非空时优先于环境变量 */
   initialVideoSources?: string
+  /** 站长开启「全站生效」的手动源（内联 JSON 数组，服务端从站长账号源派生）；与初始源合并后全站分发 */
+  siteWideSources?: string
   /** 管理员对托管源的显式开关表（id→布尔）：表中源全站按此开关使用，未入表按源文件默认 */
   managedSourceEnabled?: Record<string, boolean>
   /** 站点级「系统行为」设置（管理员后台维护）：含 TMDB 令牌/开关等，配置后全站生效 */
@@ -185,6 +187,7 @@ export async function fetchAuthConfig(): Promise<AuthPublicConfig> {
           : DEFAULT_DOUBAN_PROXY,
       initialVideoSources:
         typeof data.initialVideoSources === 'string' ? data.initialVideoSources : '',
+      siteWideSources: typeof data.siteWideSources === 'string' ? data.siteWideSources : '',
       managedSourceEnabled:
         data.managedSourceEnabled &&
         typeof data.managedSourceEnabled === 'object' &&
@@ -470,6 +473,35 @@ export function changePassword(
   return request<{ ok: true }>(
     '/api/user/password',
     { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) },
+    token,
+  )
+}
+
+/** 账号源条目（随账户走）：与服务端 AccountSourceEntry 同结构 */
+export interface AccountSourcePayload {
+  id: string
+  name: string
+  url: string
+  detailUrl?: string
+  timeout?: number
+  retry?: number
+  isEnabled: boolean
+  siteWide: boolean
+}
+
+/** 读取当前登录用户的账号源（随账户走，按账号隔离） */
+export function fetchUserSources(token: string): Promise<{ sources: AccountSourcePayload[] }> {
+  return request<{ sources: AccountSourcePayload[] }>('/api/user/sources', { method: 'GET' }, token)
+}
+
+/** 整体保存当前用户的账号源；站长开启全站生效的源由服务端同步派生到全站分发列表 */
+export function saveUserSources(
+  token: string,
+  sources: AccountSourcePayload[],
+): Promise<{ ok: true; sources: AccountSourcePayload[] }> {
+  return request<{ ok: true; sources: AccountSourcePayload[] }>(
+    '/api/user/sources',
+    { method: 'PUT', body: JSON.stringify({ sources }) },
     token,
   )
 }

@@ -67,6 +67,7 @@ export default function VideoSource() {
   const authMode = useAuthStore(state => state.authMode)
   const authRole = useAuthStore(state => state.user?.role)
   const canSeeManaged = authMode === 'legacy' || (authMode === 'server' && authRole === 'admin')
+  const isServerAdmin = authMode === 'server' && authRole === 'admin'
   const managedIdSet = new Set(managedSourceIds)
   const visibleAPIs = canSeeManaged
     ? videoAPIs
@@ -202,6 +203,7 @@ export default function VideoSource() {
       timeout: useSettingStore.getState().network.defaultTimeout || 3000,
       retry: useSettingStore.getState().network.defaultRetry || 3,
       isEnabled: true,
+      siteWide: false,
       updatedAt: new Date(),
     })
     setEditDialogOpen(true)
@@ -314,9 +316,13 @@ export default function VideoSource() {
       <SettingsSection
         title="视频源列表"
         description={
-          canSeeManaged
-            ? '在这里添加、编辑、导入、导出并控制视频源启用状态。'
-            : '管理员统一提供的源不在此显示（照常参与搜索与播放）；这里只管理你自己添加的源。'
+          isServerAdmin
+            ? '在这里添加、编辑、导入、导出并控制视频源启用状态。你手动添加的源会随账户同步（换设备登录也在），编辑源时可开启「全站生效」让所有用户都用上。'
+            : authMode === 'server'
+              ? '这里管理你自己添加的源，会随你的账户同步（换设备登录也在）；管理员统一提供的源不在此显示（照常参与搜索与播放）。'
+              : canSeeManaged
+                ? '在这里添加、编辑、导入、导出并控制视频源启用状态。'
+                : '管理员统一提供的源不在此显示（照常参与搜索与播放）；这里只管理你自己添加的源。'
         }
         icon={<Database className="size-4" />}
         tone="sky"

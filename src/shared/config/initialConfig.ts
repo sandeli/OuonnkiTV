@@ -62,6 +62,8 @@ export interface VideoSourceConfig {
   baseUrl?: string
   /** KVideo 源格式兼容：启用开关（等价于 isEnabled） */
   enabled?: boolean
+  /** 站长账号源的全站生效标记（解析初始源时透传） */
+  siteWide?: boolean
 }
 
 export interface SubscriptionConfig {

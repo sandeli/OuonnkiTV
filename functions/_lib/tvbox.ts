@@ -142,8 +142,15 @@ const SOURCES_CACHE_MS = 60_000
 export async function readTvboxSources(db: D1Database, env: AuthEnv): Promise<TvboxSource[]> {
   let raw = (await getSetting(db, 'initial_video_sources')) ?? env.TGYS_INITIAL_VIDEO_SOURCES ?? ''
   raw = raw.trim()
-  if (!raw) return []
-  if (sourcesCache && sourcesCache.key === raw && Date.now() - sourcesCache.at < SOURCES_CACHE_MS) {
+  // 站长开启「全站生效」的手动源（服务端派生，与网页端托管清单同一口径合并）
+  const siteWideRaw = ((await getSetting(db, 'admin_sitewide_sources')) ?? '').trim()
+  if (!raw && !siteWideRaw) return []
+  const cacheKey = `${raw}\n${siteWideRaw}`
+  if (
+    sourcesCache &&
+    sourcesCache.key === cacheKey &&
+    Date.now() - sourcesCache.at < SOURCES_CACHE_MS
+  ) {
     return sourcesCache.sources
   }
   let text = raw
@@ -159,13 +166,17 @@ export async function readTvboxSources(db: D1Database, env: AuthEnv): Promise<Tv
   const switches = await readManagedSourceEnabled(db)
   const seen = new Set<string>()
   const sources: TvboxSource[] = []
-  for (const entry of parseManagedSourcesJson(text)) {
-    const enabled = entry.id in switches ? switches[entry.id] : entry.enabled
-    if (!enabled || seen.has(entry.id)) continue
-    seen.add(entry.id)
-    sources.push({ id: entry.id, name: entry.name, api: entry.api })
+  const appendEntries = (entries: ParsedSourceEntry[]) => {
+    for (const entry of entries) {
+      const enabled = entry.id in switches ? switches[entry.id] : entry.enabled
+      if (!enabled || seen.has(entry.id)) continue
+      seen.add(entry.id)
+      sources.push({ id: entry.id, name: entry.name, api: entry.api })
+    }
   }
-  sourcesCache = { key: raw, at: Date.now(), sources }
+  appendEntries(parseManagedSourcesJson(text))
+  if (siteWideRaw) appendEntries(parseManagedSourcesJson(siteWideRaw))
+  sourcesCache = { key: cacheKey, at: Date.now(), sources }
   return sources
 }
 

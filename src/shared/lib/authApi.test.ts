@@ -50,6 +50,21 @@ describe('fetchAuthConfig', () => {
     expect((await fetchAuthConfig()).registrationCloseAt).toBe(0)
   })
 
+  it('透传站长全站源 siteWideSources（非法/缺失为空串）', async () => {
+    const stub = (payload: Record<string, unknown>) =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: true, json: async () => payload }),
+      )
+    const raw = '[{"id":"a1","name":"甲源","url":"https://a.example/api"}]'
+    stub({ authEnabled: true, siteWideSources: raw })
+    expect((await fetchAuthConfig()).siteWideSources).toBe(raw)
+    stub({ authEnabled: true })
+    expect((await fetchAuthConfig()).siteWideSources).toBe('')
+    stub({ authEnabled: true, siteWideSources: 42 })
+    expect((await fetchAuthConfig()).siteWideSources).toBe('')
+  })
+
   it('透传注册满员标记 registrationFull（缺失为 false）', async () => {
     const stub = (payload: Record<string, unknown>) =>
       vi.stubGlobal(

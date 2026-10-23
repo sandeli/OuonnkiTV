@@ -15,6 +15,7 @@ import { Switch } from '@/shared/components/ui/switch'
 import { Checkbox } from '@/shared/components/ui/checkbox'
 import { ConfirmModal } from '@/shared/components/common/ConfirmModal'
 import { useApiStore } from '@/shared/store/apiStore'
+import { useAuthStore } from '@/shared/store/authStore'
 import { toast } from 'sonner'
 import { cn } from '@/shared/lib'
 import { z } from 'zod'
@@ -42,6 +43,7 @@ const formSchema = z.object({
   retry: z.coerce.number().min(0, '重试次数需要大于等于0').optional(),
   updatedAt: z.coerce.date().default(() => new Date()),
   isEnabled: z.boolean().default(true),
+  siteWide: z.boolean().default(false),
 })
 
 type FormSchema = z.infer<typeof formSchema>
@@ -58,6 +60,13 @@ export default function VideoSourceEditDialog({
   onOpenChange,
 }: VideoSourceEditDialogProps) {
   const { addAndUpdateVideoAPI, removeVideoAPI, videoAPIs } = useApiStore()
+  const managedSourceIds = useApiStore(state => state.managedSourceIds)
+  // 「全站生效」开关仅站长（服务器账号模式）可见：站长手动源随账户同步，可逐个选择是否分发全站
+  const authMode = useAuthStore(state => state.authMode)
+  const authRole = useAuthStore(state => state.user?.role)
+  const canSiteWide = authMode === 'server' && authRole === 'admin'
+  // 来自站点基础托管清单（后台/环境变量）的源：本身就全站生效，不归这个开关管
+  const isBaseManaged = !!source && managedSourceIds.includes(source.id) && !source.siteWide
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [isRandomId, setIsRandomId] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -220,6 +229,40 @@ export default function VideoSourceEditDialog({
                   )}
                 />
               </div>
+
+              {/* 全站生效（仅站长）：手动源随账户同步，开启后本站所有用户都能用这个源 */}
+              {canSiteWide &&
+                (isBaseManaged ? (
+                  <div className="flex items-center justify-between rounded-lg">
+                    <div className="grid gap-0.5">
+                      <Label htmlFor="siteWideBase">全站生效</Label>
+                      <p className="text-muted-foreground text-xs">
+                        来自站点托管源清单（管理员后台 / 环境变量），始终对全站生效
+                      </p>
+                    </div>
+                    <Switch id="siteWideBase" checked disabled />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded-lg">
+                    <div className="grid gap-0.5">
+                      <Label htmlFor="siteWide">全站生效</Label>
+                      <p className="text-muted-foreground text-xs">
+                        你的源会随账户同步（换设备也在）；开启后本站所有用户都会同步到这个源
+                      </p>
+                    </div>
+                    <Controller
+                      control={control}
+                      name="siteWide"
+                      render={({ field }) => (
+                        <Switch
+                          id="siteWide"
+                          checked={field.value === true}
+                          onCheckedChange={field.onChange}
+                        />
+                      )}
+                    />
+                  </div>
+                ))}
 
               {/* 高级：视频源 ID */}
               <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>

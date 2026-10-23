@@ -22,6 +22,10 @@ import {
   validatePassword,
   validateUsername,
   verifyPassword,
+  parseAccountSources,
+  extractSiteWideSources,
+  normalizeAccountSourcesForUser,
+  MASTER_USER_ID,
   type AuthEnv,
   type D1Database,
 } from './auth'
@@ -243,6 +247,57 @@ describe('邀请码', () => {
     expect(inviteCodeStatus({ maxUses: 1, usedCount: 1, expiresAt: null }, now)).toBe('exhausted')
     expect(inviteCodeStatus({ maxUses: 3, usedCount: 1, expiresAt: now - 1 }, now)).toBe('expired')
     expect(inviteCodeStatus({ maxUses: 3, usedCount: 1, expiresAt: now + 60 }, now)).toBe('usable')
+  })
+})
+
+describe('站长账号源清洗', () => {
+  it('保留合法条目并归一字段（siteWide/isEnabled/timeout 钳制）', () => {
+    const out = parseAccountSources([
+      { id: 'a1', name: ' 源一 ', url: ' https://a.example/api ', isEnabled: false, siteWide: true, timeout: 999999, retry: -2 },
+      { id: 'b2', name: '源二', url: 'https://b.example/api', detailUrl: 'https://b.example/detail' },
+    ])
+    expect(out).toHaveLength(2)
+    expect(out[0]).toMatchObject({ id: 'a1', name: '源一', url: 'https://a.example/api', isEnabled: false, siteWide: true, timeout: 60000, retry: 0 })
+    expect(out[1]).toMatchObject({ id: 'b2', isEnabled: true, siteWide: false, detailUrl: 'https://b.example/detail' })
+  })
+
+  it('剔除非法条目：无名、无址、非 http 地址、订阅源 id 改派、重复 id 改派', () => {
+    const out = parseAccountSources([
+      { name: '', url: 'https://x.example/api' },
+      { name: '无址', url: '' },
+      { name: '坏址', url: 'ftp://x.example/api' },
+      { id: 'sub:sub1:1', name: '订阅形态', url: 'https://s.example/api' },
+      { id: 'dup', name: '甲', url: 'https://a.example/api' },
+      { id: 'dup', name: '乙', url: 'https://b.example/api' },
+      'garbage',
+      null,
+    ])
+    expect(out.map(s => s.name)).toEqual(['订阅形态', '甲', '乙'])
+    expect(out[0].id).not.toContain('sub:')
+    expect(new Set(out.map(s => s.id)).size).toBe(3)
+  })
+
+  it('非数组输入返回空；条数上限 200', () => {
+    expect(parseAccountSources(null)).toEqual([])
+    expect(parseAccountSources('nope')).toEqual([])
+    const many = Array.from({ length: 250 }, (_, i) => ({ name: `源${i}`, url: 'https://x.example/api' }))
+    expect(parseAccountSources(many)).toHaveLength(200)
+  })
+
+  it('extractSiteWideSources 只挑开启全站生效的', () => {
+    const list = parseAccountSources([
+      { id: 'a', name: '甲', url: 'https://a.example/api', siteWide: true },
+      { id: 'b', name: '乙', url: 'https://b.example/api' },
+    ])
+    expect(extractSiteWideSources(list).map(s => s.id)).toEqual(['a'])
+  })
+
+  it('普通用户的全站标记会被剥掉，站长的保留（防越权分发）', () => {
+    const list = parseAccountSources([
+      { id: 'a', name: '甲', url: 'https://a.example/api', siteWide: true },
+    ])
+    expect(normalizeAccountSourcesForUser(list, 42)[0].siteWide).toBe(false)
+    expect(normalizeAccountSourcesForUser(list, MASTER_USER_ID)[0].siteWide).toBe(true)
   })
 })
 

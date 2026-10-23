@@ -138,6 +138,13 @@ export function ensureSchema(db: D1Database): Promise<void> {
           )`,
         ),
         db.prepare(
+          `CREATE TABLE IF NOT EXISTS user_sources (
+            user_id INTEGER PRIMARY KEY,
+            sources TEXT NOT NULL DEFAULT '[]',
+            updated_at INTEGER NOT NULL DEFAULT 0
+          )`,
+        ),
+        db.prepare(
           `CREATE TABLE IF NOT EXISTS invite_codes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT NOT NULL UNIQUE,
@@ -501,6 +508,126 @@ export function sanitizeManagedSourceEnabled(value: unknown): Record<string, boo
     if (Object.keys(result).length >= 500) break
   }
   return result
+}
+
+// ---------- 站长账号源（随账户走，不随浏览器） ----------
+
+/** 站长在设置页手动维护的源条目（存 user_sources 表，随账号在任意设备登录可见） */
+export interface AccountSourceEntry {
+  id: string
+  name: string
+  url: string
+  detailUrl?: string
+  timeout?: number
+  retry?: number
+  isEnabled: boolean
+  /** 全站生效：开启后该源派生进全站分发列表，所有用户都能用 */
+  siteWide: boolean
+}
+
+export const ACCOUNT_SOURCES_LIMIT = 200
+
+/**
+ * 清洗站长账号源列表（不可信输入）：仅保留结构合法的条目。
+ * id 原样保留（uuid/自定义 id 都行），但订阅源 id（sub: 前缀）与重复 id 会被改派为 acct_N；
+ * 名称/地址必填且地址必须是 http(s)。
+ */
+export function parseAccountSources(input: unknown): AccountSourceEntry[] {
+  if (!Array.isArray(input)) return []
+  const out: AccountSourceEntry[] = []
+  const seen = new Set<string>()
+  for (const raw of input) {
+    if (out.length >= ACCOUNT_SOURCES_LIMIT) break
+    if (!raw || typeof raw !== 'object') continue
+    const e = raw as Record<string, unknown>
+    const name = typeof e.name === 'string' ? e.name.trim().slice(0, 100) : ''
+    const url = typeof e.url === 'string' ? e.url.trim() : ''
+    if (!name || !/^https?:\/\//i.test(url)) continue
+    let id = typeof e.id === 'string' ? e.id.trim().slice(0, 128) : ''
+    if (!id || id.startsWith('sub:') || seen.has(id)) {
+      let n = out.length + 1
+      id = `acct_${n}`
+      while (seen.has(id)) id = `acct_${++n}`
+    }
+    seen.add(id)
+    const detailUrl =
+      typeof e.detailUrl === 'string' && /^https?:\/\//i.test(e.detailUrl.trim())
+        ? e.detailUrl.trim()
+        : undefined
+    const timeout =
+      typeof e.timeout === 'number' && Number.isFinite(e.timeout)
+        ? Math.min(60_000, Math.max(300, Math.round(e.timeout)))
+        : undefined
+    const retry =
+      typeof e.retry === 'number' && Number.isFinite(e.retry)
+        ? Math.min(10, Math.max(0, Math.round(e.retry)))
+        : undefined
+    out.push({
+      id,
+      name,
+      url,
+      ...(detailUrl ? { detailUrl } : {}),
+      ...(timeout !== undefined ? { timeout } : {}),
+      ...(retry !== undefined ? { retry } : {}),
+      isEnabled: e.isEnabled !== false,
+      siteWide: e.siteWide === true,
+    })
+  }
+  return out
+}
+
+/** 从账号源中挑出开启「全站生效」的子集（派生为全站分发列表的内容） */
+export function extractSiteWideSources(
+  list: AccountSourceEntry[],
+): AccountSourceEntry[] {
+  return list.filter(s => s.siteWide)
+}
+
+export async function getUserSources(
+  db: D1Database,
+  userId: number,
+): Promise<AccountSourceEntry[]> {
+  const row = await db
+    .prepare('SELECT sources FROM user_sources WHERE user_id = ?')
+    .bind(userId)
+    .first<{ sources: string }>()
+  if (!row?.sources) return []
+  try {
+    return parseAccountSources(JSON.parse(row.sources))
+  } catch {
+    return []
+  }
+}
+
+/** 账号源按用户归一：只有站长的源可以带「全站生效」标记，普通用户的标记一律剥掉（防越权分发） */
+export function normalizeAccountSourcesForUser(
+  list: AccountSourceEntry[],
+  userId: number,
+): AccountSourceEntry[] {
+  if (userId === MASTER_USER_ID) return list
+  return list.map(s => (s.siteWide ? { ...s, siteWide: false } : s))
+}
+
+/**
+ * 保存账号源（清洗后整体覆盖）。站长保存时同步派生全站分发列表
+ * （settings 键 admin_sitewide_sources，公开配置与 TVBox 接口都读它）。
+ */
+export async function saveUserSources(
+  db: D1Database,
+  userId: number,
+  sources: unknown,
+): Promise<AccountSourceEntry[]> {
+  const cleaned = normalizeAccountSourcesForUser(parseAccountSources(sources), userId)
+  await db
+    .prepare(
+      'INSERT INTO user_sources (user_id, sources, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET sources = excluded.sources, updated_at = excluded.updated_at',
+    )
+    .bind(userId, JSON.stringify(cleaned), Math.floor(Date.now() / 1000))
+    .run()
+  if (userId === MASTER_USER_ID) {
+    await setSetting(db, 'admin_sitewide_sources', JSON.stringify(extractSiteWideSources(cleaned)))
+  }
+  return cleaned
 }
 
 export async function getSetting(db: D1Database, key: string): Promise<string | null> {

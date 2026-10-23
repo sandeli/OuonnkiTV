@@ -16,6 +16,8 @@ export interface VideoSource {
   retry?: number
   /** 是否启用 */
   isEnabled: boolean
+  /** 站长账号源的全站生效标记：开启后该源随站长账户同步并分发给全站用户 */
+  siteWide?: boolean
   /** 最后更新时间 */
   updatedAt?: Date
 }

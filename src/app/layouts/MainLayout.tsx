@@ -14,6 +14,7 @@ import { useSubscriptionAutoRefresh } from '@/shared/hooks/useSubscriptionAutoRe
 import { useScrollChromeVisibility } from '@/shared/hooks'
 import { useLocation } from 'react-router'
 import { getInitialContentConfigId, hashConfigValue } from '@/shared/config/runtimeEnv'
+import { startAccountSourceSync } from '@/shared/lib/accountSourceSync'
 
 const UpdateModal = lazy(() => import('@/shared/components/UpdateModal'))
 
@@ -43,14 +44,18 @@ export default function MainLayout() {
   useSubscriptionAutoRefresh()
 
   const adminVideoSources = useAuthStore(state => state.authConfig?.initialVideoSources ?? '')
+  const siteWideSources = useAuthStore(state => state.authConfig?.siteWideSources ?? '')
 
   // 初始化逻辑 (从 MyRouter 迁移)
   useEffect(() => {
-    // 指纹纳入管理员后台视频源：管理员改源后，所有客户端下次打开自动重新导入
+    // 指纹纳入管理员后台视频源与站长全站源：管理员改源后，所有客户端下次打开自动重新导入
     const adminSegment = adminVideoSources.trim()
       ? `:adminsrc:${hashConfigValue(adminVideoSources.trim())}`
       : ''
-    const initialContentConfigId = getInitialContentConfigId() + adminSegment
+    const siteWideSegment = siteWideSources.trim()
+      ? `:sitesrc:${hashConfigValue(siteWideSources.trim())}`
+      : ''
+    const initialContentConfigId = getInitialContentConfigId() + adminSegment + siteWideSegment
     const needsInitialization =
       localStorage.getItem('initialContentConfigId') !== initialContentConfigId
     if (needsInitialization) {
@@ -64,7 +69,17 @@ export default function MainLayout() {
       }
       void initialize()
     }
-  }, [initializeEnvSources, initializeEnvSubscriptions, adminVideoSources])
+  }, [initializeEnvSources, initializeEnvSubscriptions, adminVideoSources, siteWideSources])
+
+  // 账号源同步：登录用户手动添加的源随账户走（存服务端），换设备登录自动同步回来；
+  // 站长开启「全站生效」的源还会派生进全站分发；旧单密码/开放模式无账户，不启动
+  const authMode = useAuthStore(state => state.authMode)
+  const authUserId = useAuthStore(state => state.user?.id)
+  const authToken = useAuthStore(state => state.token)
+  useEffect(() => {
+    if (authMode !== 'server' || authUserId == null || !authToken) return
+    return startAccountSourceSync(authUserId)
+  }, [authMode, authUserId, authToken])
 
   // 版本更新检查（仅管理员：普通用户不弹更新日志）
   useEffect(() => {

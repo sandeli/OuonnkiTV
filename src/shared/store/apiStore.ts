@@ -22,6 +22,7 @@ import { DEFAULT_SETTINGS } from '@/shared/config/settings.config'
 import { v4 as uuidv4 } from 'uuid'
 import { useSettingStore } from './settingStore'
 import { INITIAL_CONFIG } from '@/shared/config/initialConfig'
+import { applyAccountMirror } from '@/shared/lib/accountSources'
 
 // 保持向后兼容的类型别名
 export type VideoApi = VideoSource
@@ -58,6 +59,11 @@ interface ApiState {
   managedSourceIds: string[]
   // 托管标记的存量补全版本：0 = 还没给旧版本导入的源补过标记
   managedTrackingVersion: number
+  // 账号源 id 集合：这些源随当前登录用户的账户同步（存服务端），换设备登录也在；
+  // 站长的源中开启「全站生效」的会以托管源形态出现，id 同样登记在这里
+  accountSourceIds: string[]
+  // 账号源归属的用户 id：同一浏览器换账号登录时，据此清掉上一账号同步下来的源、防止串号
+  accountSourceOwnerId: number | null
 }
 
 interface ApiActions {
@@ -89,6 +95,10 @@ interface ApiActions {
   removeSubscriptionSources: (subscriptionId: string) => void
   // 按 ID 数组顺序重排视频源（拖拽排序 / 一键按延迟排序）
   reorderVideoAPIs: (orderedIds: string[]) => void
+  // 把服务端账户源镜像进本地列表（登录后同步用，逻辑见 lib/accountSources）
+  applyAccountSources: (sources: VideoSource[]) => void
+  // 账号源同步开始前调用：归属用户变了就先清掉上一账号同步下来的源并改记归属
+  beginAccountSyncForUser: (userId: number) => void
 }
 
 type ApiStore = ApiState & ApiActions
@@ -118,6 +128,8 @@ export const useApiStore = create<ApiStore>()(
         adFilteringEnabled: true,
         managedSourceIds: [],
         managedTrackingVersion: 0,
+        accountSourceIds: [],
+        accountSourceOwnerId: null,
 
         // Actions - 使用cms-core纯函数
         setApiEnabled: (apiId: string, enabled: boolean) => {
@@ -381,6 +393,35 @@ export const useApiStore = create<ApiStore>()(
             })
           })
         },
+
+        applyAccountSources: (sources: VideoSource[]) => {
+          set(state => {
+            const mirrored = applyAccountMirror(
+              state.videoAPIs,
+              state.accountSourceIds,
+              sources,
+              state.managedSourceIds,
+            )
+            state.videoAPIs = mirrored.videoAPIs
+            state.accountSourceIds = mirrored.accountSourceIds
+          })
+        },
+
+        beginAccountSyncForUser: (userId: number) => {
+          set(state => {
+            if (state.accountSourceOwnerId === userId) return
+            // 换了账号：上一账号同步下来的个人源先从本地列表摘除（托管源不受影响），再改记归属
+            const mirrored = applyAccountMirror(
+              state.videoAPIs,
+              state.accountSourceIds,
+              [],
+              state.managedSourceIds,
+            )
+            state.videoAPIs = mirrored.videoAPIs
+            state.accountSourceIds = []
+            state.accountSourceOwnerId = userId
+          })
+        },
       })),
       {
         name: 'tgys-tv-api-store',
@@ -394,6 +435,12 @@ export const useApiStore = create<ApiStore>()(
 
           if (!Array.isArray(state.managedSourceIds)) {
             state.managedSourceIds = []
+          }
+          if (!Array.isArray(state.accountSourceIds)) {
+            state.accountSourceIds = []
+          }
+          if (typeof state.accountSourceOwnerId !== 'number') {
+            state.accountSourceOwnerId = null
           }
           if (typeof state.managedTrackingVersion !== 'number') {
             state.managedTrackingVersion = 0

@@ -124,6 +124,7 @@ export const parseVideoSources = (sources: VideoSourceConfig[]): VideoApi[] => {
         url,
         detailUrl: source.detailUrl || url,
         isEnabled: source.isEnabled ?? source.enabled ?? true,
+        siteWide: source.siteWide === true ? true : undefined,
         updatedAt: source.updatedAt ? new Date(source.updatedAt) : new Date(),
         timeout: source.timeout ?? DEFAULT_SETTINGS.network.defaultTimeout,
         retry: source.retry ?? DEFAULT_SETTINGS.network.defaultRetry,
@@ -195,17 +196,38 @@ export const getManagedSourceEnabled = (): Record<string, boolean> => {
   )
 }
 
+/** 合并两份托管源清单：extra 中与 base 同 id 的条目覆盖 base，extra 独有条目追加在后 */
+export function mergeManagedSourceLists(base: VideoApi[], extra: VideoApi[]): VideoApi[] {
+  if (extra.length === 0) return base
+  const extraIds = new Set(extra.map(s => s.id))
+  return [...base.filter(s => !extraIds.has(s.id)), ...extra]
+}
+
 export const getInitialVideoSources = async (): Promise<VideoApi[]> => {
+  let base: VideoApi[] | null = null
   try {
     const adminSources = useAuthStore.getState().authConfig?.initialVideoSources
     if (adminSources && adminSources.trim()) {
-      return loadVideoSources(adminSources)
+      base = await loadVideoSources(adminSources)
     }
   } catch {
     // 忽略：未初始化时按环境变量走
   }
-  if (INITIAL_CONFIG && INITIAL_CONFIG.videoSources !== undefined) {
-    return loadVideoSources(INITIAL_CONFIG.videoSources)
+  if (base === null) {
+    base =
+      INITIAL_CONFIG && INITIAL_CONFIG.videoSources !== undefined
+        ? await loadVideoSources(INITIAL_CONFIG.videoSources)
+        : await loadVideoSources(getPublicEnv('TGYS_INITIAL_VIDEO_SOURCES'))
   }
-  return loadVideoSources(getPublicEnv('TGYS_INITIAL_VIDEO_SOURCES'))
+  // 站长在设置页开启「全站生效」的手动源（随站长账户同步、服务端派生分发）：与基础托管源合并成一份托管清单
+  try {
+    const siteWideSources = useAuthStore.getState().authConfig?.siteWideSources
+    if (siteWideSources && siteWideSources.trim()) {
+      const extra = await loadVideoSources(siteWideSources)
+      return mergeManagedSourceLists(base, extra)
+    }
+  } catch {
+    // 忽略：全站源解析失败时只用基础托管源
+  }
+  return base
 }

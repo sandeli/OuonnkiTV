@@ -29,12 +29,13 @@ export const onRequest = async (context: PagesContext) => {
       announcementBar: '',
       doubanProxy: DEFAULT_DOUBAN_PROXY,
       initialVideoSources: '',
+      siteWideSources: '',
       managedSourceEnabled: {} as Record<string, boolean>,
       siteBehavior: {},
     })
   }
   await ensureSchema(db)
-  const [enabled, content, version, barContent, doubanProxy, videoSources, managedSourceEnabled, registrationMode, registrationOpenAt, registrationCloseAt, registrationFull] =
+  const [enabled, content, version, barContent, doubanProxy, videoSources, siteWideSources, managedSourceEnabled, registrationMode, registrationOpenAt, registrationCloseAt, registrationFull] =
     await Promise.all([
     getSetting(db, 'announcement_popup_enabled'),
     getSetting(db, 'announcement_popup_content'),
@@ -42,6 +43,7 @@ export const onRequest = async (context: PagesContext) => {
     getSetting(db, 'announcement_bar_content'),
     readDoubanProxySettings(db),
     getSetting(db, 'initial_video_sources'),
+    getSetting(db, 'admin_sitewide_sources'),
     readManagedSourceEnabled(db),
     getRegistrationMode(db, context.env),
     getRegistrationOpenAt(db),
@@ -64,6 +66,7 @@ export const onRequest = async (context: PagesContext) => {
     announcementBar: barContent ?? '',
     doubanProxy,
     initialVideoSources: videoSources ?? '',
+    siteWideSources: siteWideSources ?? '',
     managedSourceEnabled,
     siteBehavior: await readSiteBehavior(db),
   })

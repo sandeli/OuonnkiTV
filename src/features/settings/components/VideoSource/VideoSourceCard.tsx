@@ -78,12 +78,30 @@ export default function VideoSourceCard({ source, onEdit }: VideoSourceCardProps
         </div>
       </div>
       {/* 第二行：Badge + 测速(移动端) + 附加信息 */}
-      <SecondaryInfo source={source} isSub={isSub} />
+      <SecondaryInfo source={source} isSub={isSub} isManaged={isManaged} />
     </div>
   )
 }
 
-function SecondaryInfo({ source, isSub }: { source: VideoSource; isSub: boolean }) {
+type SourceBadgeKind = 'sub' | 'sitewide' | 'managed' | 'manual'
+
+function SecondaryInfo({
+  source,
+  isSub,
+  isManaged,
+}: {
+  source: VideoSource
+  isSub: boolean
+  isManaged: boolean
+}) {
+  // 来源标签：订阅源 / 全站源（站长手动添加并开启全站生效）/ 后台源（管理员后台或环境变量统一设置）/ 手动源（自己手动添加）
+  const badgeKind: SourceBadgeKind = isSub
+    ? 'sub'
+    : source.siteWide
+      ? 'sitewide'
+      : isManaged
+        ? 'managed'
+        : 'manual'
   const subscriptionId = isSub ? extractSubscriptionId(source.id) : null
   const subscription = useSubscriptionStore(state =>
     subscriptionId ? state.subscriptions.find(s => s.id === subscriptionId) : undefined,
@@ -91,19 +109,33 @@ function SecondaryInfo({ source, isSub }: { source: VideoSource; isSub: boolean 
 
   return (
     <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
-      {isSub ? (
+      {badgeKind === 'sub' ? (
         <Badge
           variant="outline"
           className="border-violet-500/30 text-violet-600 dark:text-violet-400 h-5 text-[10px]"
         >
           订阅源
         </Badge>
+      ) : badgeKind === 'sitewide' ? (
+        <Badge
+          variant="outline"
+          className="h-5 border-emerald-500/40 text-[10px] text-emerald-600 dark:text-emerald-400"
+        >
+          全站源
+        </Badge>
+      ) : badgeKind === 'managed' ? (
+        <Badge
+          variant="outline"
+          className="h-5 border-amber-500/40 text-[10px] text-amber-600 dark:text-amber-400"
+        >
+          后台源
+        </Badge>
       ) : (
         <Badge
           variant="outline"
           className="border-sky-500/30 text-sky-600 h-5 text-[10px] dark:border-emerald-700/40 dark:text-emerald-300"
         >
-          自建源
+          手动源
         </Badge>
       )}
       {/* 移动端测速结果显示在 Badge 右侧 */}
