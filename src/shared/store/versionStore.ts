@@ -57,6 +57,14 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.5.1',
+    title: '视频源说明文案精简',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: ['管理员后台「视频源」说明去掉举例链接文字，表述更简洁。'],
+    breaking: [],
+  },
+  {
     version: '2.5.0',
     title: '豆瓣分类整页：点栏目名看 100 部',
     date: formatDate('2026-10-23'),

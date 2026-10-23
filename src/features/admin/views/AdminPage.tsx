@@ -609,8 +609,8 @@ export default function AdminPage() {
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">视频源</span>
           <span className="text-muted-foreground text-xs">
-            与环境变量 TGYS_INITIAL_VIDEO_SOURCES 同格式：可填远程 JSON 地址（如 KVideo 的
-            lite.json 链接）或直接粘贴内联 JSON；本项非空时优先于环境变量生效，保存后所有用户下次打开站点自动重新导入
+            与环境变量 TGYS_INITIAL_VIDEO_SOURCES 同格式：可填远程 JSON 地址或直接粘贴内联
+            JSON；本项非空时优先于环境变量生效，保存后所有用户下次打开站点自动重新导入
           </span>
         </div>
         <Textarea
