@@ -152,3 +152,31 @@ describe('弹幕速度换算', () => {
     expect(danmakuMultiplierFromDuration(0)).toBe(1)
   })
 })
+
+describe('resolveDanmakuApiUrl 优先级', () => {
+  it('用户自有地址最高优先，并去掉末尾斜杠', async () => {
+    const { useAuthStore } = await import('@/shared/store/authStore')
+    useAuthStore.setState({
+      authConfig: { siteBehavior: { danmakuApiUrl: 'https://site.example.com' } } as never,
+    })
+    const { resolveDanmakuApiUrl } = await import('./danmaku')
+    expect(resolveDanmakuApiUrl('https://own.example.com/')).toBe('https://own.example.com')
+  })
+
+  it('用户未填时用管理员后台的站点默认接口', async () => {
+    const { useAuthStore } = await import('@/shared/store/authStore')
+    useAuthStore.setState({
+      authConfig: { siteBehavior: { danmakuApiUrl: 'https://site.example.com/' } } as never,
+    })
+    const { resolveDanmakuApiUrl } = await import('./danmaku')
+    expect(resolveDanmakuApiUrl('')).toBe('https://site.example.com')
+    expect(resolveDanmakuApiUrl(undefined)).toBe('https://site.example.com')
+  })
+
+  it('用户与站点都没设置时返回空串（测试环境无部署变量）', async () => {
+    const { useAuthStore } = await import('@/shared/store/authStore')
+    useAuthStore.setState({ authConfig: { siteBehavior: {} } as never })
+    const { resolveDanmakuApiUrl } = await import('./danmaku')
+    expect(resolveDanmakuApiUrl('')).toBe('')
+  })
+})

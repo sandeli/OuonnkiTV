@@ -59,6 +59,7 @@ export default function AdminPage() {
   const [sbTmdbImageBase, setSbTmdbImageBase] = useState('')
   const [sbTmdbLanguage, setSbTmdbLanguage] = useState('zh-CN')
   const [sbTmdbQuality, setSbTmdbQuality] = useState('medium')
+  const [sbDanmakuApiUrl, setSbDanmakuApiUrl] = useState('')
   const [sbSaving, setSbSaving] = useState(false)
   const [doubanDataType, setDoubanDataType] = useState('direct')
   const [doubanDataUrl, setDoubanDataUrl] = useState('')
@@ -100,6 +101,7 @@ export default function AdminPage() {
       setSbTmdbImageBase(sb.tmdbImageBaseUrl ?? '')
       setSbTmdbLanguage(sb.tmdbLanguage ?? 'zh-CN')
       setSbTmdbQuality(sb.tmdbImageQuality ?? 'medium')
+      setSbDanmakuApiUrl(sb.danmakuApiUrl ?? '')
     } catch {
       toast.error('加载管理员数据失败')
     }
@@ -230,6 +232,7 @@ export default function AdminPage() {
         tmdbImageBaseUrl: sbTmdbImageBase,
         tmdbLanguage: sbTmdbLanguage,
         tmdbImageQuality: sbTmdbQuality,
+        danmakuApiUrl: sbDanmakuApiUrl,
       })
       const sb = result.siteBehavior ?? {}
       setSbTmdbToken(sb.tmdbApiToken ?? '')
@@ -743,6 +746,19 @@ export default function AdminPage() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div>
+            <p className="text-sm font-medium">弹幕接口地址</p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              全站默认的弹弹play 兼容接口地址。优先级：用户在播放设置里填的自有地址高于此处，
+              此处高于部署变量 TGYS_DANMAKU_API_URL；留空表示不设置（回退部署变量）。
+            </p>
+            <Input
+              className="mt-2"
+              placeholder="https://danmaku.example.com"
+              value={sbDanmakuApiUrl}
+              onChange={e => setSbDanmakuApiUrl(e.target.value)}
+            />
           </div>
           <div>
             <Button size="sm" disabled={sbSaving} onClick={() => void handleSaveSiteBehavior()}>

@@ -579,10 +579,12 @@ export interface SiteBehaviorSettings {
   tmdbImageBaseUrl?: string
   tmdbLanguage?: string
   tmdbImageQuality?: string
+  /** 站点默认弹幕接口地址（弹弹play 兼容接口）；优先级低于用户个人设置、高于部署变量 */
+  danmakuApiUrl?: string
 }
 
 export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSettings> {
-  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality] =
+  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality, danmakuUrl] =
     await Promise.all([
       getSetting(db, 'site_update_log_enabled'),
       getSetting(db, 'site_scroll_chrome_animation'),
@@ -592,6 +594,7 @@ export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSett
       getSetting(db, 'tmdb_image_base_url'),
       getSetting(db, 'tmdb_language'),
       getSetting(db, 'tmdb_image_quality'),
+      getSetting(db, 'site_danmaku_api_url'),
     ])
   const out: SiteBehaviorSettings = {}
   if (updateLog !== null) out.updateLogEnabled = updateLog === '1'
@@ -606,6 +609,7 @@ export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSett
   if (tmdbQuality !== null && (TMDB_IMAGE_QUALITIES as readonly string[]).includes(tmdbQuality)) {
     out.tmdbImageQuality = tmdbQuality
   }
+  if (danmakuUrl !== null) out.danmakuApiUrl = danmakuUrl
   return out
 }
 

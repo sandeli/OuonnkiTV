@@ -1,6 +1,6 @@
 import { getPublicEnv } from '@/shared/config/runtimeEnv'
 import { useSettingStore } from '@/shared/store/settingStore'
-import { buildProxyRequestUrl } from '@/shared/config/api.config'
+import { buildProxyRequestUrl, getSiteBehavior } from '@/shared/config/api.config'
 
 /**
  * 弹幕数据层（弹弹play 兼容接口 / danmu_api 协议）：
@@ -8,7 +8,8 @@ import { buildProxyRequestUrl } from '@/shared/config/api.config'
  * 2. 匹配剧集与集数后拉取评论：GET {api}/api/v2/comment/<episodeId>?withRelated=true
  * 请求统一走本站 /proxy（遵循网络设置），避免接口跨域问题。
  *
- * 接口地址优先级：用户在播放设置中填的自有地址 > 部署变量 TGYS_DANMAKU_API_URL > 无（不启用弹幕）。
+ * 接口地址优先级：用户在播放设置中填的自有地址 > 管理员后台的站点默认接口
+ * > 部署变量 TGYS_DANMAKU_API_URL > 无（不启用弹幕）。
  */
 
 /** artplayer-plugin-danmuku 的弹幕项（mode: 0 滚动 / 1 顶部 / 2 底部） */
@@ -53,10 +54,12 @@ export interface DanmakuAnime {
   episodes: DanmakuEpisode[]
 }
 
-/** 解析最终生效的弹幕接口地址：用户自有地址优先，其次部署变量；都没有返回空串 */
+/** 解析最终生效的弹幕接口地址：用户自有地址 > 管理员后台站点默认 > 部署变量；都没有返回空串 */
 export function resolveDanmakuApiUrl(userUrl?: string | null): string {
   const own = (userUrl ?? '').trim().replace(/\/+$/, '')
   if (own) return own
+  const site = (getSiteBehavior().danmakuApiUrl ?? '').trim().replace(/\/+$/, '')
+  if (site) return site
   return (getPublicEnv('TGYS_DANMAKU_API_URL') ?? '').trim().replace(/\/+$/, '')
 }
 

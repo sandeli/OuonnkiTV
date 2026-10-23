@@ -69,6 +69,7 @@ describe('fetchAuthConfig', () => {
           siteBehavior: {
             tmdbApiToken: 'site-token-123',
             tmdbEnabled: true,
+            danmakuApiUrl: 'https://danmaku.example.com',
             tmdbLanguage: 'zh-CN',
             tmdbImageQuality: 'ultra',
             updateLogEnabled: 'yes',
@@ -81,6 +82,7 @@ describe('fetchAuthConfig', () => {
     expect(config.siteBehavior).toEqual({
       tmdbApiToken: 'site-token-123',
       tmdbEnabled: true,
+      danmakuApiUrl: 'https://danmaku.example.com',
       tmdbLanguage: 'zh-CN',
       scrollChromeAnimationEnabled: false,
     })

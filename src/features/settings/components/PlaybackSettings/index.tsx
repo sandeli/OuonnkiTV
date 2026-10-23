@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSettingStore } from '@/shared/store/settingStore'
 import { useApiStore } from '@/shared/store/apiStore'
+import { useAuthStore } from '@/shared/store/authStore'
 import { useTmdbEnabled } from '@/shared/hooks/useTmdbMode'
 import { clearBusinessCaches } from '@/shared/lib/cache/businessCache'
 import { ConfirmModal } from '@/shared/components/common/ConfirmModal'
@@ -37,6 +38,11 @@ export default function PlaybackSettings() {
   const tmdbEnabled = useTmdbEnabled()
   const [confirmClearCacheOpen, setConfirmClearCacheOpen] = useState(false)
   const danmakuEnvUrl = (getPublicEnv('TGYS_DANMAKU_API_URL') ?? '').trim()
+  // 站点默认接口：管理员后台设置优先于部署变量（与播放器实际解析顺序一致）
+  const danmakuSiteUrl = useAuthStore(
+    state => state.authConfig?.siteBehavior?.danmakuApiUrl ?? '',
+  ).trim()
+  const danmakuDefaultUrl = danmakuSiteUrl || danmakuEnvUrl
 
   return (
     <SettingsPageShell
@@ -364,7 +370,7 @@ export default function PlaybackSettings() {
       </SettingsSection>
       <SettingsSection
         title="弹幕"
-        description="播放时按片名与集数自动匹配弹幕。接口地址留空时使用站点默认接口（部署变量 TGYS_DANMAKU_API_URL），都没有则不启用。"
+        description="播放时按片名与集数自动匹配弹幕。接口地址留空时使用站点默认接口（管理员后台设置优先，其次部署变量），都没有则不启用。"
         icon={<MessagesSquare className="size-4" />}
         tone="emerald"
       >
@@ -382,8 +388,8 @@ export default function PlaybackSettings() {
         <SettingsItem
           title="弹幕接口地址"
           description={
-            danmakuEnvUrl
-              ? `留空时使用站点默认接口：${danmakuEnvUrl}`
+            danmakuDefaultUrl
+              ? '留空时使用站点默认接口（地址不在此显示）。'
               : '填你自己的弹弹play 兼容接口地址；站点未配置默认接口，不填则无弹幕。'
           }
           control={

@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.7.0',
+    title: '弹幕接口搬进管理员后台',
+    date: formatDate('2026-10-23'),
+    features: [
+      '管理员后台「系统行为」新增弹幕接口地址：全站默认弹幕接口可在后台维护、保存即生效。优先级为用户个人设置 > 管理员后台 > 部署变量 TGYS_DANMAKU_API_URL，用户个人弹幕选项保持不变。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.6.0',
     title: '跳过切片广告升级为真移除',
     date: formatDate('2026-10-23'),
