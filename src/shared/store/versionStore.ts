@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.13.1',
+    title: 'TVBox 聚合恢复全部线路与全部集数',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '按反馈撤销 v2.13.0 的 MoonTV 式单集线路：聚合详情恢复全部线路、全部集数下发（每个源的线路组与完整剧集都在，按实测速度排序、最快排第一）；图片墙详情 id 固定与测速分批保留。提醒：影视 5.6.4 切后排线路的崩溃是 APP 自身的空值 bug，全量显示时仍可能触发，根治请把影视 APP 升到最新版。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.13.0',
     title: 'TVBox 聚合改用 MoonTV 同款逻辑',
     date: formatDate('2026-10-23'),

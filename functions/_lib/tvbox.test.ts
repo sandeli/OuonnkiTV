@@ -243,7 +243,7 @@ describe('聚合详情的子请求预算', () => {
   })
 })
 
-describe('聚合详情的 APP 崩溃缓解', () => {
+describe('聚合详情的 id 稳定与全量下发', () => {
   it('图片墙详情的 vod_id 固定为 wall__<片名>，不随主源漂移', async () => {
     const { aggWallDetail } = await import('./tvbox')
     const detailRecord = {
@@ -277,16 +277,16 @@ describe('聚合详情的 APP 崩溃缓解', () => {
       const record = await aggWallDetail(sources, '墙片甲')
       expect(record).not.toBeNull()
       expect(record?.vod_id).toBe('wall__墙片甲')
-      // MoonTV 同款：每条线路里只含第一集（桩对两个源返回同一详情，故两条线相同）
+      // 线路全量下发：每条线路装该源的完整选集（桩对两个源返回同一详情，故两条线相同）
       const wallUrls = String(record?.vod_play_url).split('$$$')
       expect(wallUrls.length).toBeGreaterThan(0)
-      for (const u of wallUrls) expect(u).toBe('正片$https://cdn.test/wa.m3u8')
+      for (const u of wallUrls) expect(u).toBe('第1集$https://cdn.test/wa.m3u8')
     } finally {
       vi.unstubAllGlobals()
     }
   })
 
-  it('MoonTV 同款：每个源只出一条线路、只含第一集（正片）', async () => {
+  it('线路与集数全量下发：每个源的全部线路组、每组完整剧集', async () => {
     const { aggDetail } = await import('./tvbox')
     const stub = async (input: unknown) => {
       const url = String(input)
@@ -326,12 +326,13 @@ describe('聚合详情的 APP 崩溃缓解', () => {
       expect(record).not.toBeNull()
       const froms = String(record?.vod_play_from).split('$$$')
       const urls = String(record?.vod_play_url).split('$$$')
-      // 6 个源 = 6 条线路；每条只含第一集：正片$<第一组第一集地址>，不带后续集数和其他线路组
-      expect(froms).toHaveLength(6)
-      expect(urls).toHaveLength(6)
-      for (const u of urls) {
-        expect(u).toMatch(/^正片\$https:\/\/cdn\.test\/c\d\.test\/1\.m3u8$/)
-      }
+      // 6 个源 × 每源 2 个线路组 = 12 条线路，全部下发；每条装该组完整剧集（# 分隔多集）
+      expect(froms).toHaveLength(12)
+      expect(urls).toHaveLength(12)
+      expect(urls).toContain(
+        '第1集$https://cdn.test/c1.test/1.m3u8#第2集$https://cdn.test/c1.test/1e2.m3u8',
+      )
+      expect(urls).toContain('第1集$https://cdn.test/c6.test/2.m3u8')
     } finally {
       vi.unstubAllGlobals()
     }

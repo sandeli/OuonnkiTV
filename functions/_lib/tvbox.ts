@@ -623,10 +623,10 @@ export interface AggHit {
   tier: number
 }
 
-/** 聚合详情最多取几个源（主源 + 跨源）：与 MoonTV 同款取前 8 个，也受 Cloudflare 单请求子请求预算约束 */
-const MAX_DETAIL_CANDIDATES = 8
+/** 聚合详情最多取几个源（主源 + 跨源）：线路全量下发，仅受 Cloudflare 单请求子请求预算约束必须封顶 */
+const MAX_DETAIL_CANDIDATES = 10
 /** 最多给多少条线路做分片测速（其余按档位排在后面，标签不带速度） */
-const MAX_PROBE_CANDIDATES = 8
+const MAX_PROBE_CANDIDATES = 10
 /** 测速分批大小：全并发会把子请求预算半路耗尽、随机打死一片；分批保证靠前的线路先测完 */
 const PROBE_BATCH_SIZE = 3
 
@@ -725,21 +725,22 @@ export async function aggDetail(
       a.probe.ttfbMs - b.probe.ttfbMs,
   )
 
-  // MoonTV 同款逻辑：每个源只出一条线路、线路里只含第一集（正片），按速度排序。
-  // 旧逻辑把各源完整剧集拼进一个详情（集数参差），影视（FongMi）5.6.4 切线路对集时
-  // 踩中自身空值 bug 崩溃；单集线路没有跨线路对集这一步，从形状上避开。
-  // 看后续集数走各源直连站（配置里每个源都有独立站点，与 MoonTV 一致）。
+  // 线路与集数全量下发（用户明确要求）：每个源的全部线路组、每组完整剧集都拼进详情，
+  // 按（档位，测通，吞吐）排序、最快源排第一。曾试过 MoonTV 式「每源一条线只含第一集」
+  // 来绕影视 5.6.4 的切线路崩溃，被用户否决；崩溃是 APP 自身 bug，根治靠升级 APP。
   const lineNames: string[] = []
   const lineUrls: string[] = []
   for (const c of candidates) {
-    const url = firstEpisodeUrl(c.groups[0]?.episodes ?? [])
-    if (!url) continue
-    lineNames.push(
-      c.probe.ok
-        ? `[⚡${formatThroughput(c.probe.kbps)}] ${c.source.name}`
-        : c.source.name,
-    )
-    lineUrls.push(`正片$${url}`)
+    c.groups.slice(0, 3).forEach((group, idx) => {
+      const label =
+        idx === 0
+          ? c.probe.ok
+            ? `[⚡${formatThroughput(c.probe.kbps)}] ${c.source.name}`
+            : c.source.name
+          : `${c.source.name}·线路${idx + 1}`
+      lineNames.push(label)
+      lineUrls.push(group.episodes.join('#'))
+    })
   }
   if (lineNames.length === 0) return primaryRecord
 
