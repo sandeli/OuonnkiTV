@@ -16,7 +16,6 @@ import { Input } from '@/shared/components/ui/input'
 import { Textarea } from '@/shared/components/ui/textarea'
 import { getPublicEnv } from '@/shared/config/runtimeEnv'
 import { useAuthStore } from '@/shared/store/authStore'
-import { useVersionStore } from '@/shared/store/versionStore'
 import {
   adminCreateInvite,
   adminDeleteInvite,
@@ -30,7 +29,6 @@ import {
 
 export default function AdminPage() {
   const navigate = useNavigate()
-  const updateHistory = useVersionStore(state => state.updateHistory)
   const token = useAuthStore(state => state.token)
   const user = useAuthStore(state => state.user)
   const authMode = useAuthStore(state => state.authMode)
@@ -751,43 +749,6 @@ export default function AdminPage() {
               {sbSaving ? '保存中…' : '保存系统行为'}
             </Button>
           </div>
-        </div>
-      </div>
-
-      {/* 更新日志（与站内版本记录同一份数据，每次更新同步维护） */}
-      <div className="mt-10">
-        <h2 className="mb-4 text-lg font-bold">更新日志</h2>
-        <div className="space-y-3">
-          {updateHistory.map(entry => (
-            <div key={entry.version} className="border-border bg-card rounded-xl border p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">v{entry.version}</Badge>
-                <span className="font-semibold">{entry.title}</span>
-                <span className="text-muted-foreground ml-auto text-xs">{entry.date}</span>
-              </div>
-              {entry.features.length > 0 && (
-                <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
-                  {entry.features.map(feature => (
-                    <li key={feature}>{feature}</li>
-                  ))}
-                </ul>
-              )}
-              {entry.fixes && entry.fixes.length > 0 && (
-                <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
-                  {entry.fixes.map(fix => (
-                    <li key={fix}>修复：{fix}</li>
-                  ))}
-                </ul>
-              )}
-              {entry.breaking && entry.breaking.length > 0 && (
-                <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
-                  {entry.breaking.map(item => (
-                    <li key={item}>注意：{item}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
         </div>
       </div>
 

@@ -57,6 +57,18 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.3.0',
+    title: '管理员后台去掉更新日志版块',
+    date: formatDate('2026-10-23'),
+    features: [
+      '管理员后台不再单独展示「更新日志」版块（版本记录仍照常维护，有新版时仍会弹窗提示管理员）。',
+    ],
+    fixes: [
+      '修复版本日志弹窗字体发虚：弹窗面板原为半透明加背景模糊，文字衬在复杂背景上不清晰；已改为实色面板。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.2.1',
     title: '会话复查间隔 30 秒放宽到 60 秒',
     date: formatDate('2026-10-23'),
