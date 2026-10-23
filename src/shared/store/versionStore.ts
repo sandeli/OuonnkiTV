@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.4.0',
+    title: '侧边栏显示当前账号，手机端补版本号',
+    date: formatDate('2026-10-23'),
+    features: [
+      '侧边栏底部在「退出登录」上方新增当前登录用户名（站长账号带标识），多账号时一眼看清登录的是哪个；手机端侧边栏同时补上版本号显示（此前仅电脑展开状态可见）。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.3.0',
     title: '管理员后台去掉更新日志版块',
     date: formatDate('2026-10-23'),

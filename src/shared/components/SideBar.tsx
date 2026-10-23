@@ -14,7 +14,7 @@ import {
 } from '@/shared/components/ui/sidebar'
 import { NavLink } from 'react-router'
 import { motion } from 'framer-motion'
-import { Home, Search, Star, History, Settings, LogOut } from 'lucide-react'
+import { Home, Search, Star, History, Settings, LogOut, CircleUserRound } from 'lucide-react'
 import { TgysLogo } from '@/shared/components/icons'
 import { useVersionStore } from '../store'
 import { useAuthStore } from '@/shared/store/authStore'
@@ -155,8 +155,17 @@ export default function SideBar({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        {sidebarState === 'expanded' && (
-          <p className="text-muted-foreground px-2 pb-1 text-center text-xs">v{currentVersion}</p>
+        {(isMobile || sidebarState === 'expanded') && (
+          <div className="px-2 pb-1 text-center">
+            {showLogout && authUser && (
+              <p className="text-muted-foreground mb-0.5 flex items-center justify-center gap-1 truncate text-xs">
+                <CircleUserRound className="size-3.5 shrink-0" />
+                <span className="truncate">{authUser.username}</span>
+                {authUser.role === 'admin' && <span className="shrink-0">(站长)</span>}
+              </p>
+            )}
+            <p className="text-muted-foreground text-xs">v{currentVersion}</p>
+          </div>
         )}
         <SidebarMenu>
           {showLogout && (
