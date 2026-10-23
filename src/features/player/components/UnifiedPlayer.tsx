@@ -939,13 +939,17 @@ export default function UnifiedPlayer() {
       const preferredFullscreenControl = isMobileNow
         ? (fullscreenControl ?? fullscreenWebControl)
         : (fullscreenControl ?? fullscreenWebControl)
+      // 画中画按钮在手机非全屏时也要保留：精简逻辑最初只留全屏，把它一起藏了，用户找不到入口
+      const pipControl = art.controls['pip'] as HTMLElement | undefined
       const rightControls = Array.from(
         art.template.$controlsRight.querySelectorAll<HTMLElement>('.art-control'),
       )
 
       if (isMobileNow && !isFullscreenActive) {
         rightControls.forEach(control => {
-          control.style.display = control === preferredFullscreenControl ? '' : 'none'
+          const keepVisible =
+            control === preferredFullscreenControl || control === pipControl
+          control.style.display = keepVisible ? '' : 'none'
         })
       } else {
         rightControls.forEach(control => {

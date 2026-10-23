@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.13.2',
+    title: '手机端画中画按钮恢复显示',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '手机端播放时找不到画中画按钮：播放器在手机非全屏状态下会精简右侧控制栏、只保留全屏按钮，画中画（以及设置齿轮等）被一并隐藏，只有进了全屏才出现。已给画中画放行，现在手机非全屏时控制栏右侧同时显示画中画与全屏两个按钮（画中画开关在设置中心→播放设置，默认开）。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.13.1',
     title: 'TVBox 聚合恢复全部线路与全部集数',
     date: formatDate('2026-10-23'),
