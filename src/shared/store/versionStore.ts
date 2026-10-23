@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.5.2',
+    title: '修复手动添加的源被静默吞掉',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '修复普通用户手动添加视频源后不生效：新源与已有源（含站长提供的托管源）同名同址时，添加会被静默吞掉且仍提示保存成功，源不进列表也不参与搜索。现在撞托管源会自动建一份用户自己的副本，撞本地源则原地更新。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.5.1',
     title: '视频源说明文案精简',
     date: formatDate('2026-10-23'),

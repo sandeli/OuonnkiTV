@@ -130,3 +130,65 @@ describe('apiStore 管理员托管源标记', () => {
     expect(state.videoAPIs.find(s => s.id === 'b')?.isEnabled).toBe(true)
   })
 })
+
+describe('apiStore 手动添加与已有源同名同址', () => {
+  beforeEach(() => {
+    useApiStore.setState({
+      videoAPIs: [],
+      managedSourceIds: [],
+      managedTrackingVersion: 1,
+      adFilteringEnabled: true,
+    })
+    setAdminSources('')
+  })
+
+  const manual = (id: string, name: string, url: string, isEnabled = true) =>
+    ({
+      id,
+      name,
+      url,
+      detailUrl: url,
+      timeout: 3000,
+      retry: 3,
+      isEnabled,
+      updatedAt: new Date(),
+    }) as never
+
+  it('撞托管源：建一份用户自己的副本，托管源不动，副本参与搜索选择', async () => {
+    setAdminSources(SRC_A)
+    await useApiStore.getState().initializeEnvSources()
+    useApiStore
+      .getState()
+      .addAndUpdateVideoAPI(manual('user-uuid-1', '源A', 'https://a.example/api.php/provide/vod'))
+    const state = useApiStore.getState()
+    expect(state.videoAPIs).toHaveLength(2)
+    const copy = state.videoAPIs.find(s => s.id === 'user-uuid-1')
+    expect(copy?.isEnabled).toBe(true)
+    expect(state.videoAPIs.find(s => s.id === 'a')?.name).toBe('源A')
+    expect(state.getSelectedAPIs().map(s => s.id)).toContain('user-uuid-1')
+  })
+
+  it('撞本地源：原地更新那一份，不新增重复条目', () => {
+    useApiStore.setState({
+      videoAPIs: [manual('local-1', '我的源', 'https://x.example/api.php/provide/vod', false)],
+    })
+    useApiStore
+      .getState()
+      .addAndUpdateVideoAPI(manual('another-uuid', '我的源', 'https://x.example/api.php/provide/vod'))
+    const state = useApiStore.getState()
+    expect(state.videoAPIs).toHaveLength(1)
+    expect(state.videoAPIs[0].id).toBe('local-1')
+    expect(state.videoAPIs[0].isEnabled).toBe(true)
+  })
+
+  it('全新源：照常添加并置顶', () => {
+    useApiStore.setState({
+      videoAPIs: [manual('local-1', '旧源', 'https://old.example/api.php/provide/vod')],
+    })
+    useApiStore
+      .getState()
+      .addAndUpdateVideoAPI(manual('new-1', '新源', 'https://new.example/api.php/provide/vod'))
+    const state = useApiStore.getState()
+    expect(state.videoAPIs.map(s => s.id)).toEqual(['new-1', 'local-1'])
+  })
+})

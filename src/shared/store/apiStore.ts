@@ -105,6 +105,23 @@ export const useApiStore = create<ApiStore>()(
 
         addAndUpdateVideoAPI: (api: VideoSource) => {
           set(state => {
+            // 与已有源同名同址但 id 不同：底层 addSource 会判定「已存在」并按新 id 更新，
+            // 匹配不到任何源 → 添加被静默吞掉（界面仍报保存成功）。这里先行处理：
+            // 撞的是托管源 → 给用户建一份自己的副本（托管源对普通用户不可见、且会被
+            // 管理员镜像整体替换，更新它等于白加）；撞的是本地源 → 原地更新那一份。
+            const twin = state.videoAPIs.find(
+              s => s.id !== api.id && s.name === api.name && s.url === api.url,
+            )
+            if (twin && state.managedSourceIds.includes(twin.id)) {
+              state.videoAPIs = [{ ...api, updatedAt: new Date() }, ...state.videoAPIs]
+              return
+            }
+            if (twin) {
+              state.videoAPIs = state.videoAPIs.map(s =>
+                s.id === twin.id ? { ...s, ...api, id: twin.id, updatedAt: new Date() } : s,
+              )
+              return
+            }
             const store = toSourceStore(state)
             const isExisting = store.sources.some(
               s => s.id === api.id || (s.name === api.name && s.url === api.url),
