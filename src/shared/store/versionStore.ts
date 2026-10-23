@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.10.3',
+    title: '代理超时放宽，弹幕慢接口不再被误杀',
+    date: formatDate('2026-10-23'),
+    features: [],
+    fixes: [
+      '本站 /proxy 默认超时 15 秒 → 30 秒：弹幕接口多为实时抓取型，搜索一次常需 20 秒左右，此前请求总在返回前被掐断、弹幕静默不显示。仍可用部署变量 PROXY_TIMEOUT_MS 自定义。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.10.2',
     title: '关站维护生效链路修复',
     date: formatDate('2026-10-23'),

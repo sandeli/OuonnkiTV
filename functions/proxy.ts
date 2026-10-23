@@ -8,7 +8,9 @@ interface Context {
   params: unknown
 }
 
-const DEFAULT_PROXY_TIMEOUT_MS = 15000
+// 默认 30 秒：弹幕接口（抓取型）搜索常需 20 秒上下，15 秒会被误杀；
+// 仍可用部署变量 PROXY_TIMEOUT_MS 覆盖（1000~120000）
+const DEFAULT_PROXY_TIMEOUT_MS = 30000
 const MIN_PROXY_TIMEOUT_MS = 1000
 const MAX_PROXY_TIMEOUT_MS = 120000
 
