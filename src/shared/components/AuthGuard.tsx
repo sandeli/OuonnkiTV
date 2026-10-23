@@ -232,6 +232,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
   const handleSuccess = useCallback(() => {
     toast.success('验证成功')
+    // 成功后必须复位 loading：守卫组件本身不会卸载，退出登录重新上锁时
+    // 若 isLoading 残留为 true，登录按钮会一直禁用变灰、需刷新才恢复
+    setIsLoading(false)
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
       revealOriginRef.current = `${rect.left + rect.width / 2}px ${rect.top + rect.height / 2}px`

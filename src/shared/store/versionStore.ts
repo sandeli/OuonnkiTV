@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.18.2',
+    title: '修复退出登录后登录按钮变灰',
+    date: formatDate('2026-10-24'),
+    features: [],
+    fixes: [
+      '修复登录成功后退出登录、回到登录页时登录按钮一直变灰禁用、必须刷新页面才能恢复的问题：登录成功的收尾没有复位按钮的加载状态，现已在验证成功时统一复位，退出后可直接再次登录。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.18.1',
     title: '修复手机端搜索返回后站名与菜单键消失',
     date: formatDate('2026-10-24'),
