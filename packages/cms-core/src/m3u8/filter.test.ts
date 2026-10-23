@@ -1,0 +1,130 @@
+import { describe, expect, it } from 'vitest'
+import { createDefaultAdFilter } from './filter'
+
+const filter = createDefaultAdFilter()
+
+function seg(duration: number, uri: string): string {
+  return `#EXTINF:${duration},\n${uri}`
+}
+
+const HEADER = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-TARGETDURATION:10', '#EXT-X-MEDIA-SEQUENCE:0']
+
+describe('createDefaultAdFilter 段级广告移除', () => {
+  it('移除异域名插播广告组，正片完整保留', () => {
+    const content = [
+      ...HEADER,
+      seg(10, 'https://cdn.main.com/v/1.ts'),
+      seg(10, 'https://cdn.main.com/v/2.ts'),
+      '#EXT-X-DISCONTINUITY',
+      seg(5, 'https://ads.other.com/ad/1.ts'),
+      seg(5, 'https://ads.other.com/ad/2.ts'),
+      '#EXT-X-DISCONTINUITY',
+      seg(10, 'https://cdn.main.com/v/3.ts'),
+      seg(10, 'https://cdn.main.com/v/4.ts'),
+      '#EXT-X-ENDLIST',
+      '',
+    ].join('\n')
+    const out = filter(content)
+    expect(out).not.toContain('ads.other.com')
+    expect(out).toContain('https://cdn.main.com/v/1.ts')
+    expect(out).toContain('https://cdn.main.com/v/4.ts')
+    expect(out).not.toContain('#EXT-X-DISCONTINUITY')
+    expect(out).toContain('#EXT-X-ENDLIST')
+  })
+
+  it('移除同域名短包夹组（同 CDN 插播）', () => {
+    const parts = [...HEADER]
+    for (let i = 1; i <= 20; i += 1) parts.push(seg(10, `https://cdn.main.com/v/${i}.ts`))
+    parts.push('#EXT-X-DISCONTINUITY', seg(6, 'https://cdn.main.com/ad/x.ts'), '#EXT-X-DISCONTINUITY')
+    for (let i = 21; i <= 40; i += 1) parts.push(seg(10, `https://cdn.main.com/v/${i}.ts`))
+    parts.push('#EXT-X-ENDLIST', '')
+    const out = filter(parts.join('\n'))
+    expect(out).not.toContain('/ad/x.ts')
+    expect(out).toContain('https://cdn.main.com/v/40.ts')
+  })
+
+  it('片头异域名广告移除时 MEDIA-SEQUENCE 按移除分片数前移', () => {
+    const content = [
+      ...HEADER,
+      seg(5, 'https://ads.other.com/pre/1.ts'),
+      seg(5, 'https://ads.other.com/pre/2.ts'),
+      '#EXT-X-DISCONTINUITY',
+      seg(10, 'https://cdn.main.com/v/1.ts'),
+      seg(10, 'https://cdn.main.com/v/2.ts'),
+      '#EXT-X-ENDLIST',
+      '',
+    ].join('\n')
+    const out = filter(content)
+    expect(out).not.toContain('ads.other.com')
+    expect(out).toContain('#EXT-X-MEDIA-SEQUENCE:2')
+  })
+
+  it('无广告清单只删标记行，分片一个不少', () => {
+    const content = [
+      ...HEADER,
+      seg(10, 'https://cdn.main.com/v/1.ts'),
+      '#EXT-X-DISCONTINUITY',
+      seg(10, 'https://cdn.main.com/v/2.ts'),
+      '#EXT-X-ENDLIST',
+      '',
+    ].join('\n')
+    const out = filter(content)
+    expect(out).toContain('https://cdn.main.com/v/1.ts')
+    expect(out).toContain('https://cdn.main.com/v/2.ts')
+    expect(out).not.toContain('#EXT-X-DISCONTINUITY')
+  })
+
+  it('直播清单（无 ENDLIST）不删分片，仅回退删标记行', () => {
+    const content = [
+      ...HEADER,
+      seg(10, 'https://cdn.main.com/v/1.ts'),
+      '#EXT-X-DISCONTINUITY',
+      seg(5, 'https://ads.other.com/ad/1.ts'),
+      '',
+    ].join('\n')
+    const out = filter(content)
+    expect(out).toContain('https://ads.other.com/ad/1.ts')
+    expect(out).not.toContain('#EXT-X-DISCONTINUITY')
+  })
+
+  it('主清单（无 EXTINF）原样回退，不误删流地址', () => {
+    const content = [
+      '#EXTM3U',
+      '#EXT-X-STREAM-INF:BANDWIDTH=1000000',
+      'https://cdn.main.com/low/index.m3u8',
+      '',
+    ].join('\n')
+    expect(filter(content)).toBe(content)
+  })
+
+  it('每片都有标记的异常清单触发保底，分片不删', () => {
+    const parts = [...HEADER]
+    for (let i = 1; i <= 6; i += 1) {
+      if (i > 1) parts.push('#EXT-X-DISCONTINUITY')
+      parts.push(seg(5, `https://cdn.main.com/v/${i}.ts`))
+    }
+    parts.push('#EXT-X-ENDLIST', '')
+    const out = filter(parts.join('\n'))
+    for (let i = 1; i <= 6; i += 1) {
+      expect(out).toContain(`https://cdn.main.com/v/${i}.ts`)
+    }
+  })
+
+  it('正片中间的长段落（超过短组阈值）不误删', () => {
+    const parts = [...HEADER]
+    for (let i = 1; i <= 10; i += 1) parts.push(seg(10, `https://cdn.main.com/v/${i}.ts`))
+    // 中间插一段 90 秒的正片内容（如精彩回放），超过 60 秒阈值且同域名
+    parts.push('#EXT-X-DISCONTINUITY')
+    for (let i = 1; i <= 9; i += 1) parts.push(seg(10, `https://cdn.main.com/replay/${i}.ts`))
+    parts.push('#EXT-X-DISCONTINUITY')
+    for (let i = 11; i <= 20; i += 1) parts.push(seg(10, `https://cdn.main.com/v/${i}.ts`))
+    parts.push('#EXT-X-ENDLIST', '')
+    const out = filter(parts.join('\n'))
+    expect(out).toContain('https://cdn.main.com/replay/1.ts')
+    expect(out).toContain('https://cdn.main.com/replay/9.ts')
+  })
+
+  it('空内容返回空串', () => {
+    expect(filter('')).toBe('')
+  })
+})

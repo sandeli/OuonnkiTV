@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.6.0',
+    title: '跳过切片广告升级为真移除',
+    date: formatDate('2026-10-23'),
+    features: [
+      '「跳过切片广告」升级：旧实现只删清单里的分隔标记、广告分片照样播放；新实现按标记把清单分组，整组移除插播广告分片（异域名广告组、或被包夹的短广告组），片头广告移除时同步修正分片序号。带多重保底：直播清单不处理、判定不可靠时宁可不删，绝不影响正片播放。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.5.2',
     title: '修复手动添加的源被静默吞掉',
     date: formatDate('2026-10-23'),
