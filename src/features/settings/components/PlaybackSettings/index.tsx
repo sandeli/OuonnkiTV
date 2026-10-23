@@ -31,6 +31,7 @@ import {
 import { getPublicEnv } from '@/shared/config/runtimeEnv'
 import { Button } from '@/shared/components/ui/button'
 import { SettingsItem, SettingsPageShell, SettingsSection } from '../common'
+import { TvboxSection } from './TvboxSection'
 
 export default function PlaybackSettings() {
   const { playback, setPlaybackSettings } = useSettingStore()
@@ -498,6 +499,7 @@ export default function PlaybackSettings() {
           }
         />
       </SettingsSection>
+      <TvboxSection />
     </SettingsPageShell>
   )
 }

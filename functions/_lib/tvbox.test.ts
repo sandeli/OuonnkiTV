@@ -1,0 +1,122 @@
+import { describe, expect, it } from 'vitest'
+import {
+  buildCmsUrl,
+  decodeAggId,
+  encodeAggId,
+  findTvboxUserId,
+  getOrCreateTvboxToken,
+  parseManagedSourcesJson,
+  resetTvboxToken,
+  splitPlayGroups,
+  titleTier,
+} from './tvbox'
+import type { D1Database } from './auth'
+
+/** 只实现 tvbox_tokens 两条查询与两种写入的最小 D1 假实现 */
+function fakeDb(): D1Database & { rows: Map<string, number> } {
+  const rows = new Map<string, number>() // token -> user_id
+  const byUser = new Map<number, string>()
+  const db = {
+    rows,
+    prepare: (sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (sql.includes('SELECT token FROM tvbox_tokens WHERE user_id')) {
+            const t = byUser.get(args[0] as number)
+            return t ? { token: t } : null
+          }
+          if (sql.includes('SELECT user_id AS userId FROM tvbox_tokens WHERE token')) {
+            const uid = rows.get(args[0] as string)
+            return uid !== undefined ? { userId: uid } : null
+          }
+          return null
+        },
+        run: async () => {
+          const [token, userId] = args as [string, number, number]
+          if (sql.includes('ON CONFLICT')) {
+            const old = byUser.get(userId)
+            if (old) rows.delete(old)
+            rows.set(token, userId)
+            byUser.set(userId, token)
+          } else if (!byUser.has(userId)) {
+            rows.set(token, userId)
+            byUser.set(userId, token)
+          }
+          return { success: true }
+        },
+      }),
+    }),
+  }
+  return db as unknown as D1Database & { rows: Map<string, number> }
+}
+
+describe('TVBox 令牌', () => {
+  it('生成后稳定复用，重置后旧令牌失效', async () => {
+    const db = fakeDb()
+    const t1 = await getOrCreateTvboxToken(db, 7)
+    expect(t1).toMatch(/^[0-9a-f]{32}$/)
+    expect(await getOrCreateTvboxToken(db, 7)).toBe(t1)
+    expect(await findTvboxUserId(db, t1)).toBe(7)
+
+    const t2 = await resetTvboxToken(db, 7)
+    expect(t2).not.toBe(t1)
+    expect(await findTvboxUserId(db, t1)).toBeNull()
+    expect(await findTvboxUserId(db, t2)).toBe(7)
+  })
+  it('不同用户令牌不同；站长（0）也可持有', async () => {
+    const db = fakeDb()
+    const a = await getOrCreateTvboxToken(db, 0)
+    const b = await getOrCreateTvboxToken(db, 3)
+    expect(a).not.toBe(b)
+    expect(await findTvboxUserId(db, a)).toBe(0)
+  })
+})
+
+describe('源清单解析', () => {
+  it('标准与 KVideo 两种格式都认，缺 id 时生成', () => {
+    const entries = parseManagedSourcesJson(
+      JSON.stringify([
+        { id: 'a', name: '甲', url: 'https://a.tv/api.php/provide/vod/', isEnabled: true },
+        { name: '乙', baseUrl: 'https://b.tv/api.php/provide/vod/', enabled: false },
+        { name: '无地址' },
+      ]),
+    )
+    expect(entries).toHaveLength(2)
+    expect(entries[0]).toMatchObject({ id: 'a', api: 'https://a.tv/api.php/provide/vod/' })
+    expect(entries[1].enabled).toBe(false)
+    expect(entries[1].id).toBeTruthy()
+  })
+  it('坏 JSON 返回空', () => {
+    expect(parseManagedSourcesJson('not json')).toEqual([])
+  })
+})
+
+describe('协议拼装', () => {
+  it('buildCmsUrl：已含 provide/vod 只拼参数，否则补路径', () => {
+    expect(buildCmsUrl('https://x.tv/api.php/provide/vod/', 'ac=videolist')).toBe(
+      'https://x.tv/api.php/provide/vod?ac=videolist',
+    )
+    expect(buildCmsUrl('https://x.tv', 'ac=videolist')).toBe(
+      'https://x.tv/api.php/provide/vod/?ac=videolist',
+    )
+  })
+  it('聚合 id 编解码', () => {
+    expect(decodeAggId(encodeAggId('ikun', '12345'))).toEqual({
+      sourceId: 'ikun',
+      vodId: '12345',
+    })
+    expect(decodeAggId('noseparator')).toBeNull()
+  })
+  it('标题档位', () => {
+    expect(titleTier('凡人修仙传', '凡人修仙传')).toBe(0)
+    expect(titleTier('凡人修仙传 年番', '凡人修仙传')).toBe(1)
+    expect(titleTier('重生之凡人修仙传外传', '凡人修仙传')).toBe(2)
+    expect(titleTier('斗破苍穹', '凡人修仙传')).toBe(3)
+  })
+  it('播放分组拆分', () => {
+    const groups = splitPlayGroups('源A$$$源B', '第1集$http://a/1.m3u8#第2集$http://a/2.m3u8$$$正片$http://b/1.m3u8')
+    expect(groups).toHaveLength(2)
+    expect(groups[0].episodes).toHaveLength(2)
+    expect(groups[1].from).toBe('源B')
+  })
+})

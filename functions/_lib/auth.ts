@@ -23,6 +23,7 @@ export interface AuthEnv {
   TGYS_REGISTRATION_OPEN?: string
   TGYS_TURNSTILE_SECRET?: string
   TGYS_TURNSTILE_SITE_KEY?: string
+  TGYS_INITIAL_VIDEO_SOURCES?: string
 }
 
 export interface PagesContext {
@@ -127,6 +128,13 @@ export function ensureSchema(db: D1Database): Promise<void> {
           `CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
+          )`,
+        ),
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS tvbox_tokens (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL UNIQUE,
+            created_at INTEGER NOT NULL
           )`,
         ),
         db.prepare(

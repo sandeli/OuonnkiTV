@@ -1,0 +1,493 @@
+import {
+  getSetting,
+  isSiteClosed,
+  MASTER_USER_ID,
+  nowSeconds,
+  randomHex,
+  readManagedSourceEnabled,
+  type AuthEnv,
+  type D1Database,
+} from './auth'
+
+/**
+ * TVBox 接口（兼容影视、OK影视等 TVBox 系客户端）：
+ * - 每位用户一个专属令牌，配置地址 /api/tvbox/<token>，令牌即身份
+ * - 配置里第一个站是本站聚合站（/api/tvbox/<token>/vod）：跨托管源搜索，
+ *   详情把各源线路按「标题匹配档位 → 实测首集速度」排序返回，第一条即最快
+ * - 其余站点为各托管源的真实接口地址（直连，type 1），与 MoonTV 的做法一致
+ * 本模块自包含（Pages Functions 不能直接 import src/），协议参数与 cms-core 对齐：
+ * 搜索/详情/列表统一走源的 MacCMS provide 接口（ac=videolist&wd=/ids=/t=/pg=）。
+ */
+
+// ---------- 令牌 ----------
+
+export async function getOrCreateTvboxToken(db: D1Database, userId: number): Promise<string> {
+  const existing = await db
+    .prepare('SELECT token FROM tvbox_tokens WHERE user_id = ?')
+    .bind(userId)
+    .first<{ token: string }>()
+  if (existing?.token) return existing.token
+  const token = randomHex(16)
+  await db
+    .prepare('INSERT OR IGNORE INTO tvbox_tokens (token, user_id, created_at) VALUES (?, ?, ?)')
+    .bind(token, userId, nowSeconds())
+    .run()
+  const again = await db
+    .prepare('SELECT token FROM tvbox_tokens WHERE user_id = ?')
+    .bind(userId)
+    .first<{ token: string }>()
+  return again?.token ?? token
+}
+
+export async function resetTvboxToken(db: D1Database, userId: number): Promise<string> {
+  const token = randomHex(16)
+  await db
+    .prepare(
+      `INSERT INTO tvbox_tokens (token, user_id, created_at) VALUES (?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET token = excluded.token, created_at = excluded.created_at`,
+    )
+    .bind(token, userId, nowSeconds())
+    .run()
+  return token
+}
+
+export async function findTvboxUserId(db: D1Database, token: string): Promise<number | null> {
+  if (!token || token.length > 128) return null
+  const row = await db
+    .prepare('SELECT user_id AS userId FROM tvbox_tokens WHERE token = ?')
+    .bind(token)
+    .first<{ userId: number }>()
+  return row ? row.userId : null
+}
+
+/** 令牌持有者当前是否可用：站长恒可用；普通用户需未禁用、未到期且站点未关站 */
+export async function assertTvboxAccess(db: D1Database, userId: number): Promise<boolean> {
+  if (userId === MASTER_USER_ID) return true
+  if (await isSiteClosed(db)) return false
+  const row = await db
+    .prepare('SELECT disabled, expires_at AS expiresAt FROM users WHERE id = ?')
+    .bind(userId)
+    .first<{ disabled: number; expiresAt: number | null }>()
+  if (!row || row.disabled === 1) return false
+  if (row.expiresAt !== null && row.expiresAt < nowSeconds()) return false
+  return true
+}
+
+// ---------- 托管源（服务端视角） ----------
+
+export interface TvboxSource {
+  id: string
+  name: string
+  api: string
+}
+
+interface ParsedSourceEntry {
+  id: string
+  name: string
+  api: string
+  enabled: boolean
+}
+
+/** 解析源清单 JSON（兼容标准 url/isEnabled 与 KVideo 的 baseUrl/enabled 两种格式） */
+export function parseManagedSourcesJson(raw: string): ParsedSourceEntry[] {
+  let data: unknown
+  try {
+    data = JSON.parse(raw)
+  } catch {
+    return []
+  }
+  const list = Array.isArray(data)
+    ? data
+    : ((data as { sources?: unknown[] } | null)?.sources ?? [])
+  if (!Array.isArray(list)) return []
+  const out: ParsedSourceEntry[] = []
+  for (const entry of list as Array<Record<string, unknown>>) {
+    if (!entry || typeof entry !== 'object') continue
+    const api = String(entry.url ?? entry.baseUrl ?? entry.api ?? '').trim()
+    if (!api) continue
+    const name = String(entry.name ?? '').trim() || api
+    const rawId = String(entry.id ?? '').trim()
+    const id = (rawId || `src${out.length + 1}`).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64)
+    const enabledField = entry.isEnabled ?? entry.enabled
+    out.push({ id, name, api, enabled: enabledField !== false })
+  }
+  return out
+}
+
+let sourcesCache: { key: string; at: number; sources: TvboxSource[] } | null = null
+const SOURCES_CACHE_MS = 60_000
+
+/** 读取全站托管源并应用管理员显式开关表（与网页端同一口径），只返回启用中的源 */
+export async function readTvboxSources(db: D1Database, env: AuthEnv): Promise<TvboxSource[]> {
+  let raw = (await getSetting(db, 'initial_video_sources')) ?? env.TGYS_INITIAL_VIDEO_SOURCES ?? ''
+  raw = raw.trim()
+  if (!raw) return []
+  if (sourcesCache && sourcesCache.key === raw && Date.now() - sourcesCache.at < SOURCES_CACHE_MS) {
+    return sourcesCache.sources
+  }
+  let text = raw
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const res = await fetch(raw, { signal: AbortSignal.timeout(8000) })
+      if (!res.ok) return []
+      text = await res.text()
+    } catch {
+      return []
+    }
+  }
+  const switches = await readManagedSourceEnabled(db)
+  const seen = new Set<string>()
+  const sources: TvboxSource[] = []
+  for (const entry of parseManagedSourcesJson(text)) {
+    const enabled = entry.id in switches ? switches[entry.id] : entry.enabled
+    if (!enabled || seen.has(entry.id)) continue
+    seen.add(entry.id)
+    sources.push({ id: entry.id, name: entry.name, api: entry.api })
+  }
+  sourcesCache = { key: raw, at: Date.now(), sources }
+  return sources
+}
+
+// ---------- 源站 MacCMS 协议（服务端代请求） ----------
+
+const CMS_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+
+/** 与 cms-core buildApiUrl 同逻辑：源地址已含 /provide/vod 时只拼参数，否则补完整路径 */
+export function buildCmsUrl(api: string, query: string): string {
+  const url = api.replace(/\/+$/, '')
+  if (
+    url.toLowerCase().includes('/api.php/provide/vod') ||
+    /\/provide\/vod\/?$/.test(url.toLowerCase())
+  ) {
+    return `${url}${url.includes('?') ? '&' : '?'}${query}`
+  }
+  return `${url}/api.php/provide/vod/?${query}`
+}
+
+type CmsRecord = Record<string, unknown>
+
+interface CmsListData {
+  list: CmsRecord[]
+  pagecount: number
+  total: number
+  classes: Array<{ type_id: string; type_name: string }>
+}
+
+async function cmsJson(api: string, query: string, timeoutMs = 10_000): Promise<CmsRecord | null> {
+  try {
+    const res = await fetch(buildCmsUrl(api, query), {
+      headers: { 'User-Agent': CMS_UA, Accept: 'application/json' },
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    if (!res.ok) return null
+    const data: unknown = await res.json()
+    if (!data || typeof data !== 'object') return null
+    return data as CmsRecord
+  } catch {
+    return null
+  }
+}
+
+function toListData(data: CmsRecord | null): CmsListData {
+  if (!data) return { list: [], pagecount: 0, total: 0, classes: [] }
+  const list = Array.isArray(data.list) ? (data.list as CmsRecord[]) : []
+  const classes = (Array.isArray(data.class) ? data.class : []).map(c => {
+    const r = c as CmsRecord
+    return { type_id: String(r.type_id ?? ''), type_name: String(r.type_name ?? '') }
+  })
+  return {
+    list,
+    pagecount: Number(data.pagecount) || 0,
+    total: Number(data.total) || list.length,
+    classes,
+  }
+}
+
+export async function cmsVideolist(
+  api: string,
+  opts: { wd?: string; ids?: string; t?: string; pg?: number },
+): Promise<CmsListData> {
+  const params = ['ac=videolist']
+  if (opts.wd) params.push(`wd=${encodeURIComponent(opts.wd)}`)
+  if (opts.ids) params.push(`ids=${encodeURIComponent(opts.ids)}`)
+  if (opts.t) params.push(`t=${encodeURIComponent(opts.t)}`)
+  if (opts.pg && opts.pg > 1) params.push(`pg=${opts.pg}`)
+  return toListData(await cmsJson(api, params.join('&')))
+}
+
+export async function cmsClassList(api: string): Promise<CmsListData> {
+  return toListData(await cmsJson(api, 'ac=list'))
+}
+
+// ---------- 聚合 ----------
+
+export function encodeAggId(sourceId: string, vodId: string): string {
+  return `${sourceId}__${vodId}`
+}
+
+export function decodeAggId(id: string): { sourceId: string; vodId: string } | null {
+  const idx = id.indexOf('__')
+  if (idx <= 0) return null
+  return { sourceId: id.slice(0, idx), vodId: id.slice(idx + 2) }
+}
+
+function normalizeTitle(text: string): string {
+  return text.toLowerCase().replace(/[\s·•・:：\-—_()（）[\]《》"“”'‘’.,，。!！?？/\\|]/g, '')
+}
+
+/** 标题匹配档位（与弹幕/直连搜索同口径）：0 完全一致 / 1 前缀 / 2 包含 / 3 无关 */
+export function titleTier(title: string, query: string): number {
+  const t = normalizeTitle(title)
+  const q = normalizeTitle(query)
+  if (!t || !q) return 3
+  if (t === q) return 0
+  if (t.startsWith(q) || q.startsWith(t)) return 1
+  if (t.includes(q) || q.includes(t)) return 2
+  return 3
+}
+
+function namespacedItem(source: TvboxSource, item: CmsRecord): CmsRecord {
+  return { ...item, vod_id: encodeAggId(source.id, String(item.vod_id ?? '')) }
+}
+
+/** 聚合搜索：并行搜全部源，只收标题档位 ≤2 的结果，按源顺序合并 */
+export async function aggSearch(
+  sources: TvboxSource[],
+  wd: string,
+  pg: number,
+): Promise<CmsRecord[]> {
+  const perSource = await Promise.all(
+    sources.map(async source => {
+      const data = await cmsVideolist(source.api, { wd, pg })
+      return data.list
+        .filter(item => titleTier(String(item.vod_name ?? ''), wd) <= 2)
+        .map(item => namespacedItem(source, item))
+    }),
+  )
+  const merged: CmsRecord[] = []
+  const seen = new Set<string>()
+  for (const items of perSource) {
+    for (const item of items) {
+      const key = String(item.vod_id)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(item)
+      if (merged.length >= 60) return merged
+    }
+  }
+  return merged
+}
+
+/** 聚合分类：全部源的分类名并集（同名只取一次） */
+export async function aggClasses(
+  sources: TvboxSource[],
+): Promise<Array<{ type_id: string; type_name: string }>> {
+  const perSource = await Promise.all(sources.map(s => cmsClassList(s.api)))
+  const seen = new Set<string>()
+  const classes: Array<{ type_id: string; type_name: string }> = []
+  for (const data of perSource) {
+    for (const c of data.classes) {
+      if (!c.type_name || seen.has(c.type_name)) continue
+      seen.add(c.type_name)
+      // 聚合站用分类名本身作 type_id，请求时按名回查各源自己的 id
+      classes.push({ type_id: c.type_name, type_name: c.type_name })
+      if (classes.length >= 30) return classes
+    }
+  }
+  return classes
+}
+
+/** 聚合列表：无分类时合并各源最新（轮询交错、按片名去重）；有分类时只查拥有同名分类的源 */
+export async function aggList(
+  sources: TvboxSource[],
+  typeName: string,
+  pg: number,
+): Promise<CmsRecord[]> {
+  let targets = sources
+  if (typeName) {
+    const perSource = await Promise.all(
+      sources.map(async source => {
+        const data = await cmsClassList(source.api)
+        const hit = data.classes.find(c => c.type_name === typeName)
+        return hit ? { source, typeId: hit.type_id } : null
+      }),
+    )
+    targets = []
+    const jobs: Array<Promise<CmsRecord[]>> = []
+    for (const entry of perSource) {
+      if (!entry) continue
+      targets.push(entry.source)
+      jobs.push(
+        cmsVideolist(entry.source.api, { t: entry.typeId, pg }).then(d =>
+          d.list.map(item => namespacedItem(entry.source, item)),
+        ),
+      )
+    }
+    const results = await Promise.all(jobs)
+    return results.flat().slice(0, 60)
+  }
+  const perSource = await Promise.all(
+    sources.map(async source => {
+      const data = await cmsVideolist(source.api, { pg })
+      return data.list.map(item => namespacedItem(source, item))
+    }),
+  )
+  const merged: CmsRecord[] = []
+  const seenTitles = new Set<string>()
+  const maxLen = Math.max(0, ...perSource.map(l => l.length))
+  for (let i = 0; i < maxLen; i += 1) {
+    for (const items of perSource) {
+      const item = items[i]
+      if (!item) continue
+      const key = normalizeTitle(String(item.vod_name ?? ''))
+      if (key && seenTitles.has(key)) continue
+      if (key) seenTitles.add(key)
+      merged.push(item)
+      if (merged.length >= 60) return merged
+    }
+  }
+  return merged
+}
+
+/** 测速：GET 到响应头即计时（与网页端探测同口径），失败记 9999 */
+export async function probeSpeed(url: string, timeoutMs = 2500): Promise<number> {
+  if (!url) return 9999
+  const start = Date.now()
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': CMS_UA },
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    const ms = Date.now() - start
+    void res.body?.cancel().catch(() => {})
+    return res.ok || res.status === 301 || res.status === 302 ? ms : 9999
+  } catch {
+    return 9999
+  }
+}
+
+export function splitPlayGroups(
+  playFrom: unknown,
+  playUrl: unknown,
+): Array<{ from: string; episodes: string[] }> {
+  const froms = String(playFrom ?? '').split('$$$')
+  const urls = String(playUrl ?? '').split('$$$')
+  const groups: Array<{ from: string; episodes: string[] }> = []
+  for (let i = 0; i < urls.length; i += 1) {
+    const episodes = urls[i].split('#').filter(Boolean)
+    if (episodes.length === 0) continue
+    groups.push({ from: froms[i] ?? '', episodes })
+  }
+  return groups
+}
+
+function firstEpisodeUrl(episodes: string[]): string {
+  const first = episodes[0] ?? ''
+  const idx = first.lastIndexOf('$')
+  return idx >= 0 ? first.slice(idx + 1) : first
+}
+
+interface DetailCandidate {
+  source: TvboxSource
+  record: CmsRecord
+  tier: number
+  speed: number
+  groups: Array<{ from: string; episodes: string[] }>
+}
+
+const detailCache = new Map<string, { at: number; record: CmsRecord }>()
+const DETAIL_CACHE_MS = 5 * 60_000
+
+/**
+ * 聚合详情：以主源记录为底，跨源找同名片（档位 ≤2），逐源取详情并测速，
+ * 全部线路按（档位、速度）排序拼成一个多线路记录——APP 默认播第一条即最快源。
+ */
+export async function aggDetail(
+  sources: TvboxSource[],
+  sourceId: string,
+  vodId: string,
+): Promise<CmsRecord | null> {
+  const cacheKey = `${sourceId}:${vodId}`
+  const cached = detailCache.get(cacheKey)
+  if (cached && Date.now() - cached.at < DETAIL_CACHE_MS) return cached.record
+
+  const primary = sources.find(s => s.id === sourceId) ?? sources[0]
+  if (!primary) return null
+  const primaryData = await cmsVideolist(primary.api, { ids: vodId })
+  const primaryRecord = primaryData.list[0]
+  if (!primaryRecord) return null
+  const title = String(primaryRecord.vod_name ?? '')
+
+  const candidates: DetailCandidate[] = [
+    {
+      source: primary,
+      record: primaryRecord,
+      tier: 0,
+      speed: 9999,
+      groups: splitPlayGroups(primaryRecord.vod_play_from, primaryRecord.vod_play_url),
+    },
+  ]
+
+  const others = sources.filter(s => s.id !== primary.id).slice(0, 11)
+  const found = await Promise.all(
+    others.map(async source => {
+      const search = await cmsVideolist(source.api, { wd: title, pg: 1 })
+      let best: { id: string; tier: number } | null = null
+      for (const item of search.list) {
+        const tier = titleTier(String(item.vod_name ?? ''), title)
+        if (tier > 2) continue
+        if (!best || tier < best.tier) best = { id: String(item.vod_id ?? ''), tier }
+        if (tier === 0) break
+      }
+      if (!best || !best.id) return null
+      const detail = await cmsVideolist(source.api, { ids: best.id })
+      const record = detail.list[0]
+      if (!record) return null
+      return {
+        source,
+        record,
+        tier: best.tier,
+        speed: 9999,
+        groups: splitPlayGroups(record.vod_play_from, record.vod_play_url),
+      } as DetailCandidate
+    }),
+  )
+  for (const c of found) if (c) candidates.push(c)
+
+  await Promise.all(
+    candidates.map(async c => {
+      c.speed = await probeSpeed(firstEpisodeUrl(c.groups[0]?.episodes ?? []))
+    }),
+  )
+  candidates.sort((a, b) => a.tier - b.tier || a.speed - b.speed)
+
+  const lineNames: string[] = []
+  const lineUrls: string[] = []
+  for (const c of candidates) {
+    c.groups.slice(0, 3).forEach((group, idx) => {
+      const label =
+        idx === 0
+          ? c.speed < 9999
+            ? `[⚡${c.speed}ms] ${c.source.name}`
+            : c.source.name
+          : `${c.source.name}·线路${idx + 1}`
+      lineNames.push(label)
+      lineUrls.push(group.episodes.join('#'))
+    })
+  }
+  if (lineNames.length === 0) return primaryRecord
+
+  const record: CmsRecord = {
+    ...primaryRecord,
+    vod_id: encodeAggId(primary.id, vodId),
+    vod_play_from: lineNames.join('$$$'),
+    vod_play_url: lineUrls.join('$$$'),
+    vod_remarks:
+      String(primaryRecord.vod_remarks ?? '') ||
+      `已按速度排序 ${lineNames.length} 条线路`,
+  }
+  if (detailCache.size > 200) detailCache.clear()
+  detailCache.set(cacheKey, { at: Date.now(), record })
+  return record
+}

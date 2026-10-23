@@ -421,6 +421,25 @@ export interface AdminSettings {
   siteBehavior: SiteBehaviorConfig
 }
 
+export interface TvboxInfo {
+  token: string
+  configUrl: string
+}
+
+/** 取当前用户的 TVBox 专属接口（没有令牌时服务端自动生成） */
+export function fetchTvboxInfo(token: string): Promise<TvboxInfo> {
+  return request<TvboxInfo>('/api/user/tvbox', { method: 'GET' }, token)
+}
+
+/** 重置 TVBox 令牌（旧配置地址立即失效） */
+export function resetTvboxToken(token: string): Promise<TvboxInfo> {
+  return request<TvboxInfo>(
+    '/api/user/tvbox',
+    { method: 'POST', body: JSON.stringify({ action: 'reset' }) },
+    token,
+  )
+}
+
 export function adminGetSettings(token: string): Promise<AdminSettings> {
   return request<AdminSettings>('/api/admin/settings', undefined, token)
 }
