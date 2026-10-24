@@ -25,7 +25,6 @@ import { useViewingHistoryStore } from '@/shared/store/viewingHistoryStore'
 import { useSettingStore } from '@/shared/store/settingStore'
 import { useDocumentTitle, useCmsClient } from '@/shared/hooks'
 import { useTmdbEnabled } from '@/shared/hooks/useTmdbMode'
-import { cn } from '@/shared/lib/utils'
 import { buildCmsPlayPath, buildTmdbDetailPath, buildTmdbPlayPath } from '@/shared/lib/routes'
 import {
   danmakuDurationFromMultiplier,
@@ -43,7 +42,7 @@ import { useTmdbRecommendations } from '@/shared/hooks/useTmdb'
 import { toast } from 'sonner'
 import _ from 'lodash'
 import {
-  PlayerEpisodePanel,
+  PlayerEpisodeInfoPanel,
   PlayerErrorState,
   PlayerHeroSection,
   PlayerInfoAndRecommendations,
@@ -1571,11 +1570,8 @@ export default function UnifiedPlayer() {
   const collapsibleContentClassName =
     'overflow-hidden border-t border-border/45 p-3 md:p-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 data-[state=closed]:slide-out-to-top-1 data-[state=open]:duration-300 data-[state=closed]:duration-200'
 
-  const getPanelClassName = (panel: 'source' | 'season' | 'episode') =>
-    cn(
-      'overflow-hidden rounded-lg border border-border/60 bg-card/55 transition-all',
-      activeRightPanel === panel && 'xl:flex xl:min-h-0 xl:flex-1 xl:flex-col',
-    )
+  const getPanelClassName = (_panel: 'source' | 'season' | 'episode') =>
+    'overflow-hidden rounded-lg border border-border/60 bg-card/55 transition-all'
 
   useEffect(() => {
     if (isCmsRoute && activeRightPanel !== 'episode') {
@@ -1838,12 +1834,8 @@ export default function UnifiedPlayer() {
                 isWorking={sourceSpeed.isWorking}
                 matching={sourceSpeed.discovering}
               />
-              <section className="space-y-3 rounded-lg border border-border/60 bg-card/55 p-3 md:p-4 xl:min-h-0 xl:flex-1">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">选集</h2>
-                <span className="text-muted-foreground text-xs">共 {detail.episodes.length} 集</span>
-              </div>
-              <PlayerEpisodePanel
+              <PlayerEpisodeInfoPanel
+                overview={overview}
                 totalEpisodes={detail.episodes.length}
                 selectedEpisode={selectedEpisode}
                 isReversed={episodePagination.isReversed}
@@ -1854,12 +1846,8 @@ export default function UnifiedPlayer() {
                 episodes={episodePagination.currentPageEpisodes}
                 onEpisodeSelect={handleEpisodeChange}
                 episodeProgressMap={episodeProgressMap}
-                compact
-                fillHeight
-                hideHeader
-                className="border-0 bg-transparent p-0 md:p-0"
+                className="xl:min-h-0 xl:flex-1"
               />
-              </section>
             </div>
           ) : (
             <div className="space-y-3 xl:flex xl:h-full xl:flex-col xl:gap-3 xl:space-y-0">
@@ -1884,12 +1872,9 @@ export default function UnifiedPlayer() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent
-                  className={cn(
-                    collapsibleContentClassName,
-                    activeRightPanel === 'source' && 'xl:flex xl:flex-1 xl:min-h-0 xl:flex-col',
-                  )}
+                  className={collapsibleContentClassName}
                 >
-                  <ScrollArea className="max-h-44 sm:max-h-56 xl:h-full xl:max-h-none">
+                  <ScrollArea className="max-h-44 sm:max-h-56 xl:max-h-72">
                     <div className="grid grid-cols-2 gap-2 pr-2 sm:flex sm:flex-wrap">
                       {sourceOptions.map(option => {
                         const active = option.sourceCode === resolvedSourceCode
@@ -1937,10 +1922,7 @@ export default function UnifiedPlayer() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent
-                  className={cn(
-                    collapsibleContentClassName,
-                    activeRightPanel === 'season' && 'xl:flex-1 xl:min-h-0',
-                  )}
+                  className={collapsibleContentClassName}
                 >
                   <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                     {tmdbPlayback.seasonOptions.map(option => {
@@ -1975,54 +1957,20 @@ export default function UnifiedPlayer() {
               className="shrink-0"
             />
             {episodes.length > 0 && (
-                <Collapsible
-                  open={activeRightPanel === 'episode'}
-                  onOpenChange={open => setActiveRightPanel(open ? 'episode' : null)}
-                  className={getPanelClassName('episode')}
-                >
-                  <CollapsibleTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="展开或收起选集面板"
-                      className="flex min-w-0 w-full items-center justify-between gap-2 px-3 py-3 text-sm font-semibold md:px-4"
-                    >
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="shrink-0">选集</span>
-                        <span className="text-muted-foreground truncate text-xs">
-                          第 {selectedEpisode + 1} 集 / 共 {detail.episodes.length} 集
-                        </span>
-                      </span>
-                      <ChevronDown
-                        className={`size-4 transition-transform ${activeRightPanel === 'episode' ? 'rotate-180' : ''}`}
-                      />
-                    </button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent
-                    className={cn(
-                      collapsibleContentClassName,
-                      activeRightPanel === 'episode' && 'xl:flex-1 xl:min-h-0',
-                    )}
-                  >
-                    <div className={activeRightPanel === 'episode' ? 'xl:h-full' : undefined}>
-                      <PlayerEpisodePanel
-                        totalEpisodes={detail.episodes.length}
-                        selectedEpisode={selectedEpisode}
-                        isReversed={episodePagination.isReversed}
-                        onToggleOrder={() => episodePagination.setIsReversed(prev => !prev)}
-                        pageRanges={episodePagination.pageRanges}
-                        currentPageRange={episodePagination.currentPageRange}
-                        onPageRangeChange={episodePagination.setCurrentPageRange}
-                        episodes={episodePagination.currentPageEpisodes}
-                        onEpisodeSelect={handleEpisodeChange}
-                        episodeProgressMap={episodeProgressMap}
-                        compact
-                        fillHeight={activeRightPanel === 'episode'}
-                        hideHeader
-                        className="border-0 bg-transparent p-0 md:p-0"
-                      />
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
+              <PlayerEpisodeInfoPanel
+                overview={overview}
+                totalEpisodes={detail.episodes.length}
+                selectedEpisode={selectedEpisode}
+                isReversed={episodePagination.isReversed}
+                onToggleOrder={() => episodePagination.setIsReversed(prev => !prev)}
+                pageRanges={episodePagination.pageRanges}
+                currentPageRange={episodePagination.currentPageRange}
+                onPageRangeChange={episodePagination.setCurrentPageRange}
+                episodes={episodePagination.currentPageEpisodes}
+                onEpisodeSelect={handleEpisodeChange}
+                episodeProgressMap={episodeProgressMap}
+                className="xl:min-h-0 xl:flex-1"
+              />
             )}
             </div>
           )}

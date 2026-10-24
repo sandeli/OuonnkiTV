@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.28.0',
+    title: '播放页选集与简介合并',
+    date: formatDate('2026-10-24'),
+    features: [
+      '播放页右侧把「选集」和「简介」合并进同一个框，顶部两个胶囊按钮切换（和 KVideo 播放页一样的操作方式）：默认停在选集，点「简介」直接在框内看完整剧情简介，不用再滑到页面底部。CMS 直连与 TMDB 两种播放模式同步生效。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.27.1',
     title: '修复人机验证偶发失败',
     date: formatDate('2026-10-24'),
