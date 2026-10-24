@@ -7,6 +7,7 @@ import {
   findMirrorDroppedSources,
   fromAccountSourcePayload,
   serializeAccountSources,
+  stripSiteWideFlags,
   toAccountSourcePayload,
 } from './accountSources'
 
@@ -32,6 +33,21 @@ describe('collectAccountSources 账户源集合口径', () => {
   it('未登记的手动源即使不在 accountSourceIds 里也会被收集（待同步）', () => {
     const out = collectAccountSources([src({ id: 'fresh' })], [], [])
     expect(out.map(s => s.id)).toEqual(['fresh'])
+  })
+})
+
+describe('stripSiteWideFlags 普通用户剥全站标记', () => {
+  it('带标记的源被清掉标记，其他字段不动', () => {
+    const list = [src({ id: 'a', siteWide: true }), src({ id: 'b' })]
+    const out = stripSiteWideFlags(list)
+    expect(out[0].siteWide).toBe(false)
+    expect(out[0].name).toBe('a')
+    expect(out[1]).toBe(list[1])
+  })
+
+  it('剥标记后序列化不再含全站标记（上行与变更检测口径一致）', () => {
+    const out = stripSiteWideFlags([src({ id: 'a', siteWide: true })])
+    expect(toAccountSourcePayload(out[0]).siteWide).toBe(false)
   })
 })
 

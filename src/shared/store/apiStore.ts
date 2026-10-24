@@ -21,6 +21,7 @@ import {
 import { DEFAULT_SETTINGS } from '@/shared/config/settings.config'
 import { v4 as uuidv4 } from 'uuid'
 import { useSettingStore } from './settingStore'
+import { useAuthStore } from './authStore'
 import { INITIAL_CONFIG } from '@/shared/config/initialConfig'
 import { applyAccountMirror } from '@/shared/lib/accountSources'
 
@@ -69,6 +70,8 @@ interface ApiState {
 interface ApiActions {
   // 设置 API 启用状态
   setApiEnabled: (apiId: string, enabled: boolean) => void
+  // 设置手动源的「全站生效」标记（仅站长，卡片快捷开关与编辑弹窗共用口径）
+  setApiSiteWide: (apiId: string, siteWide: boolean) => void
   // 添加视频 API
   addAndUpdateVideoAPI: (api: VideoSource) => void
   // 删除视频 API
@@ -137,6 +140,14 @@ export const useApiStore = create<ApiStore>()(
             const store = toSourceStore(state)
             const newStore = setSourceEnabled(store, apiId, enabled)
             state.videoAPIs = fromSourceStore(newStore)
+          })
+        },
+
+        setApiSiteWide: (apiId: string, siteWide: boolean) => {
+          set(state => {
+            state.videoAPIs = state.videoAPIs.map(s =>
+              s.id === apiId ? { ...s, siteWide, updatedAt: new Date() } : s,
+            )
           })
         },
 
@@ -294,11 +305,16 @@ export const useApiStore = create<ApiStore>()(
             const store = toSourceStore(state)
             // 兼容 KVideo 源格式：baseUrl（完整接口地址）等价于 url，enabled 等价于 isEnabled。
             // 与管理员初始源解析（parseVideoSources）保持一致，避免同一份源列表在用户导入时被静默跳过。
+            // 「全站生效」只有站长能用：普通用户导入的源哪怕文件里带了全站标记也一律剥掉，
+            // 只在添加者自己账户中启用（站长导入则原样保留标记）
+            const authState = useAuthStore.getState()
+            const canSiteWide = authState.authMode === 'server' && authState.user?.role === 'admin'
             const normalized: Partial<VideoSource>[] = list.map(api => ({
               ...api,
               url: api.url || api.baseUrl,
               isEnabled: api.isEnabled ?? api.enabled ?? true,
               id: api.id || uuidv4(),
+              ...(canSiteWide ? {} : { siteWide: false }),
             }))
             const { store: newStore, result: importResult } = importSources(store, normalized, {
               defaultTimeout: useSettingStore.getState().network.defaultTimeout,

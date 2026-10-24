@@ -22,7 +22,7 @@ interface VideoSourceCardProps {
 }
 
 export default function VideoSourceCard({ source, onEdit }: VideoSourceCardProps) {
-  const { setApiEnabled } = useApiStore()
+  const { setApiEnabled, setApiSiteWide } = useApiStore()
   const isSub = isSubscriptionSource(source.id)
 
   // 托管源（管理员统一提供）的开关显示以全站显式开关表为准（管理员可能在别的设备上改过）
@@ -34,6 +34,18 @@ export default function VideoSourceCard({ source, onEdit }: VideoSourceCardProps
       ? siteOverrides[source.id]
       : undefined
   const effectiveEnabled = siteOverride ?? source.isEnabled
+
+  // 「全站」快捷开关（仅站长、仅手动源）：基础托管源天生全站生效、订阅源不是手动源，都不显示。
+  // 切换后账号同步会把标记存回账户，服务端随即重新派生全站分发列表，所有用户跟上。
+  const authModeCard = useAuthStore(state => state.authMode)
+  const authRoleCard = useAuthStore(state => state.user?.role)
+  const canSiteWide = authModeCard === 'server' && authRoleCard === 'admin'
+  const isBaseManaged = isManaged && !source.siteWide
+  const showSiteWideToggle = canSiteWide && !isSub && !isBaseManaged
+  const handleSiteWideToggle = (checked: boolean) => {
+    setApiSiteWide(source.id, checked)
+    toast.success(checked ? '已设为全站生效，所有用户都能用这个源' : '已改为自用，只在你的账户中启用')
+  }
 
   const handleToggle = (checked: boolean) => {
     setApiEnabled(source.id, checked)
@@ -62,6 +74,17 @@ export default function VideoSourceCard({ source, onEdit }: VideoSourceCardProps
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {showSiteWideToggle && (
+            <span className="flex items-center gap-1" title="全站生效：开启后本站所有用户都能用这个源，关闭则只在你自己账户中启用">
+              <span className="text-muted-foreground text-[11px]">全站</span>
+              <Switch
+                checked={source.siteWide === true}
+                onCheckedChange={handleSiteWideToggle}
+                onClick={e => e.stopPropagation()}
+                className="scale-90"
+              />
+            </span>
+          )}
           <Switch
             checked={effectiveEnabled}
             onCheckedChange={handleToggle}

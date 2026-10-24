@@ -40,6 +40,15 @@ export function dedupeAccountSources(list: VideoSource[]): VideoSource[] {
   })
 }
 
+/**
+ * 剥掉一批源的「全站生效」标记（普通用户专用口径）：
+ * 只有站长的源可以全站生效；普通用户导入/同步进来的源哪怕自带标记也一律清掉，
+ * 只在添加者自己账户中启用（服务端保存时也会再剥一次，这里保证本地展示与上行都干净）。
+ */
+export function stripSiteWideFlags(list: VideoSource[]): VideoSource[] {
+  return list.map(s => (s.siteWide ? { ...s, siteWide: false } : s))
+}
+
 /** VideoSource → 上行载荷（字段固定，序列化稳定，便于哈希比对） */
 export function toAccountSourcePayload(source: VideoSource): AccountSourcePayload {
   return {

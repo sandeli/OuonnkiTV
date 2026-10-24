@@ -6,6 +6,7 @@ import { fetchUserSources, saveUserSources } from '@/shared/lib/authApi'
 import {
   collectAccountSources,
   dedupeAccountSources,
+  stripSiteWideFlags,
   findMirrorDroppedSources,
   fromAccountSourcePayload,
   serializeAccountSources,
@@ -33,9 +34,13 @@ export function startAccountSourceSync(userId: number): () => void {
   /** 本次会话里在本地列表中出现过的源 id：出现过又消失 = 被删，不再从服务端副本里带回 */
   const seenIds = new Set<string>(useApiStore.getState().videoAPIs.map(s => s.id))
 
+  // 只有站长（userId=0）的源可以带「全站生效」标记；普通用户收集时一律剥掉，
+  // 保证本地展示、上行载荷与服务端落库口径一致（源只在自己账户中启用）
+  const isMaster = userId === 0
   const collect = () => {
     const state = useApiStore.getState()
-    return collectAccountSources(state.videoAPIs, state.managedSourceIds, state.accountSourceIds)
+    const collected = collectAccountSources(state.videoAPIs, state.managedSourceIds, state.accountSourceIds)
+    return isMaster ? collected : stripSiteWideFlags(collected)
   }
 
   const pushNow = async () => {
