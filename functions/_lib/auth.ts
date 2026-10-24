@@ -459,14 +459,22 @@ export const DEFAULT_DOUBAN_PROXY: DoubanProxySettings = {
   imageUrl: '',
 }
 
-/** 读取豆瓣代理设置（管理员后台配置，存 settings 表）；非法值回退默认 */
-export async function readDoubanProxySettings(db: D1Database): Promise<DoubanProxySettings> {
-  const [dataType, dataUrl, imageType, imageUrl] = await Promise.all([
-    getSetting(db, 'douban_data_proxy_type'),
-    getSetting(db, 'douban_data_proxy_url'),
-    getSetting(db, 'douban_image_proxy_type'),
-    getSetting(db, 'douban_image_proxy_url'),
-  ])
+/** 豆瓣代理涉及的 settings 键 */
+export const DOUBAN_PROXY_SETTING_KEYS = [
+  'douban_data_proxy_type',
+  'douban_data_proxy_url',
+  'douban_image_proxy_type',
+  'douban_image_proxy_url',
+] as const
+
+/** 从设置取值器组装豆瓣代理设置（纯函数）；非法值回退默认 */
+export function parseDoubanProxySettings(
+  get: (key: string) => string | null,
+): DoubanProxySettings {
+  const dataType = get('douban_data_proxy_type')
+  const dataUrl = get('douban_data_proxy_url')
+  const imageType = get('douban_image_proxy_type')
+  const imageUrl = get('douban_image_proxy_url')
   return {
     dataType: (DOUBAN_DATA_PROXY_TYPES as readonly string[]).includes(dataType ?? '')
       ? (dataType as string)
@@ -479,14 +487,20 @@ export async function readDoubanProxySettings(db: D1Database): Promise<DoubanPro
   }
 }
 
+/** 读取豆瓣代理设置（管理员后台配置，存 settings 表）；非法值回退默认 */
+export async function readDoubanProxySettings(db: D1Database): Promise<DoubanProxySettings> {
+  const settings = await getSettings(db, [...DOUBAN_PROXY_SETTING_KEYS])
+  return parseDoubanProxySettings(key => settings.get(key) ?? null)
+}
+
 /**
  * 管理员对托管源（环境变量/管理员后台设置的初始源）的显式开关表
  * （settings 键 managed_source_enabled，JSON 对象 id→布尔）。
  * 表中有的源：全站所有用户按表中的开关使用；表里没有的源：按源文件自身的默认开关。
  * 用户自己添加的源不在此列，仍归各人本地控制。
  */
-export async function readManagedSourceEnabled(db: D1Database): Promise<Record<string, boolean>> {
-  const raw = await getSetting(db, 'managed_source_enabled')
+/** 解析托管源开关表 JSON（纯函数） */
+export function parseManagedSourceEnabled(raw: string | null): Record<string, boolean> {
   if (!raw) return {}
   try {
     const parsed: unknown = JSON.parse(raw)
@@ -500,6 +514,10 @@ export async function readManagedSourceEnabled(db: D1Database): Promise<Record<s
   } catch {
     return {}
   }
+}
+
+export async function readManagedSourceEnabled(db: D1Database): Promise<Record<string, boolean>> {
+  return parseManagedSourceEnabled(await getSetting(db, 'managed_source_enabled'))
 }
 
 /** 校验并规整待保存的开关表：只留布尔值条目、键限长、限条数 */
@@ -648,6 +666,28 @@ export async function getSetting(db: D1Database, key: string): Promise<string | 
   return row?.value ?? null
 }
 
+/**
+ * 一次批量读取多个设置项（一条 IN 查询代替逐项往返）。
+ * 首屏配置接口是关键路径，D1 往返次数直接决定打开速度，批量读收益最大。
+ * 返回 Map 只含存在的键；取值用 `map.get(key) ?? null` 与 getSetting 同语义。
+ */
+export async function getSettings(
+  db: D1Database,
+  keys: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  if (keys.length === 0) return out
+  const placeholders = keys.map(() => '?').join(', ')
+  const { results } = await db
+    .prepare(`SELECT key, value FROM settings WHERE key IN (${placeholders})`)
+    .bind(...keys)
+    .all<{ key: string; value: string }>()
+  for (const row of results ?? []) {
+    if (row && typeof row.key === 'string') out.set(row.key, row.value)
+  }
+  return out
+}
+
 export async function setSetting(db: D1Database, key: string, value: string): Promise<void> {
   await db
     .prepare(
@@ -660,10 +700,7 @@ export async function setSetting(db: D1Database, key: string, value: string): Pr
 /** 注册是否开放：后台设置优先，其次环境变量 TGYS_REGISTRATION_OPEN，默认开放 */
 export async function isRegistrationOpen(db: D1Database, env: AuthEnv): Promise<boolean> {
   const stored = await getSetting(db, 'registration_open')
-  if (stored === '1') return true
-  if (stored === '0') return false
-  const envValue = (env.TGYS_REGISTRATION_OPEN ?? '').trim().toLowerCase()
-  return envValue !== '0' && envValue !== 'false'
+  return parseRegistrationOpen(key => (key === 'registration_open' ? stored : null), env)
 }
 
 // ---------- 新注册用户默认有效期 ----------
@@ -680,30 +717,53 @@ export function defaultUserExpiresAt(createdAtSec: number): number {
 
 export type RegistrationMode = 'open' | 'invite' | 'closed'
 
+/** 注册开放推导（纯函数）：后台 registration_open 优先，其次环境变量，默认开放 */
+export function parseRegistrationOpen(
+  get: (key: string) => string | null,
+  env: AuthEnv,
+): boolean {
+  const stored = get('registration_open')
+  if (stored === '1') return true
+  if (stored === '0') return false
+  const envValue = (env.TGYS_REGISTRATION_OPEN ?? '').trim().toLowerCase()
+  return envValue !== '0' && envValue !== 'false'
+}
+
+/** 注册模式推导（纯函数）：后台 registration_mode 优先；未设置时由旧的 registration_open 推导 */
+export function parseRegistrationMode(
+  get: (key: string) => string | null,
+  env: AuthEnv,
+): RegistrationMode {
+  const stored = get('registration_mode')
+  if (stored === 'open' || stored === 'invite' || stored === 'closed') return stored
+  return parseRegistrationOpen(get, env) ? 'open' : 'closed'
+}
+
 /** 注册模式：后台 registration_mode 优先；未设置时由旧的 registration_open 推导 */
 export async function getRegistrationMode(
   db: D1Database,
   env: AuthEnv,
 ): Promise<RegistrationMode> {
-  const stored = await getSetting(db, 'registration_mode')
-  if (stored === 'open' || stored === 'invite' || stored === 'closed') return stored
-  return (await isRegistrationOpen(db, env)) ? 'open' : 'closed'
+  const settings = await getSettings(db, ['registration_mode', 'registration_open'])
+  return parseRegistrationMode(key => settings.get(key) ?? null, env)
 }
 
 // ---------- 注册定时开放 ----------
 
-/** 注册定时开放时刻（unix 秒）：后台 registration_open_at；0 = 未设置。未到该时刻前注册通道关闭（邀请码亦不可用），到点后按注册模式执行 */
-export async function getRegistrationOpenAt(db: D1Database): Promise<number> {
-  const raw = await getSetting(db, 'registration_open_at')
+/** 解析注册时段时刻（纯函数）：合法正整数原样读出，其余为 0（未设置） */
+export function parseRegistrationTimestamp(raw: string | null): number {
   const parsed = Number.parseInt(raw ?? '', 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
 }
 
+/** 注册定时开放时刻（unix 秒）：后台 registration_open_at；0 = 未设置。未到该时刻前注册通道关闭（邀请码亦不可用），到点后按注册模式执行 */
+export async function getRegistrationOpenAt(db: D1Database): Promise<number> {
+  return parseRegistrationTimestamp(await getSetting(db, 'registration_open_at'))
+}
+
 /** 注册开放时段的结束时刻（unix 秒）：后台 registration_close_at；0 = 不设结束（到点开放后长期有效） */
 export async function getRegistrationCloseAt(db: D1Database): Promise<number> {
-  const raw = await getSetting(db, 'registration_close_at')
-  const parsed = Number.parseInt(raw ?? '', 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  return parseRegistrationTimestamp(await getSetting(db, 'registration_close_at'))
 }
 
 export type RegistrationWindowState = 'before' | 'in' | 'after'
@@ -725,11 +785,15 @@ export function registrationWindowState(
 
 // ---------- 注册人数上限 ----------
 
-/** 注册人数上限：后台 registration_max_users；0 = 不限 */
-export async function getRegistrationMaxUsers(db: D1Database): Promise<number> {
-  const raw = await getSetting(db, 'registration_max_users')
+/** 解析注册人数上限（纯函数）：合法正整数原样读出，其余为 0（不限） */
+export function parseRegistrationMaxUsers(raw: string | null): number {
   const parsed = Number.parseInt(raw ?? '', 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+/** 注册人数上限：后台 registration_max_users；0 = 不限 */
+export async function getRegistrationMaxUsers(db: D1Database): Promise<number> {
+  return parseRegistrationMaxUsers(await getSetting(db, 'registration_max_users'))
 }
 
 /** 当前注册用户数（users 表行数；站长不在表内、不计） */
@@ -855,24 +919,41 @@ export interface SiteBehaviorSettings {
   carOpenAccess?: boolean
 }
 
-export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSettings> {
-  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality, danmakuUrl, closedFlag, closedMessage, openAccessFlag, carOpenAccessFlag] =
-    await Promise.all([
-      getSetting(db, 'site_update_log_enabled'),
-      getSetting(db, 'site_scroll_chrome_animation'),
-      getSetting(db, 'tmdb_api_token'),
-      getSetting(db, 'tmdb_enabled'),
-      getSetting(db, 'tmdb_api_base_url'),
-      getSetting(db, 'tmdb_image_base_url'),
-      getSetting(db, 'tmdb_language'),
-      getSetting(db, 'tmdb_image_quality'),
-      getSetting(db, 'site_danmaku_api_url'),
-      getSetting(db, 'site_closed'),
-      getSetting(db, 'site_closed_message'),
-      getSetting(db, 'open_access'),
-      getSetting(db, 'car_open_access'),
-    ])
+/** readSiteBehavior 涉及的 settings 键（供批量读取与公开配置接口复用） */
+export const SITE_BEHAVIOR_SETTING_KEYS = [
+  'site_update_log_enabled',
+  'site_scroll_chrome_animation',
+  'tmdb_api_token',
+  'tmdb_enabled',
+  'tmdb_api_base_url',
+  'tmdb_image_base_url',
+  'tmdb_language',
+  'tmdb_image_quality',
+  'site_danmaku_api_url',
+  'site_closed',
+  'site_closed_message',
+  'open_access',
+  'car_open_access',
+] as const
+
+/** 从设置取值器组装站点行为配置（纯函数，可测）；get 返回 null 表示该项未设置 */
+export function parseSiteBehavior(
+  get: (key: string) => string | null,
+): SiteBehaviorSettings {
   const out: SiteBehaviorSettings = {}
+  const updateLog = get('site_update_log_enabled')
+  const scrollAnim = get('site_scroll_chrome_animation')
+  const tmdbToken = get('tmdb_api_token')
+  const tmdbEnabled = get('tmdb_enabled')
+  const tmdbApiBase = get('tmdb_api_base_url')
+  const tmdbImageBase = get('tmdb_image_base_url')
+  const tmdbLang = get('tmdb_language')
+  const tmdbQuality = get('tmdb_image_quality')
+  const danmakuUrl = get('site_danmaku_api_url')
+  const closedFlag = get('site_closed')
+  const closedMessage = get('site_closed_message')
+  const openAccessFlag = get('open_access')
+  const carOpenAccessFlag = get('car_open_access')
   if (updateLog !== null) out.updateLogEnabled = updateLog === '1'
   if (scrollAnim !== null) out.scrollChromeAnimationEnabled = scrollAnim === '1'
   if (tmdbToken !== null) out.tmdbApiToken = tmdbToken
@@ -891,6 +972,11 @@ export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSett
   if (openAccessFlag !== null) out.openAccess = openAccessFlag === '1'
   if (carOpenAccessFlag !== null) out.carOpenAccess = carOpenAccessFlag === '1'
   return out
+}
+
+export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSettings> {
+  const settings = await getSettings(db, [...SITE_BEHAVIOR_SETTING_KEYS])
+  return parseSiteBehavior(key => settings.get(key) ?? null)
 }
 
 export async function readTgNotifyConfig(db: D1Database): Promise<TgNotifyConfig> {

@@ -57,6 +57,18 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.26.0',
+    title: '打开速度优化：长缓存、配置接口瘦身、首屏骨架',
+    date: formatDate('2026-10-24'),
+    features: [
+      '静态资源改用一年期强缓存（文件名带指纹、不会串版）：第二次打开网站时 JS/CSS 直接从本地缓存加载，省去重新验证与下载。',
+      '首屏配置接口瘦身：原本逐项往数据库跑二十多次查询，改为一次批量读取，接口返回更快，首页与登录判断都受益。',
+      '打开网站先显示品牌启动屏与加载骨架，不再白屏等待。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.25.0',
     title: '播放页换源面板升级：单列完整显示 + 真实吞吐测速',
     date: formatDate('2026-10-24'),

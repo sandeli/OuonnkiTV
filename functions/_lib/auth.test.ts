@@ -16,6 +16,8 @@ import {
   isSiteClosed,
   isOpenAccess,
   readSiteBehavior,
+  getSettings,
+  parseSiteBehavior,
   hashPassword,
   inviteCodeStatus,
   randomHex,
@@ -83,12 +85,38 @@ describe('密码哈希与令牌摘要', () => {
 function fakeDb(settings: Record<string, string>): D1Database {
   return {
     prepare: () => ({
-      bind: (key: string) => ({
-        first: async () => (settings[key] !== undefined ? { value: settings[key] } : null),
+      bind: (...keys: string[]) => ({
+        first: async () =>
+          keys.length > 0 && settings[keys[0]] !== undefined
+            ? { value: settings[keys[0]] }
+            : null,
+        all: async () => ({
+          results: keys
+            .filter(key => settings[key] !== undefined)
+            .map(key => ({ key, value: settings[key] })),
+        }),
       }),
     }),
   } as unknown as D1Database
 }
+
+describe('批量读设置', () => {
+  it('getSettings 一次返回存在的键，缺失键不在 Map 中', async () => {
+    const map = await getSettings(fakeDb({ a: '1', b: 'x' }), ['a', 'b', 'c'])
+    expect(map.get('a')).toBe('1')
+    expect(map.get('b')).toBe('x')
+    expect(map.has('c')).toBe(false)
+    expect((await getSettings(fakeDb({}), [])).size).toBe(0)
+  })
+  it('parseSiteBehavior 与 readSiteBehavior 口径一致（批量路径）', async () => {
+    const settings = { open_access: '1', site_closed: '0', tmdb_enabled: '1' }
+    const viaParse = parseSiteBehavior(key => settings[key as keyof typeof settings] ?? null)
+    const viaRead = await readSiteBehavior(fakeDb(settings))
+    expect(viaParse).toEqual(viaRead)
+    expect(viaParse.openAccess).toBe(true)
+    expect(viaParse.siteClosed).toBe(false)
+  })
+})
 
 describe('注册模式', () => {
   const env = {} as AuthEnv

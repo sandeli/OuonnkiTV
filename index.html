@@ -19,9 +19,64 @@
 
     <!-- Theme Color -->
     <meta name="theme-color" content="#ffffff" />
+
+    <!-- 首屏启动屏：JS 包加载完成前先渲染品牌占位，避免白屏；React 挂载时自动替换 -->
+    <style>
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #ffffff;
+        color: #111827;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        z-index: 9999;
+      }
+      @media (prefers-color-scheme: dark) {
+        #app-splash {
+          background: #0a0a0a;
+          color: #f9fafb;
+        }
+      }
+      #app-splash .splash-ring {
+        width: 44px;
+        height: 44px;
+        border-radius: 9999px;
+        border: 3px solid rgba(128, 128, 128, 0.3);
+        border-top-color: currentColor;
+        animation: splash-spin 0.9s linear infinite;
+      }
+      #app-splash .splash-name {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      #app-splash .splash-sub {
+        font-size: 12px;
+        opacity: 0.55;
+      }
+      @keyframes splash-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-splash" aria-hidden="true">
+        <div class="splash-ring"></div>
+        <div class="splash-name">TGYS TV</div>
+        <div class="splash-sub">你的私人流媒体影院</div>
+      </div>
+    </div>
     <script>
       /* 额外保险（主要针对旧版 iOS Safari 的双指/三指手势） */
       document.addEventListener(

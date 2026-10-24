@@ -282,7 +282,16 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     gateMode === null ||
     (gateMode !== 'open' && isAuthenticated === null && !visitorAccess)
   ) {
-    return null
+    // 首屏探测期间显示品牌骨架而不是白屏（感知速度；探测结论出来后自然切换）
+    return (
+      <div className="bg-background fixed inset-0 z-50 flex flex-col items-center justify-center gap-4">
+        <div className="border-muted-foreground/25 border-t-foreground size-11 animate-spin rounded-full border-[3px]" />
+        <div className="animate-pulse text-center">
+          <p className="text-xl font-bold tracking-wide">TGYS TV</p>
+          <p className="text-muted-foreground mt-1 text-xs">你的私人流媒体影院</p>
+        </div>
+      </div>
+    )
   }
 
   if (gateMode === 'open' || isAuthenticated || visitorAccess) {
