@@ -53,6 +53,8 @@ export function importSources(
     }
 
     // 创建完整的视频源对象
+    // 注意：siteWide（站长「全站生效」标记）必须透传——托管镜像正是走这条导入链路，
+    // 丢了它全站源会被误标成「后台源」，账号同步回存时还会把该源误下架
     const fullSource: VideoSource = {
       id: source.id || generateId(),
       name: source.name!,
@@ -61,6 +63,7 @@ export function importSources(
       timeout: source.timeout ?? defaultTimeout,
       retry: source.retry ?? defaultRetry,
       isEnabled: source.isEnabled ?? true,
+      ...(source.siteWide === true ? { siteWide: true } : {}),
       updatedAt: source.updatedAt || new Date(),
     }
 
