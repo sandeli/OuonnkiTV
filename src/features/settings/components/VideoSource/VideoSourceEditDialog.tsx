@@ -16,6 +16,7 @@ import { Checkbox } from '@/shared/components/ui/checkbox'
 import { ConfirmModal } from '@/shared/components/common/ConfirmModal'
 import { useApiStore } from '@/shared/store/apiStore'
 import { useAuthStore } from '@/shared/store/authStore'
+import { findDuplicateVideoSource } from '@/shared/lib/duplicateSource'
 import { toast } from 'sonner'
 import { cn } from '@/shared/lib'
 import { z } from 'zod'
@@ -95,6 +96,18 @@ export default function VideoSourceEditDialog({
   }, [source, reset])
 
   const handleSave = (data: FormSchema) => {
+    // 判重（名称+地址都相同）：撞到管理员统一提供的源或自己已有的源时提醒并中止，
+    // 否则底层会按「已存在」静默吞掉这次保存、还误报成功，用户根本不知道没加上。
+    // 这一步必须排在「改 id 先删旧源」之前，中止时不能把原源先删掉
+    const duplicate = findDuplicateVideoSource(videoAPIs, data, source?.id)
+    if (duplicate) {
+      toast.error(
+        managedSourceIds.includes(duplicate.id)
+          ? `该源与管理员已添加的源「${duplicate.name}」重复，无需重复添加`
+          : `你已添加过这个源「${duplicate.name}」，无需重复添加`,
+      )
+      return
+    }
     if (source && data.id !== source.id) {
       if (videoAPIs.some(api => api.id === data.id)) {
         toast.error('保存失败，视频源ID已存在')

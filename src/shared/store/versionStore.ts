@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.19.2',
+    title: '添加源与已有源重复时给出提醒',
+    date: formatDate('2026-10-24'),
+    features: [],
+    fixes: [
+      '修复手动添加源时的一处误导：新加的源若与管理员已添加的源（或自己已有的源）名称和地址完全相同，此前会被底层按「已存在」静默吞掉、却仍提示「保存成功」，用户以为加上了其实没有。现在保存前会先判重：与管理员的源重复时提示「与管理员已添加的源重复，无需重复添加」，与自己的源重复时提示已添加过，并中止本次保存。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.19.1',
     title: '修复自己添加的源删不掉、还会重复出现',
     date: formatDate('2026-10-24'),
