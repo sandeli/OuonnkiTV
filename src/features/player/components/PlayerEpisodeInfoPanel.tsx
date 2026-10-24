@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ScrollArea } from '@/shared/components/ui/scroll-area'
 import { cn } from '@/shared/lib/utils'
 import { PlayerEpisodePanel } from './PlayerEpisodePanel'
+import { PlayerInfoContent, type PlayerInfoData } from './PlayerInfoContent'
 import type { EpisodePageItem } from '@/features/player/hooks'
 
 interface EpisodeRange {
@@ -10,8 +11,8 @@ interface EpisodeRange {
 }
 
 interface PlayerEpisodeInfoPanelProps {
-  /** 剧情简介（显示在「简介」胶囊页） */
-  overview: string
+  /** 「简介」胶囊页的数据（影视介绍整体搬入，含演员/导演链接） */
+  info: PlayerInfoData
   totalEpisodes: number
   selectedEpisode: number
   isReversed: boolean
@@ -37,7 +38,7 @@ const TABS: Array<{ value: AsideTab; label: string }> = [
  *（样式对齐 KVideo 播放页的分段胶囊）。默认停在选集。
  */
 export function PlayerEpisodeInfoPanel({
-  overview,
+  info,
   totalEpisodes,
   selectedEpisode,
   isReversed,
@@ -105,9 +106,7 @@ export function PlayerEpisodeInfoPanel({
         </div>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <p className="pr-3 text-sm leading-relaxed whitespace-pre-wrap">
-            {overview.trim() ? overview : '暂无剧情简介'}
-          </p>
+          <PlayerInfoContent info={info} />
         </ScrollArea>
       )}
     </section>

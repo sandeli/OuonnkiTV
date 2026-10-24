@@ -33,7 +33,7 @@ import {
   resolveDanmakuApiUrl,
 } from '@/shared/lib/danmaku'
 import { isTmdbHistoryItem } from '@/shared/lib/viewingHistory'
-import { getBackdropUrl } from '@/shared/lib/tmdb'
+import { getBackdropUrl, getPosterUrl } from '@/shared/lib/tmdb'
 import { useFavoritesStore } from '@/features/favorites/store/favoritesStore'
 import type { TmdbMediaItem, TmdbMediaType } from '@/shared/types/tmdb'
 import type { ViewingHistoryItem } from '@/shared/types'
@@ -48,6 +48,8 @@ import {
   PlayerInfoAndRecommendations,
   PlayerLoadingSkeleton,
   PlayerSourceSpeedStrip,
+  splitPersonNames,
+  type PlayerInfoData,
 } from '@/features/player/components'
 import {
   useEpisodePagination,
@@ -1567,6 +1569,40 @@ export default function UnifiedPlayer() {
   const hasSeasonPanel = !isCmsRoute && tmdbPlayback.seasonOptions.length > 0
 
   const modeLabel = isTmdbRoute ? 'TMDB 播放模式' : 'CMS 直连模式'
+
+  // 「简介」胶囊页的数据：原底部「影视介绍」整体搬入右侧合并框
+  const playerInfo: PlayerInfoData = {
+    title,
+    originalTitle: tmdbPlayback.tmdbDetail?.originalTitle,
+    poster: tmdbPlayback.tmdbDetail?.posterPath
+      ? getPosterUrl(tmdbPlayback.tmdbDetail.posterPath, 'w342')
+      : detail?.videoInfo?.cover || undefined,
+    overview,
+    sourceName,
+    modeLabel,
+    mediaTypeText: tmdbMediaType === 'tv' ? '剧集' : tmdbMediaType === 'movie' ? '电影' : undefined,
+    releaseDate: tmdbPlayback.tmdbDetail?.releaseDate,
+    rating: tmdbPlayback.tmdbDetail?.voteAverage,
+    seasonEpisodeText:
+      tmdbMediaType === 'tv' && seasonCount && episodeCount
+        ? `共 ${seasonCount} 季 / ${episodeCount} 集`
+        : undefined,
+    extraBadges: [detail?.videoInfo?.type, detail?.videoInfo?.year, detail?.videoInfo?.area].filter(
+      (value): value is string => Boolean(value),
+    ),
+    actors: isTmdbRoute
+      ? (tmdbPlayback.tmdbRichDetail?.credits?.cast ?? []).slice(0, 12).map(cast => cast.name)
+      : splitPersonNames(detail?.videoInfo?.actor),
+    directors: isTmdbRoute
+      ? (tmdbPlayback.tmdbRichDetail?.created_by ?? []).map(person => person.name)
+      : splitPersonNames(detail?.videoInfo?.director),
+    favoriteAction: isCmsRoute
+      ? { active: cmsFavoriteActive, onToggle: handleToggleCmsFavorite }
+      : isTmdbRoute && tmdbMediaType
+        ? { active: tmdbFavoriteActive, onToggle: handleToggleTmdbFavorite }
+        : undefined,
+    detailLink,
+  }
   const collapsibleContentClassName =
     'overflow-hidden border-t border-border/45 p-3 md:p-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 data-[state=closed]:slide-out-to-top-1 data-[state=open]:duration-300 data-[state=closed]:duration-200'
 
@@ -1835,7 +1871,7 @@ export default function UnifiedPlayer() {
                 matching={sourceSpeed.discovering}
               />
               <PlayerEpisodeInfoPanel
-                overview={overview}
+                info={playerInfo}
                 totalEpisodes={detail.episodes.length}
                 selectedEpisode={selectedEpisode}
                 isReversed={episodePagination.isReversed}
@@ -1958,7 +1994,7 @@ export default function UnifiedPlayer() {
             />
             {episodes.length > 0 && (
               <PlayerEpisodeInfoPanel
-                overview={overview}
+                info={playerInfo}
                 totalEpisodes={detail.episodes.length}
                 selectedEpisode={selectedEpisode}
                 isReversed={episodePagination.isReversed}
@@ -1978,33 +2014,7 @@ export default function UnifiedPlayer() {
       </section>
 
       <PlayerInfoAndRecommendations
-        title={title}
-        originalTitle={tmdbPlayback.tmdbDetail?.originalTitle}
-        overview={overview}
-        sourceName={sourceName}
-        modeLabel={modeLabel}
-        releaseDate={tmdbPlayback.tmdbDetail?.releaseDate}
-        rating={tmdbPlayback.tmdbDetail?.voteAverage}
-        posterPath={tmdbPlayback.tmdbDetail?.posterPath}
-        cmsCover={detail.videoInfo?.cover}
-        tmdbMediaType={tmdbMediaType}
-        seasonCount={seasonCount}
-        episodeCount={episodeCount}
-        detailLink={detailLink}
         showRecommendations={isTmdbRoute}
-        favoriteAction={
-          isCmsRoute
-            ? {
-                active: cmsFavoriteActive,
-                onToggle: handleToggleCmsFavorite,
-              }
-            : isTmdbRoute && tmdbMediaType
-              ? {
-                  active: tmdbFavoriteActive,
-                  onToggle: handleToggleTmdbFavorite,
-                }
-              : undefined
-        }
         recommendations={recommendationItems}
       />
     </div>

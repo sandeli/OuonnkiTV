@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.29.0',
+    title: '影视介绍搬进简介页',
+    date: formatDate('2026-10-24'),
+    features: [
+      '播放页原先在页面下方的「影视介绍」整体搬进右侧合并框的「简介」页：海报、标题、来源/类型/年份/地区/评分徽章、剧情介绍全文都在框里看；新增主演与导演展示（参考 KVideo：人名是胶囊链接，点击去豆瓣查看该演员）；收藏按钮与查看详情也随介绍一起搬入。页面下方只保留「猜你还喜欢」推荐。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.28.0',
     title: '播放页选集与简介合并',
     date: formatDate('2026-10-24'),
