@@ -237,6 +237,14 @@ describe('关站维护', () => {
     const b3 = await readSiteBehavior(fakeDb({}))
     expect(b3.openAccess).toBeUndefined()
   })
+  it('readSiteBehavior 带出车机自动免登录开关（car_open_access）', async () => {
+    const b = await readSiteBehavior(fakeDb({ car_open_access: '1' }))
+    expect(b.carOpenAccess).toBe(true)
+    const b2 = await readSiteBehavior(fakeDb({ car_open_access: '0' }))
+    expect(b2.carOpenAccess).toBe(false)
+    const b3 = await readSiteBehavior(fakeDb({}))
+    expect(b3.carOpenAccess).toBeUndefined()
+  })
 })
 
 describe('邀请码', () => {

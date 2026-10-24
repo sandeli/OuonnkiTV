@@ -1,5 +1,6 @@
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { cn } from '@/shared/lib'
+import { detectCarBrowser } from '@/shared/lib/carBrowser'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
 import {
@@ -124,10 +125,12 @@ export default function SettingsLayout() {
   const isServerAdmin = authMode === 'server' && authUser?.role === 'admin'
   // 「关于项目」仅站长/管理员可见：服务器账号模式下普通用户不显示该模块（旧单密码模式为站长本人，不受限）
   const isServerRegularUser = authMode === 'server' && !isServerAdmin
-  // 无会员模式下设置中心仅站长可用：非站长（含未登录访客）直达 /settings 一律跳回首页
+  // 访客模式（无会员开放 / 车机自动免登录）下设置中心仅站长可用：非站长（含未登录访客）直达 /settings 一律跳回首页
   // （判断放在组件末尾、所有 hooks 之后，避免开关中途翻转时 hooks 顺序变化）
   const openAccess = useAuthStore(state => state.authConfig?.siteBehavior?.openAccess ?? false)
-  const settingsLocked = authMode === 'server' && openAccess && !isServerAdmin
+  const carOpenAccess = useAuthStore(state => state.authConfig?.siteBehavior?.carOpenAccess ?? false)
+  const visitorMode = openAccess || (carOpenAccess && detectCarBrowser())
+  const settingsLocked = authMode === 'server' && visitorMode && !isServerAdmin
   const modules = isServerAdmin
     ? [
         ...settingsModules.slice(0, -1),

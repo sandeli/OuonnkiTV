@@ -846,10 +846,12 @@ export interface SiteBehaviorSettings {
   siteClosedMessage?: string
   /** 无会员模式（免登录开放）：开启后访客打开网站直接观看、无需登录；除站长外所有人进不了设置中心。关站维护开启时以关站为准 */
   openAccess?: boolean
+  /** 车机自动免登录：开启后车机浏览器（如特斯拉，UA 带 Tesla/ 标记）自动按访客模式进入，与无会员模式同通道；普通浏览器仍走会员制。关站维护开启时以关站为准 */
+  carOpenAccess?: boolean
 }
 
 export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSettings> {
-  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality, danmakuUrl, closedFlag, closedMessage, openAccessFlag] =
+  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality, danmakuUrl, closedFlag, closedMessage, openAccessFlag, carOpenAccessFlag] =
     await Promise.all([
       getSetting(db, 'site_update_log_enabled'),
       getSetting(db, 'site_scroll_chrome_animation'),
@@ -863,6 +865,7 @@ export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSett
       getSetting(db, 'site_closed'),
       getSetting(db, 'site_closed_message'),
       getSetting(db, 'open_access'),
+      getSetting(db, 'car_open_access'),
     ])
   const out: SiteBehaviorSettings = {}
   if (updateLog !== null) out.updateLogEnabled = updateLog === '1'
@@ -881,6 +884,7 @@ export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSett
   if (closedFlag !== null) out.siteClosed = closedFlag === '1'
   if (closedMessage !== null) out.siteClosedMessage = closedMessage
   if (openAccessFlag !== null) out.openAccess = openAccessFlag === '1'
+  if (carOpenAccessFlag !== null) out.carOpenAccess = carOpenAccessFlag === '1'
   return out
 }
 

@@ -92,6 +92,7 @@ export const onRequest = async (context: PagesContext) => {
       siteClosed?: unknown
       siteClosedMessage?: unknown
       openAccess?: unknown
+      carOpenAccess?: unknown
     }>(context.request)
 
     if (typeof body?.registrationOpen === 'boolean') {
@@ -216,6 +217,9 @@ export const onRequest = async (context: PagesContext) => {
     }
     if (typeof body?.openAccess === 'boolean') {
       await setSetting(db, 'open_access', body.openAccess ? '1' : '0')
+    }
+    if (typeof body?.carOpenAccess === 'boolean') {
+      await setSetting(db, 'car_open_access', body.carOpenAccess ? '1' : '0')
     }
     if (typeof body?.siteClosedMessage === 'string') {
       await setSetting(db, 'site_closed_message', body.siteClosedMessage.trim().slice(0, 500))

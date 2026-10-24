@@ -17,6 +17,7 @@ import { useAuthStore } from '@/shared/store/authStore'
 import { TgysLogo } from '@/shared/components/icons'
 import { toast } from 'sonner'
 import { getPublicEnv } from '@/shared/config/runtimeEnv'
+import { detectCarBrowser } from '@/shared/lib/carBrowser'
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -126,6 +127,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   )
   // 无会员模式（免登录开放）：访客直接进站；顶栏「管理员登录」唤起登录墙时只给站长表单
   const openAccess = useAuthStore(state => state.authConfig?.siteBehavior?.openAccess ?? false)
+  // 车机自动免登录：开关开启且当前是车机浏览器时，与无会员模式走同一条访客通道
+  const carOpenAccess = useAuthStore(state => state.authConfig?.siteBehavior?.carOpenAccess ?? false)
+  const visitorMode = openAccess || (carOpenAccess && detectCarBrowser())
   const loginWallRequested = useAuthStore(state => state.loginWallRequested)
   const setLoginWallRequested = useAuthStore(state => state.setLoginWallRequested)
   const [showClosedLogin, setShowClosedLogin] = useState(false)
@@ -154,8 +158,14 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         setGateMode('server')
         const hasToken = !!useAuthStore.getState().token
         let authed = hasToken ? await validateSession() : false
-        // 无会员模式下只有站长会话算数：普通会员会话一律按访客对待（不弹墙、不进设置）
-        if (authed && config.siteBehavior?.openAccess && !useAuthStore.getState().user?.isMaster) {
+        // 访客模式（无会员开放 / 车机自动免登录）下只有站长会话算数：
+        // 普通会员会话一律按访客对待（不弹墙、不进设置）
+        if (
+          authed &&
+          (config.siteBehavior?.openAccess ||
+            (config.siteBehavior?.carOpenAccess && detectCarBrowser())) &&
+          !useAuthStore.getState().user?.isMaster
+        ) {
           authed = false
         }
         setIsAuthenticated(authed)
@@ -197,12 +207,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     }
   }, [isAuthenticated, gateMode, revalidateSession, probeConfig])
 
-  // 无会员模式下登录墙被唤起时强制切到站长表单（该模式没有账号登录与注册）
+  // 访客模式下登录墙被唤起时强制切到站长表单（该模式没有账号登录与注册）
   useEffect(() => {
-    if (gateMode === 'server' && openAccess && (loginWallRequested || showClosedLogin)) {
+    if (gateMode === 'server' && visitorMode && (loginWallRequested || showClosedLogin)) {
       setFormMode('master')
     }
-  }, [gateMode, openAccess, loginWallRequested, showClosedLogin])
+  }, [gateMode, visitorMode, loginWallRequested, showClosedLogin])
 
   useEffect(() => {
     if (!isAuthenticated || isDismissing) return
@@ -259,10 +269,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     setIsDismissing(true)
   }, [])
 
-  // 无会员模式：未登录（或只有普通会员会话）一律按访客直接放行；
-  // 关站维护优先于无会员开放；顶栏点了「管理员登录」时改为展示登录墙（仅站长表单）
+  // 访客模式：未登录（或只有普通会员会话）一律按访客直接放行；
+  // 关站维护优先于访客开放；顶栏点了「管理员登录」时改为展示登录墙（仅站长表单）
   const visitorAccess =
-    gateMode === 'server' && openAccess && !siteClosed && !loginWallRequested
+    gateMode === 'server' && visitorMode && !siteClosed && !loginWallRequested
 
   if (
     gateMode === null ||
@@ -360,10 +370,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     setTurnstileToken('')
   }
 
-  // 无会员模式下登录墙只有站长表单：没有账号登录、没有注册
+  // 访客模式下登录墙只有站长表单：没有账号登录、没有注册
   // （含关站维护页里点「管理员登录」展开表单的情形；此判定在渲染分支处现算，
   // 强制站长表单的 effect 统一放在上方 hooks 区，避免条件 return 之后再调 hooks）
-  const adminOnlyWall = gateMode === 'server' && openAccess
+  const adminOnlyWall = gateMode === 'server' && visitorMode
 
   const heading =
     gateMode === 'legacy'

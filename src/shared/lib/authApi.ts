@@ -52,6 +52,8 @@ export interface SiteBehaviorConfig {
   siteClosedMessage?: string
   /** 无会员模式（免登录开放）：访客直接观看、无需登录；除站长外所有人进不了设置中心 */
   openAccess?: boolean
+  /** 车机自动免登录：车机浏览器自动按访客模式进入，普通浏览器仍走会员制 */
+  carOpenAccess?: boolean
 }
 
 export function sanitizeSiteBehavior(raw: unknown): SiteBehaviorConfig {
@@ -70,6 +72,7 @@ export function sanitizeSiteBehavior(raw: unknown): SiteBehaviorConfig {
   if (typeof r.siteClosed === 'boolean') out.siteClosed = r.siteClosed
   if (typeof r.siteClosedMessage === 'string') out.siteClosedMessage = r.siteClosedMessage
   if (typeof r.openAccess === 'boolean') out.openAccess = r.openAccess
+  if (typeof r.carOpenAccess === 'boolean') out.carOpenAccess = r.carOpenAccess
   if (r.tmdbLanguage === 'zh-CN' || r.tmdbLanguage === 'zh-TW' || r.tmdbLanguage === 'en-US' || r.tmdbLanguage === 'ja-JP') {
     out.tmdbLanguage = r.tmdbLanguage
   }
@@ -553,6 +556,7 @@ export function adminUpdateSettings(
     siteClosed?: boolean
     siteClosedMessage?: string
     openAccess?: boolean
+    carOpenAccess?: boolean
   },
 ): Promise<{ ok: boolean } & AdminSettings> {
   return request('/api/admin/settings', { method: 'POST', body: JSON.stringify(patch) }, token)

@@ -83,6 +83,8 @@ export default function AdminPage() {
   const [sbSiteClosedMessage, setSbSiteClosedMessage] = useState('')
   const [sbOpenAccess, setSbOpenAccess] = useState(false)
   const [sbOpenAccessSaving, setSbOpenAccessSaving] = useState(false)
+  const [sbCarOpenAccess, setSbCarOpenAccess] = useState(false)
+  const [sbCarOpenAccessSaving, setSbCarOpenAccessSaving] = useState(false)
   const [sbSaving, setSbSaving] = useState(false)
   const [doubanDataType, setDoubanDataType] = useState('direct')
   const [doubanDataUrl, setDoubanDataUrl] = useState('')
@@ -135,6 +137,7 @@ export default function AdminPage() {
       setSbSiteClosed(sb.siteClosed ?? false)
       setSbSiteClosedMessage(sb.siteClosedMessage ?? '')
       setSbOpenAccess(sb.openAccess ?? false)
+      setSbCarOpenAccess(sb.carOpenAccess ?? false)
     } catch {
       toast.error('加载管理员数据失败')
     }
@@ -380,6 +383,27 @@ export default function AdminPage() {
     }
   }
 
+  // 车机自动免登录开关即时保存（拨动即生效，不等卡片保存按钮）
+  const handleToggleCarOpenAccess = async (checked: boolean) => {
+    if (!token) return
+    setSbCarOpenAccess(checked)
+    setSbCarOpenAccessSaving(true)
+    try {
+      await adminUpdateSettings(token, { carOpenAccess: checked })
+      void useAuthStore.getState().probeConfig()
+      toast.success(
+        checked
+          ? '车机自动免登录已开启：车机浏览器打开网站自动免登录观看'
+          : '车机自动免登录已关闭',
+      )
+    } catch {
+      setSbCarOpenAccess(!checked)
+      toast.error('车机自动免登录保存失败，请重试')
+    } finally {
+      setSbCarOpenAccessSaving(false)
+    }
+  }
+
   const handleSaveSiteBehavior = async () => {
     if (!token) return
     setSbSaving(true)
@@ -397,6 +421,7 @@ export default function AdminPage() {
         siteClosed: sbSiteClosed,
         siteClosedMessage: sbSiteClosedMessage.trim(),
         openAccess: sbOpenAccess,
+        carOpenAccess: sbCarOpenAccess,
       })
       const sb = result.siteBehavior ?? {}
       setSbTmdbToken(sb.tmdbApiToken ?? '')
@@ -953,6 +978,21 @@ export default function AdminPage() {
                 checked={sbOpenAccess}
                 disabled={sbOpenAccessSaving}
                 onCheckedChange={v => void handleToggleOpenAccess(v)}
+              />
+            </div>
+          </div>
+          <div className="rounded-lg bg-violet-500/10 px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">车机自动免登录</p>
+                <p className="text-muted-foreground text-xs">
+                  开启后，特斯拉等车机浏览器打开网站时自动按访客模式进入：免登录直接搜索、观看，播放页内可以换源；设置中心仅站长可用，首页顶栏只留「管理员登录」。普通浏览器（手机/电脑）不受影响，照常会员登录。靠浏览器特征识别、可以被伪造，只图方便、不要当作防线。开关即时生效，无需点下方保存。关站维护开启时以关站为准。
+                </p>
+              </div>
+              <Switch
+                checked={sbCarOpenAccess}
+                disabled={sbCarOpenAccessSaving}
+                onCheckedChange={v => void handleToggleCarOpenAccess(v)}
               />
             </div>
           </div>

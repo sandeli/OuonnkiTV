@@ -11,6 +11,7 @@ import { ThemeToggle, useThemeState } from './theme'
 import SearchBox from './SearchBox'
 import { useAuthStore } from '@/shared/store/authStore'
 import { cn } from '@/shared/lib'
+import { detectCarBrowser } from '@/shared/lib/carBrowser'
 
 interface NavigationProps {
   hidden?: boolean
@@ -28,10 +29,12 @@ export default function Navigation({ hidden = false, enableScrollAnimation = fal
 
   const showAccount = authMode === 'server' && !!authUser
   const showLogout = showAccount || (authMode === 'legacy' && hasLegacySession)
-  // 无会员模式：未登录时顶栏只留一个「管理员登录」入口（没有用户登录/注册页）
+  // 访客模式（无会员开放 / 车机自动免登录）：未登录时顶栏只留一个「管理员登录」入口（没有用户登录/注册页）
   const openAccess = useAuthStore(state => state.authConfig?.siteBehavior?.openAccess ?? false)
+  const carOpenAccess = useAuthStore(state => state.authConfig?.siteBehavior?.carOpenAccess ?? false)
+  const visitorMode = openAccess || (carOpenAccess && detectCarBrowser())
   const setLoginWallRequested = useAuthStore(state => state.setLoginWallRequested)
-  const showAdminLogin = authMode === 'server' && openAccess && !authUser
+  const showAdminLogin = authMode === 'server' && visitorMode && !authUser
 
   // 在搜索页面隐藏导航栏搜索框
   const isSearchPage = location.pathname === '/search'

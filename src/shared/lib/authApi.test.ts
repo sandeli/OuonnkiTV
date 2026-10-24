@@ -126,6 +126,7 @@ describe('fetchAuthConfig', () => {
             siteClosed: true,
             siteClosedMessage: '维护中，今晚恢复',
             openAccess: true,
+            carOpenAccess: true,
             tmdbLanguage: 'zh-CN',
             tmdbImageQuality: 'ultra',
             updateLogEnabled: 'yes',
@@ -142,6 +143,7 @@ describe('fetchAuthConfig', () => {
       siteClosed: true,
       siteClosedMessage: '维护中，今晚恢复',
       openAccess: true,
+      carOpenAccess: true,
       tmdbLanguage: 'zh-CN',
       scrollChromeAnimationEnabled: false,
     })

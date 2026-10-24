@@ -19,6 +19,7 @@ import { TgysLogo } from '@/shared/components/icons'
 import { useVersionStore } from '../store'
 import { useAuthStore } from '@/shared/store/authStore'
 import { cn } from '@/shared/lib'
+import { detectCarBrowser } from '@/shared/lib/carBrowser'
 
 interface SideBarProps {
   className?: string
@@ -39,10 +40,12 @@ export default function SideBar({
   const authMode = useAuthStore(state => state.authMode)
   const hasLegacySession = useAuthStore(state => !!state.sessionToken)
   const authLogout = useAuthStore(state => state.logout)
-  // 无会员模式下设置中心仅站长可用：非站长（含访客）隐藏「设置」入口（直达链接也会被设置页挡回首页）
+  // 访客模式（无会员开放 / 车机自动免登录）下设置中心仅站长可用：非站长（含访客）隐藏「设置」入口（直达链接也会被设置页挡回首页）
   const openAccess = useAuthStore(state => state.authConfig?.siteBehavior?.openAccess ?? false)
+  const carOpenAccess = useAuthStore(state => state.authConfig?.siteBehavior?.carOpenAccess ?? false)
+  const visitorMode = openAccess || (carOpenAccess && detectCarBrowser())
   const settingsLocked =
-    authMode === 'server' && openAccess && authUser?.role !== 'admin'
+    authMode === 'server' && visitorMode && authUser?.role !== 'admin'
   const showLogout =
     (authMode === 'server' && !!authUser) || (authMode === 'legacy' && hasLegacySession)
 
