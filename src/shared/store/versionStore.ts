@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.26.1',
+    title: '首页弹窗公告改小',
+    date: formatDate('2026-10-24'),
+    features: [],
+    fixes: [
+      '首页弹窗公告在电脑端改小：宽度按公告内容自适应（文字少时是紧凑的小弹窗，不再撑着一个大空框），最大宽度也从 580px 收窄到 420px；长公告仍可滚动查看。手机端显示不变。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.26.0',
     title: '打开速度优化：长缓存、配置接口瘦身、首屏骨架',
     date: formatDate('2026-10-24'),

@@ -47,14 +47,14 @@ export function AnnouncementPopup() {
         if (!next) markSeenAndClose()
       }}
     >
-      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[88vh] sm:w-auto sm:max-w-[min(580px,92vw)] sm:min-w-[340px]">
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[88vh] sm:w-fit sm:max-w-[min(420px,92vw)] sm:min-w-[300px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Megaphone className="size-5" />
             公告
           </DialogTitle>
         </DialogHeader>
-        <div className="overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap">
+        <div className="overflow-y-auto text-sm leading-relaxed break-words whitespace-pre-wrap">
           {announcement.content}
         </div>
         <DialogFooter className="sm:justify-center">
