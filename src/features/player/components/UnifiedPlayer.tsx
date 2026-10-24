@@ -1596,13 +1596,13 @@ export default function UnifiedPlayer() {
     directors: isTmdbRoute
       ? (tmdbPlayback.tmdbRichDetail?.created_by ?? []).map(person => person.name)
       : splitPersonNames(detail?.videoInfo?.director),
-    favoriteAction: isCmsRoute
-      ? { active: cmsFavoriteActive, onToggle: handleToggleCmsFavorite }
-      : isTmdbRoute && tmdbMediaType
-        ? { active: tmdbFavoriteActive, onToggle: handleToggleTmdbFavorite }
-        : undefined,
     detailLink,
   }
+  const playerFavoriteAction = isCmsRoute
+    ? { active: cmsFavoriteActive, onToggle: handleToggleCmsFavorite }
+    : isTmdbRoute && tmdbMediaType
+      ? { active: tmdbFavoriteActive, onToggle: handleToggleTmdbFavorite }
+      : undefined
   const collapsibleContentClassName =
     'overflow-hidden border-t border-border/45 p-3 md:p-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 data-[state=closed]:slide-out-to-top-1 data-[state=open]:duration-300 data-[state=closed]:duration-200'
 
@@ -1872,6 +1872,7 @@ export default function UnifiedPlayer() {
               />
               <PlayerEpisodeInfoPanel
                 info={playerInfo}
+                favoriteAction={playerFavoriteAction}
                 totalEpisodes={detail.episodes.length}
                 selectedEpisode={selectedEpisode}
                 isReversed={episodePagination.isReversed}
@@ -1995,6 +1996,7 @@ export default function UnifiedPlayer() {
             {episodes.length > 0 && (
               <PlayerEpisodeInfoPanel
                 info={playerInfo}
+                favoriteAction={playerFavoriteAction}
                 totalEpisodes={detail.episodes.length}
                 selectedEpisode={selectedEpisode}
                 isReversed={episodePagination.isReversed}

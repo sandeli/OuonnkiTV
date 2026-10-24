@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Heart } from 'lucide-react'
+import { Button } from '@/shared/components/ui/button'
 import { ScrollArea } from '@/shared/components/ui/scroll-area'
 import { cn } from '@/shared/lib/utils'
 import { PlayerEpisodePanel } from './PlayerEpisodePanel'
@@ -13,6 +15,11 @@ interface EpisodeRange {
 interface PlayerEpisodeInfoPanelProps {
   /** 「简介」胶囊页的数据（影视介绍整体搬入，含演员/导演链接） */
   info: PlayerInfoData
+  /** 收藏键：放在胶囊右侧、「共 N 集」之前，两个页签下都可见 */
+  favoriteAction?: {
+    active: boolean
+    onToggle: () => void
+  }
   totalEpisodes: number
   selectedEpisode: number
   isReversed: boolean
@@ -39,6 +46,7 @@ const TABS: Array<{ value: AsideTab; label: string }> = [
  */
 export function PlayerEpisodeInfoPanel({
   info,
+  favoriteAction,
   totalEpisodes,
   selectedEpisode,
   isReversed,
@@ -80,6 +88,17 @@ export function PlayerEpisodeInfoPanel({
             </button>
           ))}
         </div>
+        {favoriteAction ? (
+          <Button
+            size="sm"
+            variant={favoriteAction.active ? 'default' : 'secondary'}
+            className="h-7 shrink-0 rounded-full px-2.5 text-xs"
+            onClick={favoriteAction.onToggle}
+          >
+            <Heart className={favoriteAction.active ? 'size-3.5 fill-current' : 'size-3.5'} />
+            {favoriteAction.active ? '已收藏' : '收藏'}
+          </Button>
+        ) : null}
         {tab === 'episodes' && (
           <span className="text-muted-foreground shrink-0 text-xs">共 {totalEpisodes} 集</span>
         )}

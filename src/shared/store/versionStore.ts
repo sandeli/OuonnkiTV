@@ -57,6 +57,14 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.29.1',
+    title: '收藏键位置调整',
+    date: formatDate('2026-10-24'),
+    features: [],
+    fixes: ['收藏按钮从简介页标题旁移到合并框顶部：放在「简介」胶囊后面、「共 N 集」计数之前，选集与简介两个页签下都能直接点。'],
+    breaking: [],
+  },
+  {
     version: '2.29.0',
     title: '影视介绍搬进简介页',
     date: formatDate('2026-10-24'),
