@@ -39,6 +39,10 @@ export default function SideBar({
   const authMode = useAuthStore(state => state.authMode)
   const hasLegacySession = useAuthStore(state => !!state.sessionToken)
   const authLogout = useAuthStore(state => state.logout)
+  // 无会员模式下设置中心仅站长可用：非站长（含访客）隐藏「设置」入口（直达链接也会被设置页挡回首页）
+  const openAccess = useAuthStore(state => state.authConfig?.siteBehavior?.openAccess ?? false)
+  const settingsLocked =
+    authMode === 'server' && openAccess && authUser?.role !== 'admin'
   const showLogout =
     (authMode === 'server' && !!authUser) || (authMode === 'legacy' && hasLegacySession)
 
@@ -79,11 +83,15 @@ export default function SideBar({
         url: '/history',
         icon: History,
       },
-      {
-        title: '设置',
-        url: '/settings',
-        icon: Settings,
-      },
+      ...(settingsLocked
+        ? []
+        : [
+            {
+              title: '设置',
+              url: '/settings',
+              icon: Settings,
+            },
+          ]),
     ],
     footer: [],
   }

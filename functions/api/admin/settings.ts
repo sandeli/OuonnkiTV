@@ -91,6 +91,7 @@ export const onRequest = async (context: PagesContext) => {
       danmakuApiUrl?: unknown
       siteClosed?: unknown
       siteClosedMessage?: unknown
+      openAccess?: unknown
     }>(context.request)
 
     if (typeof body?.registrationOpen === 'boolean') {
@@ -212,6 +213,9 @@ export const onRequest = async (context: PagesContext) => {
     }
     if (typeof body?.siteClosed === 'boolean') {
       await setSetting(db, 'site_closed', body.siteClosed ? '1' : '0')
+    }
+    if (typeof body?.openAccess === 'boolean') {
+      await setSetting(db, 'open_access', body.openAccess ? '1' : '0')
     }
     if (typeof body?.siteClosedMessage === 'string') {
       await setSetting(db, 'site_closed_message', body.siteClosedMessage.trim().slice(0, 500))

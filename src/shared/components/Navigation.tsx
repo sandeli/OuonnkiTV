@@ -3,7 +3,7 @@ import { TgysLogo } from '@/shared/components/icons'
 import { SidebarTrigger } from '@/shared/components/ui/sidebar'
 import { NavLink, useLocation } from 'react-router'
 import { useEffect, useState } from 'react'
-import { LogOut, Moon, Sun, Laptop } from 'lucide-react'
+import { LogOut, Moon, Sun, Laptop, ShieldCheck } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 import { Button } from '@/shared/components/ui/button'
@@ -28,6 +28,10 @@ export default function Navigation({ hidden = false, enableScrollAnimation = fal
 
   const showAccount = authMode === 'server' && !!authUser
   const showLogout = showAccount || (authMode === 'legacy' && hasLegacySession)
+  // 无会员模式：未登录时顶栏只留一个「管理员登录」入口（没有用户登录/注册页）
+  const openAccess = useAuthStore(state => state.authConfig?.siteBehavior?.openAccess ?? false)
+  const setLoginWallRequested = useAuthStore(state => state.setLoginWallRequested)
+  const showAdminLogin = authMode === 'server' && openAccess && !authUser
 
   // 在搜索页面隐藏导航栏搜索框
   const isSearchPage = location.pathname === '/search'
@@ -137,6 +141,17 @@ export default function Navigation({ hidden = false, enableScrollAnimation = fal
                     退出
                   </Button>
                 </div>
+              )}
+              {showAdminLogin && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 shrink-0 gap-1 px-2 text-xs"
+                  onClick={() => setLoginWallRequested(true)}
+                >
+                  <ShieldCheck className="size-3.5" />
+                  管理员登录
+                </Button>
               )}
               <ThemeToggle>
                 <Button size="icon" variant="ghost" className="size-7">

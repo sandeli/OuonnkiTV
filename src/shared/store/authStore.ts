@@ -36,6 +36,8 @@ interface AuthState {
   authMode: AuthMode | null
   authConfig: AuthPublicConfig | null
   isInitialized: boolean
+  /** 无会员模式下访客点了「登录」：临时唤起登录墙（不持久化，登录成功或放弃后清除） */
+  loginWallRequested: boolean
 }
 
 type PersistedAuthState = Pick<AuthState, 'token' | 'user' | 'sessionToken' | 'salt' | 'authMode'>
@@ -54,6 +56,7 @@ interface AuthActions {
   /** 单密码登录：server 模式下即站长登录（admin），legacy 模式下是原访问密码 */
   login: (password: string, turnstileToken?: string) => Promise<boolean>
   logout: () => Promise<void>
+  setLoginWallRequested: (requested: boolean) => void
   validateSession: () => Promise<boolean>
   /** 定时复查：ok 正常 / invalid 会话已失效（被踢、禁用、到期）/ error 网络异常（不清会话） */
   revalidateSession: () => Promise<'ok' | 'invalid' | 'error'>
@@ -88,6 +91,7 @@ export const useAuthStore = create<AuthStore>()(
       authMode: null,
       authConfig: null,
       isInitialized: false,
+      loginWallRequested: false,
 
       probeConfig: () => {
         if (!probePromise) {
@@ -163,6 +167,10 @@ export const useAuthStore = create<AuthStore>()(
           await logoutAccount(token)
         }
         set({ token: null, user: null, sessionToken: null, salt: null, isInitialized: true })
+      },
+
+      setLoginWallRequested: (requested: boolean) => {
+        set({ loginWallRequested: requested })
       },
 
       revalidateSession: async () => {

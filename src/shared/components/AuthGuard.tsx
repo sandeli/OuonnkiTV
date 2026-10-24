@@ -124,6 +124,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const siteClosedMessage = useAuthStore(
     state => state.authConfig?.siteBehavior?.siteClosedMessage ?? '',
   )
+  // 无会员模式（免登录开放）：访客直接进站；顶栏「管理员登录」唤起登录墙时只给站长表单
+  const openAccess = useAuthStore(state => state.authConfig?.siteBehavior?.openAccess ?? false)
+  const loginWallRequested = useAuthStore(state => state.loginWallRequested)
+  const setLoginWallRequested = useAuthStore(state => state.setLoginWallRequested)
   const [showClosedLogin, setShowClosedLogin] = useState(false)
 
   const [gateMode, setGateMode] = useState<GateMode | null>(null)
@@ -149,7 +153,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       if (config.authEnabled) {
         setGateMode('server')
         const hasToken = !!useAuthStore.getState().token
-        setIsAuthenticated(hasToken ? await validateSession() : false)
+        let authed = hasToken ? await validateSession() : false
+        // 无会员模式下只有站长会话算数：普通会员会话一律按访客对待（不弹墙、不进设置）
+        if (authed && config.siteBehavior?.openAccess && !useAuthStore.getState().user?.isMaster) {
+          authed = false
+        }
+        setIsAuthenticated(authed)
         return
       }
       if (!legacyProtectionEnabled) {
@@ -187,6 +196,13 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       document.removeEventListener('visibilitychange', onVisible)
     }
   }, [isAuthenticated, gateMode, revalidateSession, probeConfig])
+
+  // 无会员模式下登录墙被唤起时强制切到站长表单（该模式没有账号登录与注册）
+  useEffect(() => {
+    if (gateMode === 'server' && openAccess && (loginWallRequested || showClosedLogin)) {
+      setFormMode('master')
+    }
+  }, [gateMode, openAccess, loginWallRequested, showClosedLogin])
 
   useEffect(() => {
     if (!isAuthenticated || isDismissing) return
@@ -232,6 +248,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
   const handleSuccess = useCallback(() => {
     toast.success('验证成功')
+    setLoginWallRequested(false)
     // 成功后必须复位 loading：守卫组件本身不会卸载，退出登录重新上锁时
     // 若 isLoading 残留为 true，登录按钮会一直禁用变灰、需刷新才恢复
     setIsLoading(false)
@@ -242,11 +259,19 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     setIsDismissing(true)
   }, [])
 
-  if (gateMode === null || (gateMode !== 'open' && isAuthenticated === null)) {
+  // 无会员模式：未登录（或只有普通会员会话）一律按访客直接放行；
+  // 关站维护优先于无会员开放；顶栏点了「管理员登录」时改为展示登录墙（仅站长表单）
+  const visitorAccess =
+    gateMode === 'server' && openAccess && !siteClosed && !loginWallRequested
+
+  if (
+    gateMode === null ||
+    (gateMode !== 'open' && isAuthenticated === null && !visitorAccess)
+  ) {
     return null
   }
 
-  if (gateMode === 'open' || isAuthenticated) {
+  if (gateMode === 'open' || isAuthenticated || visitorAccess) {
     return <>{children}</>
   }
 
@@ -334,6 +359,11 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     setConfirmPassword('')
     setTurnstileToken('')
   }
+
+  // 无会员模式下登录墙只有站长表单：没有账号登录、没有注册
+  // （含关站维护页里点「管理员登录」展开表单的情形；此判定在渲染分支处现算，
+  // 强制站长表单的 effect 统一放在上方 hooks 区，避免条件 return 之后再调 hooks）
+  const adminOnlyWall = gateMode === 'server' && openAccess
 
   const heading =
     gateMode === 'legacy'
@@ -472,7 +502,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                       {isLoading ? <Spinner size="sm" /> : <ArrowRight className="size-5" />}
                     </Button>
                   </div>
-                  {gateMode === 'server' && (
+                  {gateMode === 'server' && !adminOnlyWall && (
                     <button
                       type="button"
                       className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm"
@@ -480,6 +510,16 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                     >
                       <ArrowLeft className="size-4" />
                       返回账号登录
+                    </button>
+                  )}
+                  {adminOnlyWall && !siteClosed && (
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm"
+                      onClick={() => setLoginWallRequested(false)}
+                    >
+                      <ArrowLeft className="size-4" />
+                      返回浏览
                     </button>
                   )}
                 </>

@@ -81,6 +81,8 @@ export default function AdminPage() {
   const [sbSiteClosed, setSbSiteClosed] = useState(false)
   const [sbClosedSaving, setSbClosedSaving] = useState(false)
   const [sbSiteClosedMessage, setSbSiteClosedMessage] = useState('')
+  const [sbOpenAccess, setSbOpenAccess] = useState(false)
+  const [sbOpenAccessSaving, setSbOpenAccessSaving] = useState(false)
   const [sbSaving, setSbSaving] = useState(false)
   const [doubanDataType, setDoubanDataType] = useState('direct')
   const [doubanDataUrl, setDoubanDataUrl] = useState('')
@@ -132,6 +134,7 @@ export default function AdminPage() {
       setSbDanmakuApiUrl(sb.danmakuApiUrl ?? '')
       setSbSiteClosed(sb.siteClosed ?? false)
       setSbSiteClosedMessage(sb.siteClosedMessage ?? '')
+      setSbOpenAccess(sb.openAccess ?? false)
     } catch {
       toast.error('加载管理员数据失败')
     }
@@ -356,6 +359,27 @@ export default function AdminPage() {
     }
   }
 
+  // 无会员模式开关即时保存（同关站开关：拨动即生效，不等卡片保存按钮）
+  const handleToggleOpenAccess = async (checked: boolean) => {
+    if (!token) return
+    setSbOpenAccess(checked)
+    setSbOpenAccessSaving(true)
+    try {
+      await adminUpdateSettings(token, { openAccess: checked })
+      void useAuthStore.getState().probeConfig()
+      toast.success(
+        checked
+          ? '无会员模式已开启：访客打开网站即可观看，设置中心仅站长可用'
+          : '无会员模式已关闭，恢复会员登录制',
+      )
+    } catch {
+      setSbOpenAccess(!checked)
+      toast.error('无会员模式保存失败，请重试')
+    } finally {
+      setSbOpenAccessSaving(false)
+    }
+  }
+
   const handleSaveSiteBehavior = async () => {
     if (!token) return
     setSbSaving(true)
@@ -372,6 +396,7 @@ export default function AdminPage() {
         danmakuApiUrl: sbDanmakuApiUrl,
         siteClosed: sbSiteClosed,
         siteClosedMessage: sbSiteClosedMessage.trim(),
+        openAccess: sbOpenAccess,
       })
       const sb = result.siteBehavior ?? {}
       setSbTmdbToken(sb.tmdbApiToken ?? '')
@@ -915,6 +940,21 @@ export default function AdminPage() {
                 <p className="text-muted-foreground text-xs">留空时显示默认文案。</p>
               </div>
             )}
+          </div>
+          <div className="rounded-lg bg-emerald-500/10 px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">无会员模式（免登录开放）</p>
+                <p className="text-muted-foreground text-xs">
+                  开启后没有任何登录/注册页：任何人打开网站即可直接搜索、观看，播放页内可以换源；除站长外所有人都进不了设置中心，源与各项设置由站长统一配置。首页顶栏只留一个「管理员登录」入口供站长登录管理。开关即时生效，无需点下方保存。关站维护开启时以关站为准。
+                </p>
+              </div>
+              <Switch
+                checked={sbOpenAccess}
+                disabled={sbOpenAccessSaving}
+                onCheckedChange={v => void handleToggleOpenAccess(v)}
+              />
+            </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>

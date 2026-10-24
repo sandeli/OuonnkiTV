@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router'
+import { Navigate, useLocation, useNavigate } from 'react-router'
 import { cn } from '@/shared/lib'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
@@ -124,6 +124,10 @@ export default function SettingsLayout() {
   const isServerAdmin = authMode === 'server' && authUser?.role === 'admin'
   // 「关于项目」仅站长/管理员可见：服务器账号模式下普通用户不显示该模块（旧单密码模式为站长本人，不受限）
   const isServerRegularUser = authMode === 'server' && !isServerAdmin
+  // 无会员模式下设置中心仅站长可用：非站长（含未登录访客）直达 /settings 一律跳回首页
+  // （判断放在组件末尾、所有 hooks 之后，避免开关中途翻转时 hooks 顺序变化）
+  const openAccess = useAuthStore(state => state.authConfig?.siteBehavior?.openAccess ?? false)
+  const settingsLocked = authMode === 'server' && openAccess && !isServerAdmin
   const modules = isServerAdmin
     ? [
         ...settingsModules.slice(0, -1),
@@ -148,6 +152,10 @@ export default function SettingsLayout() {
     ),
     indicatorClassName: module.dotClass,
   }))
+
+  if (settingsLocked) {
+    return <Navigate to="/" replace />
+  }
 
   return (
     <div className="min-h-[90vh] pb-8">

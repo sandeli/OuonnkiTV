@@ -229,6 +229,14 @@ describe('关站维护', () => {
     const b2 = await readSiteBehavior(fakeDb({}))
     expect(b2.siteClosed).toBeUndefined()
   })
+  it('readSiteBehavior 带出无会员模式开关（open_access）', async () => {
+    const b = await readSiteBehavior(fakeDb({ open_access: '1' }))
+    expect(b.openAccess).toBe(true)
+    const b2 = await readSiteBehavior(fakeDb({ open_access: '0' }))
+    expect(b2.openAccess).toBe(false)
+    const b3 = await readSiteBehavior(fakeDb({}))
+    expect(b3.openAccess).toBeUndefined()
+  })
 })
 
 describe('邀请码', () => {

@@ -844,10 +844,12 @@ export interface SiteBehaviorSettings {
   siteClosed?: boolean
   /** 关站说明（展示在维护页）；未填时客户端用默认文案 */
   siteClosedMessage?: string
+  /** 无会员模式（免登录开放）：开启后访客打开网站直接观看、无需登录；除站长外所有人进不了设置中心。关站维护开启时以关站为准 */
+  openAccess?: boolean
 }
 
 export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSettings> {
-  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality, danmakuUrl, closedFlag, closedMessage] =
+  const [updateLog, scrollAnim, tmdbToken, tmdbEnabled, tmdbApiBase, tmdbImageBase, tmdbLang, tmdbQuality, danmakuUrl, closedFlag, closedMessage, openAccessFlag] =
     await Promise.all([
       getSetting(db, 'site_update_log_enabled'),
       getSetting(db, 'site_scroll_chrome_animation'),
@@ -860,6 +862,7 @@ export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSett
       getSetting(db, 'site_danmaku_api_url'),
       getSetting(db, 'site_closed'),
       getSetting(db, 'site_closed_message'),
+      getSetting(db, 'open_access'),
     ])
   const out: SiteBehaviorSettings = {}
   if (updateLog !== null) out.updateLogEnabled = updateLog === '1'
@@ -877,6 +880,7 @@ export async function readSiteBehavior(db: D1Database): Promise<SiteBehaviorSett
   if (danmakuUrl !== null) out.danmakuApiUrl = danmakuUrl
   if (closedFlag !== null) out.siteClosed = closedFlag === '1'
   if (closedMessage !== null) out.siteClosedMessage = closedMessage
+  if (openAccessFlag !== null) out.openAccess = openAccessFlag === '1'
   return out
 }
 

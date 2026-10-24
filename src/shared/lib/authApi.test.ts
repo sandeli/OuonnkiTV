@@ -125,6 +125,7 @@ describe('fetchAuthConfig', () => {
             danmakuApiUrl: 'https://danmaku.example.com',
             siteClosed: true,
             siteClosedMessage: '维护中，今晚恢复',
+            openAccess: true,
             tmdbLanguage: 'zh-CN',
             tmdbImageQuality: 'ultra',
             updateLogEnabled: 'yes',
@@ -140,6 +141,7 @@ describe('fetchAuthConfig', () => {
       danmakuApiUrl: 'https://danmaku.example.com',
       siteClosed: true,
       siteClosedMessage: '维护中，今晚恢复',
+      openAccess: true,
       tmdbLanguage: 'zh-CN',
       scrollChromeAnimationEnabled: false,
     })
