@@ -1830,7 +1830,7 @@ export default function UnifiedPlayer() {
             <div className="flex flex-col gap-3 xl:h-full">
               <PlayerSourceSpeedStrip
                 options={sourceSpeed.options}
-                latencies={sourceSpeed.latencies}
+                probes={sourceSpeed.probes}
                 qualities={sourceSpeed.qualities}
                 probedCodes={sourceSpeed.probedCodes}
                 selectedSourceCode={resolvedSourceCode}
@@ -1966,7 +1966,7 @@ export default function UnifiedPlayer() {
             )}
             <PlayerSourceSpeedStrip
               options={sourceSpeed.options}
-              latencies={sourceSpeed.latencies}
+              probes={sourceSpeed.probes}
                 qualities={sourceSpeed.qualities}
               probedCodes={sourceSpeed.probedCodes}
               selectedSourceCode={resolvedSourceCode}

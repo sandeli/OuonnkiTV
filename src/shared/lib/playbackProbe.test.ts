@@ -18,8 +18,8 @@ describe('parseHlsPlaylist', () => {
     ].join('\n')
     const info = parseHlsPlaylist(text, 'https://cdn.example.com/v/9/master.m3u8')
     expect(info.variants).toEqual([
-      { url: 'https://cdn.example.com/v/9/low/index.m3u8', bandwidth: 800000 },
-      { url: 'https://cdn.example.com/v/9/hi/index.m3u8', bandwidth: 5000000 },
+      { url: 'https://cdn.example.com/v/9/low/index.m3u8', bandwidth: 800000, height: 360 },
+      { url: 'https://cdn.example.com/v/9/hi/index.m3u8', bandwidth: 5000000, height: 1080 },
     ])
     expect(info.segments).toEqual([])
   })
@@ -139,6 +139,31 @@ describe('probePlayback（mock 网络）', () => {
     expect(result?.startupMs).toBeGreaterThanOrEqual(0)
     expect(result?.throughputMbps).toBeGreaterThan(0)
     expect(result?.bitrateMbps).toBe(1.2)
+    expect(result?.headroom).toBeGreaterThan(0)
+  })
+
+  it('主列表：按最高档位测速，带出 BANDWIDTH 码率与清晰度标签', async () => {
+    const master = [
+      '#EXTM3U',
+      '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
+      'low.m3u8',
+      '#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x1080',
+      'hi.m3u8',
+    ].join('\n')
+    const media = ['#EXTM3U', '#EXTINF:4.0,', 'seg1.ts', '#EXT-X-ENDLIST'].join('\n')
+    const segBytes = new Uint8Array(1_100_000)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.endsWith('master.m3u8')) return streamResponse([new TextEncoder().encode(master)])
+        if (url.endsWith('hi.m3u8')) return streamResponse([new TextEncoder().encode(media)])
+        if (url.endsWith('seg1.ts')) return streamResponse([segBytes])
+        throw new Error(`unexpected fetch ${url}`)
+      }),
+    )
+    const result = await probePlayback('https://cdn.example.com/v/2/master.m3u8')
+    expect(result?.bitrateMbps).toBe(4)
+    expect(result?.qualityLabel).toBe('1080p')
     expect(result?.headroom).toBeGreaterThan(0)
   })
 

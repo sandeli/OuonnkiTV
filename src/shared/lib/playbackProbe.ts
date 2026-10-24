@@ -17,6 +17,8 @@ export interface PlaybackProbeResult {
   bitrateMbps?: number
   /** 吞吐余量（吞吐/码率，倍数）；码率未知时为空 */
   headroom?: number
+  /** 清晰度标签（如 1080p / 2K / 4K，取自主列表最高分辨率档）；读不到时为空 */
+  qualityLabel?: string
 }
 
 /** 累计下载目标字节数：约 1MB 才能避开连接初期的爆发速度、测出持续吞吐 */
@@ -31,6 +33,8 @@ const MIN_PARTIAL_BYTES = 128_000
 export interface HlsVariant {
   url: string
   bandwidth?: number
+  /** 分辨率高度（像素），来自 RESOLUTION=宽x高 */
+  height?: number
 }
 
 export interface HlsSegment {
@@ -56,14 +60,18 @@ export function parseHlsPlaylist(text: string, baseUrl: string): HlsPlaylistInfo
   const variants: HlsVariant[] = []
   const segments: HlsSegment[] = []
   const lines = text.split(/\r?\n/)
-  let pendingVariant: { bandwidth?: number } | null = null
+  let pendingVariant: { bandwidth?: number; height?: number } | null = null
   let pendingDuration: number | undefined
   for (const rawLine of lines) {
     const line = rawLine.trim()
     if (!line) continue
     if (line.startsWith('#EXT-X-STREAM-INF')) {
-      const m = /BANDWIDTH=(\d+)/.exec(line)
-      pendingVariant = { bandwidth: m ? Number(m[1]) : undefined }
+      const bw = /BANDWIDTH=(\d+)/.exec(line)
+      const res = /RESOLUTION=(\d+)x(\d+)/.exec(line)
+      pendingVariant = {
+        bandwidth: bw ? Number(bw[1]) : undefined,
+        height: res ? Number(res[2]) : undefined,
+      }
       continue
     }
     if (line.startsWith('#EXTINF')) {
@@ -75,7 +83,7 @@ export function parseHlsPlaylist(text: string, baseUrl: string): HlsPlaylistInfo
     const url = resolveUrl(line, baseUrl)
     if (!url) continue
     if (pendingVariant) {
-      variants.push({ url, bandwidth: pendingVariant.bandwidth })
+      variants.push({ url, bandwidth: pendingVariant.bandwidth, height: pendingVariant.height })
       pendingVariant = null
     } else {
       segments.push({ url, duration: pendingDuration })
@@ -173,11 +181,19 @@ export function estimateBitrateMbps(
   return Math.round(((bytes * 8) / duration / 1_000_000) * 10) / 10
 }
 
+/** 分辨率高度 → 清晰度标签（与播放页 playlistQuality.formatQualityLabel 同口径） */
+export function qualityLabelFromHeight(height: number): string {
+  if (height >= 2000) return '4K'
+  if (height >= 1300) return '2K'
+  return `${height}p`
+}
+
 function buildResult(
   startupMs: number,
   bytes: number,
   elapsedMs: number,
   bitrateMbps: number | undefined,
+  qualityLabel?: string,
 ): PlaybackProbeResult {
   const throughputMbps = Math.round(((bytes * 8) / (elapsedMs / 1000) / 1_000_000) * 10) / 10
   return {
@@ -187,6 +203,7 @@ function buildResult(
     ...(bitrateMbps !== undefined && bitrateMbps > 0
       ? { headroom: Math.round((throughputMbps / bitrateMbps) * 10) / 10 }
       : {}),
+    ...(qualityLabel !== undefined ? { qualityLabel } : {}),
   }
 }
 
@@ -264,7 +281,11 @@ export async function probePlayback(episodeUrl: string): Promise<PlaybackProbeRe
 
     let info = parseHlsPlaylist(text, episodeUrl)
     let bitrateMbps: number | undefined
+    let qualityLabel: string | undefined
     if (info.variants.length > 0) {
+      // 清晰度标签取所有档位中的最高分辨率（与换源列表既有口径一致）
+      const maxHeight = Math.max(0, ...info.variants.map(v => v.height ?? 0))
+      if (maxHeight > 0) qualityLabel = qualityLabelFromHeight(maxHeight)
       // 主列表：选码率最高的档位测（观众在自适应下最终会升到这一档）
       const variant = [...info.variants].sort((a, b) => (b.bandwidth ?? 0) - (a.bandwidth ?? 0))[0]
       if (variant.bandwidth && variant.bandwidth > 0) {
@@ -302,6 +323,7 @@ export async function probePlayback(episodeUrl: string): Promise<PlaybackProbeRe
       sample.bytes,
       sample.elapsedMs,
       bitrateMbps,
+      qualityLabel,
     )
   } catch {
     return null

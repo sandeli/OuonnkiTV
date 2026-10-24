@@ -9,10 +9,11 @@ import {
 import { ScrollArea } from '@/shared/components/ui/scroll-area'
 import { cn } from '@/shared/lib/utils'
 import type { PlayerSourceOption } from '@/features/player/hooks'
+import type { PlaybackProbeResult } from '@/shared/lib/playbackProbe'
 
 interface PlayerSourceSpeedStripProps {
   options: PlayerSourceOption[]
-  latencies: Map<string, number>
+  probes: Map<string, PlaybackProbeResult>
   qualities: Map<string, string>
   probedCodes: Set<string>
   selectedSourceCode: string
@@ -29,9 +30,15 @@ function displaySourceName(name: string): string {
   return cleaned || name
 }
 
-function speedDotClass(latency: number): string {
-  if (latency <= 400) return 'bg-emerald-500'
-  if (latency <= 1000) return 'bg-amber-500'
+/** 状态点颜色：优先按吞吐余量（越大越稳），没有余量数据时按起播耗时 */
+function speedDotClass(probe: PlaybackProbeResult): string {
+  if (probe.headroom !== undefined) {
+    if (probe.headroom >= 2) return 'bg-emerald-500'
+    if (probe.headroom >= 1) return 'bg-amber-500'
+    return 'bg-rose-500'
+  }
+  if (probe.startupMs <= 400) return 'bg-emerald-500'
+  if (probe.startupMs <= 1000) return 'bg-amber-500'
   return 'bg-rose-500'
 }
 
@@ -42,7 +49,7 @@ function speedDotClass(latency: number): string {
  */
 export function PlayerSourceSpeedStrip({
   options,
-  latencies,
+  probes,
   qualities,
   probedCodes,
   selectedSourceCode,
@@ -105,11 +112,11 @@ export function PlayerSourceSpeedStrip({
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent className="overflow-hidden border-t border-border/45 p-3 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 data-[state=closed]:duration-200 data-[state=open]:duration-300 md:p-4">
-        <ScrollArea className="max-h-44 sm:max-h-56">
-          <div className="grid grid-cols-2 gap-2 pr-2">
+        <ScrollArea className="max-h-56 sm:max-h-72">
+          <div className="flex flex-col gap-2 pr-2">
             {options.map(option => {
               const active = option.sourceCode === selectedSourceCode
-              const latency = latencies.get(option.sourceCode)
+              const probe = probes.get(option.sourceCode)
               const quality = qualities.get(option.sourceCode)
               const probed = probedCodes.has(option.sourceCode)
               const label = displaySourceName(option.sourceName)
@@ -118,23 +125,23 @@ export function PlayerSourceSpeedStrip({
                   key={option.sourceCode}
                   size="sm"
                   variant={active ? 'default' : 'secondary'}
-                  className="w-full min-w-0 justify-between gap-2 rounded-full"
+                  className="h-auto w-full min-w-0 justify-between gap-2 rounded-full px-3.5 py-2"
                   aria-current={active ? 'true' : undefined}
                   aria-label={`切换到视频源 ${label}`}
                   onClick={() => onSourceChange(option.sourceCode)}
                 >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate">{label}</span>
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+                    <span className="leading-snug">{label}</span>
                     {quality && (
                       <span className="shrink-0 text-[11px] font-semibold opacity-90">
                         {quality}
                       </span>
                     )}
                   </span>
-                  {latency !== undefined ? (
+                  {probe !== undefined ? (
                     <span className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums opacity-80">
-                      <span className={cn('size-1.5 rounded-full', speedDotClass(latency))} />
-                      {latency} ms
+                      <span className={cn('size-1.5 rounded-full', speedDotClass(probe))} />
+                      播放 {probe.startupMs} ms · {probe.throughputMbps} Mbps
                     </span>
                   ) : probed ? (
                     <span className="shrink-0 text-[11px] opacity-60">测不出</span>

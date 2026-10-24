@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.25.0',
+    title: '播放页换源面板升级：单列完整显示 + 真实吞吐测速',
+    date: formatDate('2026-10-24'),
+    features: [
+      '播放页的「换源」面板改为单列排列：源名不再被截断，每个源完整显示清晰度与「播放 xxx ms · xx Mbps」实测数据（起播耗时 + 真实分片下载吞吐），与搜索结果卡片同一套测速口径。排序改为吞吐余量优先（状态点颜色也按余量：绿=余量充足、黄=勉强、红=吞吐低于码率），测速完成后自动重排；测不出的源仍会标明「测不出」。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.24.0',
     title: '无会员模式站长登录加人机验证，车机不再显示管理员入口',
     date: formatDate('2026-10-24'),
