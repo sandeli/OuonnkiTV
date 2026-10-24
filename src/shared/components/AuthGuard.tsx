@@ -33,6 +33,7 @@ declare global {
     turnstile?: {
       render: (el: HTMLElement, opts: Record<string, unknown>) => string
       remove: (id: string) => void
+      reset: (id: string) => void
     }
   }
 }
@@ -55,6 +56,16 @@ function TurnstileWidget({
         widgetId = window.turnstile.render(ref.current, {
           sitekey: siteKey,
           callback: onToken,
+          // 令牌约 5 分钟过期且只能用一次：过期/出错时清掉旧令牌并重置组件重新出题，
+          // 否则用户只能刷新页面才能再登录（表现为「有时人机验证失败」）
+          'expired-callback': () => {
+            onToken('')
+            if (widgetId && window.turnstile) window.turnstile.reset(widgetId)
+          },
+          'error-callback': () => {
+            onToken('')
+            if (widgetId && window.turnstile) window.turnstile.reset(widgetId)
+          },
         })
       }
     }
@@ -141,6 +152,13 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
+  // 人机验证令牌只能用一次：每次提交（无论成败）后都换新组件重新出题，
+  // 否则第二次登录会拿着已作废的令牌被服务端拒绝
+  const [turnstileNonce, setTurnstileNonce] = useState(0)
+  const refreshTurnstile = useCallback(() => {
+    setTurnstileToken('')
+    setTurnstileNonce(n => n + 1)
+  }, [])
   const [isLoading, setIsLoading] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [isDismissing, setIsDismissing] = useState(false)
@@ -314,6 +332,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     } else {
       toast.error(gateMode === 'server' ? '站长密码不正确' : '验证失败')
       setIsLoading(false)
+      refreshTurnstile()
     }
   }
 
@@ -337,6 +356,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     } else {
       toast.error(result.error ?? '登录失败')
       setIsLoading(false)
+      refreshTurnstile()
     }
   }
 
@@ -370,6 +390,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     } else {
       toast.error(result.error ?? '注册失败')
       setIsLoading(false)
+      refreshTurnstile()
     }
   }
 
@@ -383,7 +404,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const switchForm = (mode: FormMode) => {
     setFormMode(mode)
     setConfirmPassword('')
-    setTurnstileToken('')
+    refreshTurnstile()
   }
 
   // 访客模式下登录墙只有站长表单：没有账号登录、没有注册
@@ -512,7 +533,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
               {gateMode === 'legacy' || formMode === 'master' ? (
                 <>
                   {masterTurnstileRequired && (
-                    <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+                    <TurnstileWidget key={turnstileNonce} siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
                   )}
                   <div className="flex items-center gap-2">
                     <Input
@@ -572,7 +593,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                     className="h-11 rounded-full"
                   />
                   {siteClosed && (
-                    <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+                    <TurnstileWidget key={turnstileNonce} siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
                   )}
                   <Button
                     ref={buttonRef}
@@ -653,7 +674,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                       className="h-11 rounded-full"
                     />
                   )}
-                  <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+                  <TurnstileWidget key={turnstileNonce} siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
                   <Button
                     ref={buttonRef}
                     className="h-11 w-full rounded-full"

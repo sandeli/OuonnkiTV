@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.27.1',
+    title: '修复人机验证偶发失败',
+    date: formatDate('2026-10-24'),
+    features: [],
+    fixes: [
+      '修复登录/注册时「有时人机验证失败」：验证令牌只能使用一次且约 5 分钟过期，此前输错一次密码后再登录、或在登录页停留较久才提交，都会拿着已作废的令牌被拒绝且无法自恢复。现在每次提交后自动刷新验证、令牌过期或出错时组件自动重新出题，不必再刷新页面。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.27.0',
     title: '站长登录防爆破',
     date: formatDate('2026-10-24'),
