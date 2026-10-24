@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, RadioTower } from 'lucide-react'
+import { ChevronDown, Clapperboard, RadioTower } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import {
   Collapsible,
@@ -24,7 +24,7 @@ interface PlayerSourceSpeedStripProps {
   className?: string
 }
 
-/** 源名展示清洗：去掉开头/结尾的表情、横线等装饰字符（共享源清单里名字常带 🎬 前缀） */
+/** 源名展示清洗：去掉开头/结尾的表情、横线等装饰字符（行首统一由场记板图标占位） */
 function displaySourceName(name: string): string {
   const cleaned = name.replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}]+$/u, '')
   return cleaned || name
@@ -131,6 +131,7 @@ export function PlayerSourceSpeedStrip({
                   onClick={() => onSourceChange(option.sourceCode)}
                 >
                   <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+                    <Clapperboard className="size-4 shrink-0 opacity-75" />
                     <span className="leading-snug">{label}</span>
                     {quality && (
                       <span className="shrink-0 text-[11px] font-semibold opacity-90">

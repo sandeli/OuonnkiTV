@@ -57,6 +57,14 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.29.3',
+    title: '换源列表源名统一加图标',
+    date: formatDate('2026-10-25'),
+    features: [],
+    fixes: ['播放页换源列表里每个源名字前统一加了场记板小图标；源名本身保持清洗显示，避免自带符号与图标重复。'],
+    breaking: [],
+  },
+  {
     version: '2.29.2',
     title: '收藏键改回原位、页签胶囊加大',
     date: formatDate('2026-10-25'),
