@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router'
-import { CalendarDays, ExternalLink, Star, Tv } from 'lucide-react'
+import { CalendarDays, ExternalLink, Heart, Star, Tv } from 'lucide-react'
 import { Badge } from '@/shared/components/ui/badge'
+import { Button } from '@/shared/components/ui/button'
 
 /**
  * 播放页「简介」页的数据（由 UnifiedPlayer 按 CMS / TMDB 两种来源组装成统一结构）
@@ -23,6 +24,10 @@ export interface PlayerInfoData {
   extraBadges?: string[]
   actors: string[]
   directors: string[]
+  favoriteAction?: {
+    active: boolean
+    onToggle: () => void
+  }
   detailLink?: string
 }
 
@@ -81,6 +86,7 @@ export function PlayerInfoContent({ info }: { info: PlayerInfoData }) {
     extraBadges,
     actors,
     directors,
+    favoriteAction,
     detailLink,
   } = info
 
@@ -96,11 +102,24 @@ export function PlayerInfoContent({ info }: { info: PlayerInfoData }) {
         </div>
 
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="min-w-0 space-y-0.5">
-            <h3 className="line-clamp-2 text-base leading-snug font-semibold">{title}</h3>
-            {originalTitle && originalTitle !== title && (
-              <p className="text-muted-foreground line-clamp-1 text-xs">{originalTitle}</p>
-            )}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 space-y-0.5">
+              <h3 className="line-clamp-2 text-base leading-snug font-semibold">{title}</h3>
+              {originalTitle && originalTitle !== title && (
+                <p className="text-muted-foreground line-clamp-1 text-xs">{originalTitle}</p>
+              )}
+            </div>
+            {favoriteAction ? (
+              <Button
+                size="sm"
+                variant={favoriteAction.active ? 'default' : 'secondary'}
+                className="h-7 shrink-0 rounded-full px-2.5 text-xs"
+                onClick={favoriteAction.onToggle}
+              >
+                <Heart className={favoriteAction.active ? 'size-3.5 fill-current' : 'size-3.5'} />
+                {favoriteAction.active ? '已收藏' : '收藏'}
+              </Button>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">

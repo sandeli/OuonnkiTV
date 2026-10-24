@@ -57,6 +57,16 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.29.2',
+    title: '收藏键改回原位、页签胶囊加大',
+    date: formatDate('2026-10-25'),
+    features: [],
+    fixes: [
+      '收藏按钮改回简介页标题旁（撤销上一版的移位）；右侧框顶部的「选集 / 简介」切换胶囊加大一号，更好点。',
+    ],
+    breaking: [],
+  },
+  {
     version: '2.29.1',
     title: '收藏键位置调整',
     date: formatDate('2026-10-24'),
