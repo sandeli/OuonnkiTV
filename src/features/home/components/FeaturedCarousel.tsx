@@ -215,11 +215,14 @@ export function FeaturedCarousel({
                   ratio={getAspectRatio()}
                   className="bg-muted overflow-hidden rounded-lg"
                 >
-                  {/* 背景图片 */}
+                  {/* 背景图片：尺寸封顶 w1280（质量档位为「高」时不再拉数 MB 的原图），
+                      非当前张懒加载，首页打开时不一口气拉满全部轮播大图 */}
                   <img
                     className="h-full w-full rounded-lg object-cover object-center md:object-top-right"
-                    src={getBackdropUrl(item.backdropPath)}
+                    src={getBackdropUrl(item.backdropPath, 'w1280')}
                     alt={item.title}
+                    loading={isActive ? 'eager' : 'lazy'}
+                    decoding="async"
                   />
 
                   {/* 遮罩层 - 移动端/平板从下到上渐变 */}
@@ -234,6 +237,7 @@ export function FeaturedCarousel({
                         <img
                           src={getLogoUrl(item.logoPath)}
                           alt={item.title}
+                          loading={isActive ? 'eager' : 'lazy'}
                           className="max-h-12 max-w-[180px] object-contain md:max-h-16 md:max-w-[240px]"
                         />
                       ) : (
@@ -362,6 +366,7 @@ export function FeaturedCarousel({
                         <img
                           src={getLogoUrl(item.logoPath)}
                           alt={item.title}
+                          loading={isActive ? 'eager' : 'lazy'}
                           className="max-h-35 max-w-md object-contain xl:max-h-40 xl:max-w-lg"
                         />
                       ) : (

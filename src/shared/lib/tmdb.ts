@@ -171,10 +171,25 @@ function getImageQuality(): 'low' | 'medium' | 'high' {
   return useSettingStore.getState().system.tmdbImageQuality
 }
 
+/**
+ * TMDB 图片是否走本站代理（默认开）：环境变量 TGYS_TMDB_IMAGE_PROXY 设为
+ * 0/false/off 时关闭（例如部署在没有 Pages Functions 的平台上时改回直连）。
+ */
+export function isTmdbImageProxyEnabled(): boolean {
+  const flag = getPublicEnv('TGYS_TMDB_IMAGE_PROXY')?.trim().toLowerCase()
+  return flag !== '0' && flag !== 'false' && flag !== 'off'
+}
+
 function buildTmdbImageUrl(path: string | null, size: string): string {
   if (!path) return ''
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  return `${resolveTmdbImageBaseUrl()}${size}${normalizedPath}`
+  const base = resolveTmdbImageBaseUrl()
+  // 图片地址是官方默认域名时改走本站代理（/api/tmdb-img，CF 边缘缓存转发），
+  // 不再让观看者浏览器直连 image.tmdb.org；管理员配了自定义图片地址（镜像）时按其设置直连
+  if (base === DEFAULT_TMDB_IMAGE_BASE_URL && isTmdbImageProxyEnabled()) {
+    return `/api/tmdb-img/${size}${normalizedPath}`
+  }
+  return `${base}${size}${normalizedPath}`
 }
 
 export function getPosterUrl(path: string | null, size?: string): string {

@@ -57,6 +57,17 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.20.0',
+    title: 'TMDB 图片走本站边缘缓存加速，首页轮播图加载优化',
+    date: formatDate('2026-10-24'),
+    features: [
+      'TMDB 图片加载模式优化：海报、剧照、演员头像等 TMDB 图片不再由观看者浏览器直连 image.tmdb.org（国内慢且不稳定，经常灰一片），改经本站的 Cloudflare 边缘缓存转发——同一张图全站只需向源站拉取一次，之后所有人打开都是就近直出，加载更快更稳。管理员若在后台配了自定义 TMDB 图片地址（镜像），仍按自定义地址直连、不走本站转发。',
+      '首页精选轮播图加载优化：轮播大图尺寸封顶为 w1280（此前图片质量设为「高」时会直接拉取数 MB 的原图），且非当前展示的轮播图改成懒加载，进首页时不再一口气把全部大图拉满。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.19.2',
     title: '添加源与已有源重复时给出提醒',
     date: formatDate('2026-10-24'),

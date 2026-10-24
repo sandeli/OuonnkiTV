@@ -3,7 +3,10 @@ import { useSettingStore } from '@/shared/store/settingStore'
 import {
   DEFAULT_TMDB_API_BASE_URL,
   DEFAULT_TMDB_IMAGE_BASE_URL,
+  getBackdropUrl,
+  getPosterUrl,
   getTmdbClient,
+  isTmdbImageProxyEnabled,
   resolveTmdbApiBaseUrl,
   resolveTmdbImageBaseUrl,
 } from './tmdb'
@@ -130,5 +133,39 @@ describe('tmdb 请求改写', () => {
     expect(requestInit.headers).toMatchObject({
       Authorization: 'Bearer tmdb-test-token',
     })
+  })
+})
+
+describe('tmdb 图片地址构建（本站代理）', () => {
+  const ORIGINAL_PROXY_FLAG = import.meta.env.TGYS_TMDB_IMAGE_PROXY
+
+  beforeEach(() => {
+    useSettingStore.setState(state => ({
+      ...state,
+      system: { ...ORIGINAL_SYSTEM },
+    }))
+    import.meta.env.TGYS_TMDB_IMAGE_BASE_URL = ''
+    import.meta.env.TGYS_TMDB_IMAGE_PROXY = ORIGINAL_PROXY_FLAG
+  })
+
+  it('图片地址为官方默认时走本站代理路径', () => {
+    setSystemSettingsForTest({ tmdbImageBaseUrl: '' })
+    expect(getPosterUrl('/abc.jpg', 'w342')).toBe('/api/tmdb-img/w342/abc.jpg')
+    expect(getBackdropUrl('/bg.jpg', 'w1280')).toBe('/api/tmdb-img/w1280/bg.jpg')
+    expect(isTmdbImageProxyEnabled()).toBe(true)
+  })
+
+  it('管理员配了自定义图片地址时按其地址直连，不走代理', () => {
+    setSystemSettingsForTest({ tmdbImageBaseUrl: 'https://example.com/tmdb-images' })
+    expect(getPosterUrl('/abc.jpg', 'w342')).toBe(
+      'https://example.com/tmdb-images/t/p/w342/abc.jpg',
+    )
+  })
+
+  it('环境变量关闭代理时回退官方直连', () => {
+    import.meta.env.TGYS_TMDB_IMAGE_PROXY = '0'
+    setSystemSettingsForTest({ tmdbImageBaseUrl: '' })
+    expect(isTmdbImageProxyEnabled()).toBe(false)
+    expect(getPosterUrl('/abc.jpg', 'w342')).toBe('https://image.tmdb.org/t/p/w342/abc.jpg')
   })
 })
