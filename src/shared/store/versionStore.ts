@@ -57,6 +57,17 @@ const formatDate = (dateStr: string) => {
 // 版本更新历史
 const VERSION_UPDATES: VersionUpdate[] = [
   {
+    version: '2.27.0',
+    title: '站长登录防爆破',
+    date: formatDate('2026-10-24'),
+    features: [
+      '站长登录在所有模式下都必须先过人机验证（此前仅关站维护与无会员模式需要），防止有人暴力破解站长密码。',
+      '站长登录新增失败锁定：同一 IP 在 15 分钟内输错密码满 5 次，该 IP 锁定 10 分钟不能再试；按 IP 计数，攻击者锁不住其他网络的站长本人。',
+    ],
+    fixes: [],
+    breaking: [],
+  },
+  {
     version: '2.26.1',
     title: '首页弹窗公告改小',
     date: formatDate('2026-10-24'),

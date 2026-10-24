@@ -274,9 +274,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const visitorAccess =
     gateMode === 'server' && visitorMode && !siteClosed && !loginWallRequested
 
-  // 站长登录需要人机验证的场景：关站维护中，或无会员模式开启时
-  //（两种模式下站长入口都公开可见，与服务端 login 的校验口径一致；未配置密钥时组件不渲染、服务端放行）
-  const masterTurnstileRequired = siteClosed || openAccess
+  // 站长登录在所有模式下都需要人机验证（防爆破站长密码，与服务端 login 的校验口径一致；
+  // 未配置密钥时组件不渲染、服务端放行）。legacy 单密码模式无账号系统，不在此列。
+  const masterTurnstileRequired = gateMode === 'server'
 
   if (
     gateMode === null ||

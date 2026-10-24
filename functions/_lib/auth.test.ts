@@ -15,6 +15,9 @@ import {
   registrationWindowState,
   isSiteClosed,
   isOpenAccess,
+  clearLoginFailures,
+  getLoginLockSeconds,
+  recordLoginFailure,
   readSiteBehavior,
   getSettings,
   parseSiteBehavior,
@@ -365,5 +368,77 @@ describe('新注册用户默认有效期', () => {
     expect(DEFAULT_USER_VALID_DAYS).toBe(365)
     const createdAt = 1_700_000_000
     expect(defaultUserExpiresAt(createdAt)).toBe(createdAt + 365 * 86400)
+  })
+})
+
+/** login_attempts 的内存假实现：按 SQL 关键字分发 first/run */
+function fakeAttemptsDb() {
+  const rows = new Map<string, { failCount: number; windowStart: number; lockedUntil: number }>()
+  const db = {
+    prepare: (sql: string) => ({
+      bind: (...args: unknown[]) => ({
+        first: async () => {
+          if (!sql.includes('FROM login_attempts')) return null
+          return rows.get(String(args[0])) ?? null
+        },
+        run: async () => {
+          if (sql.includes('INSERT INTO login_attempts')) {
+            const [key, failCount, windowStart, lockedUntil] = args as [
+              string,
+              number,
+              number,
+              number,
+            ]
+            rows.set(key, { failCount, windowStart, lockedUntil })
+          } else if (sql.includes('DELETE FROM login_attempts')) {
+            rows.delete(String(args[0]))
+          }
+          return { success: true }
+        },
+      }),
+    }),
+  } as unknown as D1Database
+  return { db, rows }
+}
+
+describe('登录失败锁定', () => {
+  const KEY = 'master-login:1.2.3.4'
+  const T0 = 1_700_000_000
+
+  it('失败满 5 次锁定 10 分钟，锁定剩余秒数递减', async () => {
+    const { db } = fakeAttemptsDb()
+    for (let i = 0; i < 4; i++) {
+      expect(await recordLoginFailure(db, KEY, T0 + i)).toBe(false)
+      expect(await getLoginLockSeconds(db, KEY, T0 + i)).toBe(0)
+    }
+    expect(await recordLoginFailure(db, KEY, T0 + 4)).toBe(true)
+    expect(await getLoginLockSeconds(db, KEY, T0 + 4)).toBe(600)
+    expect(await getLoginLockSeconds(db, KEY, T0 + 304)).toBe(300)
+    expect(await getLoginLockSeconds(db, KEY, T0 + 604)).toBe(0)
+  })
+
+  it('窗口（15 分钟）过期后重新计数，不会累计到锁定', async () => {
+    const { db } = fakeAttemptsDb()
+    for (let i = 0; i < 4; i++) await recordLoginFailure(db, KEY, T0 + i)
+    // 距窗口起点已超过 15 分钟：第 5 次失败开启新窗口，计数回到 1
+    expect(await recordLoginFailure(db, KEY, T0 + 901)).toBe(false)
+    expect(await getLoginLockSeconds(db, KEY, T0 + 901)).toBe(0)
+  })
+
+  it('登录成功清零：清除后重新计数', async () => {
+    const { db } = fakeAttemptsDb()
+    for (let i = 0; i < 4; i++) await recordLoginFailure(db, KEY, T0 + i)
+    await clearLoginFailures(db, KEY)
+    for (let i = 0; i < 4; i++) {
+      expect(await recordLoginFailure(db, KEY, T0 + 10 + i)).toBe(false)
+    }
+    expect(await getLoginLockSeconds(db, KEY, T0 + 20)).toBe(0)
+  })
+
+  it('不同 key 互不影响', async () => {
+    const { db } = fakeAttemptsDb()
+    for (let i = 0; i < 5; i++) await recordLoginFailure(db, KEY, T0 + i)
+    expect(await getLoginLockSeconds(db, KEY, T0 + 10)).toBeGreaterThan(0)
+    expect(await getLoginLockSeconds(db, 'master-login:5.6.7.8', T0 + 10)).toBe(0)
   })
 })

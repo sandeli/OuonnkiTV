@@ -155,6 +155,15 @@ export function ensureSchema(db: D1Database): Promise<void> {
             created_at INTEGER NOT NULL
           )`,
         ),
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS login_attempts (
+            key TEXT PRIMARY KEY,
+            fail_count INTEGER NOT NULL DEFAULT 0,
+            window_start INTEGER NOT NULL DEFAULT 0,
+            locked_until INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0
+          )`,
+        ),
       ])
       // 老表补列（列已存在时 ALTER 会报错，忽略即可）
       const columnAdditions: Array<[string, string, string]> = [
@@ -399,6 +408,70 @@ export async function isSiteClosed(db: D1Database): Promise<boolean> {
 /** 无会员模式（免登录开放）是否开启 */
 export async function isOpenAccess(db: D1Database): Promise<boolean> {
   return (await getSetting(db, 'open_access')) === '1'
+}
+
+// ---------- 登录失败锁定（防暴力破解） ----------
+// 按 key 计数（当前用于站长登录，key = master-login:<IP>，按 IP 锁不会误伤其他网络的站长本人）：
+// 15 分钟窗口内失败满 5 次 → 锁定 10 分钟；窗口过期自动重新计数；登录成功清零。
+export const LOGIN_LOCK_THRESHOLD = 5
+export const LOGIN_LOCK_WINDOW_SECONDS = 15 * 60
+export const LOGIN_LOCK_DURATION_SECONDS = 10 * 60
+
+interface LoginAttemptRow {
+  failCount: number
+  windowStart: number
+  lockedUntil: number
+}
+
+async function readLoginAttempt(db: D1Database, key: string): Promise<LoginAttemptRow | null> {
+  return db
+    .prepare(
+      'SELECT fail_count AS failCount, window_start AS windowStart, locked_until AS lockedUntil FROM login_attempts WHERE key = ?',
+    )
+    .bind(key)
+    .first<LoginAttemptRow>()
+}
+
+/** 剩余锁定秒数（0 = 未锁定） */
+export async function getLoginLockSeconds(
+  db: D1Database,
+  key: string,
+  now: number = nowSeconds(),
+): Promise<number> {
+  const row = await readLoginAttempt(db, key)
+  if (!row) return 0
+  return row.lockedUntil > now ? row.lockedUntil - now : 0
+}
+
+/** 记录一次登录失败；达到阈值即进入锁定。返回本次记录后是否处于锁定 */
+export async function recordLoginFailure(
+  db: D1Database,
+  key: string,
+  now: number = nowSeconds(),
+): Promise<boolean> {
+  const row = await readLoginAttempt(db, key)
+  const inWindow = row !== null && now - row.windowStart < LOGIN_LOCK_WINDOW_SECONDS
+  const failCount = inWindow ? row.failCount + 1 : 1
+  const windowStart = inWindow ? row.windowStart : now
+  const lockedUntil = failCount >= LOGIN_LOCK_THRESHOLD ? now + LOGIN_LOCK_DURATION_SECONDS : 0
+  await db
+    .prepare(
+      `INSERT INTO login_attempts (key, fail_count, window_start, locked_until, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET
+         fail_count = excluded.fail_count,
+         window_start = excluded.window_start,
+         locked_until = excluded.locked_until,
+         updated_at = excluded.updated_at`,
+    )
+    .bind(key, failCount, windowStart, lockedUntil, now)
+    .run()
+  return lockedUntil > 0
+}
+
+/** 登录成功后清除该 key 的失败记录 */
+export async function clearLoginFailures(db: D1Database, key: string): Promise<void> {
+  await db.prepare('DELETE FROM login_attempts WHERE key = ?').bind(key).run()
 }
 
 export async function requireUser(

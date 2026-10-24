@@ -1,14 +1,16 @@
 import {
+  clearLoginFailures,
   createSession,
   ensureSchema,
+  getLoginLockSeconds,
   getRequestGeo,
-  isOpenAccess,
   isSiteClosed,
   json,
   MASTER_USER_ID,
   notifyUserLoginTg,
   nowSeconds,
   readJson,
+  recordLoginFailure,
   verifyPassword,
   verifyTurnstile,
   type PagesContext,
@@ -44,16 +46,27 @@ export const onRequest = async (context: PagesContext) => {
     // 站长登录：用户名 admin + 环境变量 TGYS_ACCESS_PASSWORD
     const masterPassword = context.env.TGYS_ACCESS_PASSWORD ?? ''
     if (!masterPassword) return json({ error: '站长登录未启用' }, 403)
-    // 站长登录必须先过人机验证的场景：关站维护期间、无会员模式（免登录开放）开启时
-    //（这两种模式下站长入口是公开可见的，防爆破站长密码）；
+    // 站长登录在所有模式下都必须先过人机验证（防爆破站长密码）；
     // 未配置 Turnstile 密钥时 verifyTurnstile 直接放行
-    if ((await isSiteClosed(db)) || (await isOpenAccess(db))) {
-      const token = typeof body?.turnstileToken === 'string' ? body.turnstileToken : undefined
-      if (!(await verifyTurnstile(context.env, token))) {
-        return json({ error: '人机验证失败，请重试' }, 403)
-      }
+    const token = typeof body?.turnstileToken === 'string' ? body.turnstileToken : undefined
+    if (!(await verifyTurnstile(context.env, token))) {
+      return json({ error: '人机验证失败，请重试' }, 403)
     }
-    if (password !== masterPassword) return json({ error: '用户名或密码错误' }, 401)
+    // 失败锁定（按 IP 计数，不会误伤其他网络的站长本人）：
+    // 同一 IP 15 分钟内站长登录失败满 5 次 → 该 IP 锁定 10 分钟
+    const lockKey = `master-login:${ip || 'unknown'}`
+    const lockSeconds = await getLoginLockSeconds(db, lockKey, loginAt)
+    if (lockSeconds > 0) {
+      return json(
+        { error: `站长登录失败次数过多，请 ${Math.ceil(lockSeconds / 60)} 分钟后再试` },
+        429,
+      )
+    }
+    if (password !== masterPassword) {
+      await recordLoginFailure(db, lockKey, loginAt)
+      return json({ error: '用户名或密码错误' }, 401)
+    }
+    await clearLoginFailures(db, lockKey)
     sessionUser = { userId: MASTER_USER_ID, username: 'admin', role: 'admin', isMaster: true }
   } else {
     // 关站维护：普通账号一律拒绝登录（站长走上面的主账号分支，不受影响）
