@@ -23,6 +23,23 @@ export function collectAccountSources(
   )
 }
 
+/**
+ * 账户源去重（先出现者优先）：同一 id 只留一份；名称+地址完全相同的也只留一份。
+ * 同一个源在不同设备上添加会生成不同 id，账号合并时若只按 id 并集就会变成两条重复源；
+ * 与站点 addSource 的判定保持一致——名称与地址都相同即视为同一个源。
+ */
+export function dedupeAccountSources(list: VideoSource[]): VideoSource[] {
+  const seenIds = new Set<string>()
+  const seenPairs = new Set<string>()
+  return list.filter(s => {
+    const pair = `${s.name}\n${s.url}`
+    if (seenIds.has(s.id) || seenPairs.has(pair)) return false
+    seenIds.add(s.id)
+    seenPairs.add(pair)
+    return true
+  })
+}
+
 /** VideoSource → 上行载荷（字段固定，序列化稳定，便于哈希比对） */
 export function toAccountSourcePayload(source: VideoSource): AccountSourcePayload {
   return {
@@ -57,6 +74,23 @@ export function fromAccountSourcePayload(payload: AccountSourcePayload): VideoSo
 /** 账户源集合的稳定序列化（不含 updatedAt 等易变字段），用于变更检测 */
 export function serializeAccountSources(list: VideoSource[]): string {
   return JSON.stringify(list.map(toAccountSourcePayload))
+}
+
+/**
+ * 托管镜像运行后，找出「服务端有、本机列表里却缺失、且不是正以托管形态展示」的账户源。
+ * 这类条目是被托管镜像摘除的（典型：关闭某源的「全站生效」后它退出托管清单），
+ * 应以个人形态补回本地，而不是当作已删除。注意只能在托管镜像刚运行完时调用它对账：
+ * 用户主动删除同样会让条目从列表消失，但那是删除意图、必须生效，不能拿这个结果去恢复。
+ */
+export function findMirrorDroppedSources(
+  serverKnown: VideoSource[],
+  videoAPIs: VideoSource[],
+  managedSourceIds: string[],
+): VideoSource[] {
+  const managed = new Set(managedSourceIds)
+  return serverKnown.filter(
+    s => !managed.has(s.id) && !videoAPIs.some(v => v.id === s.id),
+  )
 }
 
 export interface AccountMirrorResult {

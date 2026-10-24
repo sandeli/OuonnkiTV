@@ -3,6 +3,8 @@ import type { VideoSource } from '@tgys/cms-core'
 import {
   applyAccountMirror,
   collectAccountSources,
+  dedupeAccountSources,
+  findMirrorDroppedSources,
   fromAccountSourcePayload,
   serializeAccountSources,
   toAccountSourcePayload,
@@ -97,5 +99,51 @@ describe('applyAccountMirror 账户源镜像', () => {
     const result = applyAccountMirror(current, ['acct_a', 'acct_b'], [src({ id: 'acct_a' })], [])
     expect(result.videoAPIs.map(s => s.id)).toEqual(['acct_a'])
     expect(result.accountSourceIds).toEqual(['acct_a'])
+  })
+})
+
+describe('findMirrorDroppedSources 托管镜像对账口径', () => {
+  it('镜像摘除的个人源会被找出（应以个人形态补回）', () => {
+    const serverKnown = [src({ id: 'personal1' }), src({ id: 'site1', siteWide: true })]
+    // site1 已退出托管清单、从本地列表消失；personal1 还在列表里
+    const out = findMirrorDroppedSources(serverKnown, [src({ id: 'personal1' })], [])
+    expect(out.map(s => s.id)).toEqual(['site1'])
+  })
+
+  it('正以托管形态展示的全站源不算被摘除', () => {
+    const serverKnown = [src({ id: 'site1', siteWide: true })]
+    const out = findMirrorDroppedSources(serverKnown, [src({ id: 'site1', siteWide: true })], ['site1'])
+    expect(out).toEqual([])
+  })
+
+  it('列表里还在的源不算缺失', () => {
+    const serverKnown = [src({ id: 'a' }), src({ id: 'b' })]
+    const out = findMirrorDroppedSources(serverKnown, [src({ id: 'a' }), src({ id: 'b' })], [])
+    expect(out).toEqual([])
+  })
+})
+
+describe('dedupeAccountSources 去重口径', () => {
+  it('同 id 只留一份（先出现者优先）', () => {
+    const out = dedupeAccountSources([src({ id: 'a', name: '甲' }), src({ id: 'a', name: '甲改' })])
+    expect(out).toHaveLength(1)
+    expect(out[0].name).toBe('甲')
+  })
+
+  it('id 不同但名称+地址相同的视为同一个源，只留一份', () => {
+    const out = dedupeAccountSources([
+      src({ id: 'uuid-1', name: '量子', url: 'https://cj.example/api' }),
+      src({ id: 'uuid-2', name: '量子', url: 'https://cj.example/api' }),
+    ])
+    expect(out.map(s => s.id)).toEqual(['uuid-1'])
+  })
+
+  it('名称或地址任一不同都是不同的源，全部保留', () => {
+    const out = dedupeAccountSources([
+      src({ id: 'a', name: '量子', url: 'https://cj.example/api' }),
+      src({ id: 'b', name: '量子', url: 'https://cj2.example/api' }),
+      src({ id: 'c', name: '非凡', url: 'https://cj.example/api' }),
+    ])
+    expect(out.map(s => s.id)).toEqual(['a', 'b', 'c'])
   })
 })

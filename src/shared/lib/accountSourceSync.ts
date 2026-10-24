@@ -5,6 +5,8 @@ import { useAuthStore } from '@/shared/store/authStore'
 import { fetchUserSources, saveUserSources } from '@/shared/lib/authApi'
 import {
   collectAccountSources,
+  dedupeAccountSources,
+  findMirrorDroppedSources,
   fromAccountSourcePayload,
   serializeAccountSources,
   toAccountSourcePayload,
@@ -47,7 +49,7 @@ export function startAccountSourceSync(userId: number): () => void {
     const carried = serverKnown.filter(
       s => s.siteWide === true && !localIds.has(s.id) && !seenIds.has(s.id),
     )
-    const list = [...local, ...carried]
+    const list = dedupeAccountSources([...local, ...carried])
     const hash = serializeAccountSources(list)
     if (hash === lastHash) return
     // 先乐观更新服务端副本：托管镜像随后摘除/恢复条目时，对账以这份最新意图为准
@@ -83,9 +85,13 @@ export function startAccountSourceSync(userId: number): () => void {
       if (disposed) return
       serverKnown = remote.sources.map(fromAccountSourcePayload)
       const localList = collect()
-      // 并集（同 id 以服务端为准）：把这台设备上还没上过账户的老手动源迁上去
+      // 并集（同 id 以服务端为准）：把这台设备上还没上过账户的老手动源迁上去；
+      // 再按（名称+地址）去重——同一个源在不同设备上添加的 id 不同，不去重就会变成两条重复源
       const remoteIds = new Set(serverKnown.map(s => s.id))
-      const merged = [...serverKnown, ...localList.filter(s => !remoteIds.has(s.id))]
+      const merged = dedupeAccountSources([
+        ...serverKnown,
+        ...localList.filter(s => !remoteIds.has(s.id)),
+      ])
       applying = true
       useApiStore.getState().applyAccountSources(merged)
       applying = false
@@ -114,17 +120,20 @@ export function startAccountSourceSync(userId: number): () => void {
     for (const s of state.videoAPIs) seenIds.add(s.id)
     if (applying) return
     if (state.videoAPIs === prevState.videoAPIs) return
-    // 对账：账户源在服务端有、本机列表里却缺失（且不是正以托管形态展示）时补回本地。
-    // 典型场景：关闭某源的「全站生效」后，托管镜像会把它从列表摘除，
-    // 但它仍是站长的个人账户源，应以个人形态回到列表里，而不是被删掉
-    const missing = serverKnown.filter(
-      s =>
-        !state.videoAPIs.some(v => v.id === s.id) && !state.managedSourceIds.includes(s.id),
-    )
-    if (missing.length > 0) {
-      applying = true
-      useApiStore.getState().applyAccountSources(serverKnown)
-      applying = false
+    if (state.managedSourceIds !== prevState.managedSourceIds) {
+      // 本次变化来自托管源镜像（它与源列表在同一次状态更新里改动托管 id 集合）：
+      // 账户源若被镜像摘除，以个人形态补回。典型场景：关闭某源的「全站生效」后
+      // 托管镜像把它摘除，但它仍是个人账户源，不应被删掉
+      const missing = findMirrorDroppedSources(serverKnown, state.videoAPIs, state.managedSourceIds)
+      if (missing.length > 0) {
+        applying = true
+        useApiStore.getState().applyAccountSources(serverKnown)
+        applying = false
+      }
+    } else {
+      // 用户自己的增删改（含删除源）：以本地为准，服务端副本跟随，
+      // 删除随之生效、随后回存时同步删掉服务端那份，不会被对账恢复回来
+      serverKnown = collect()
     }
     schedulePush()
   })

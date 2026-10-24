@@ -530,12 +530,14 @@ export const ACCOUNT_SOURCES_LIMIT = 200
 /**
  * 清洗站长账号源列表（不可信输入）：仅保留结构合法的条目。
  * id 原样保留（uuid/自定义 id 都行），但订阅源 id（sub: 前缀）与重复 id 会被改派为 acct_N；
- * 名称/地址必填且地址必须是 http(s)。
+ * 名称/地址必填且地址必须是 http(s)；名称+地址与已保留条目完全相同的视为重复源、直接丢弃
+ * （同一个源在不同设备上添加会生成不同 id，只按 id 去重会存下两条重复源）。
  */
 export function parseAccountSources(input: unknown): AccountSourceEntry[] {
   if (!Array.isArray(input)) return []
   const out: AccountSourceEntry[] = []
   const seen = new Set<string>()
+  const seenPairs = new Set<string>()
   for (const raw of input) {
     if (out.length >= ACCOUNT_SOURCES_LIMIT) break
     if (!raw || typeof raw !== 'object') continue
@@ -543,6 +545,9 @@ export function parseAccountSources(input: unknown): AccountSourceEntry[] {
     const name = typeof e.name === 'string' ? e.name.trim().slice(0, 100) : ''
     const url = typeof e.url === 'string' ? e.url.trim() : ''
     if (!name || !/^https?:\/\//i.test(url)) continue
+    const pair = `${name}\n${url}`
+    if (seenPairs.has(pair)) continue
+    seenPairs.add(pair)
     let id = typeof e.id === 'string' ? e.id.trim().slice(0, 128) : ''
     if (!id || id.startsWith('sub:') || seen.has(id)) {
       let n = out.length + 1

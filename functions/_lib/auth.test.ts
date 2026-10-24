@@ -292,6 +292,15 @@ describe('站长账号源清洗', () => {
     expect(extractSiteWideSources(list).map(s => s.id)).toEqual(['a'])
   })
 
+  it('名称+地址完全相同的重复源会被丢弃（不同设备各加一次的同名源）', () => {
+    const list = parseAccountSources([
+      { id: 'uuid-1', name: '量子', url: 'https://cj.example/api' },
+      { id: 'uuid-2', name: '量子', url: 'https://cj.example/api' },
+      { id: 'uuid-3', name: '量子', url: 'https://other.example/api' },
+    ])
+    expect(list.map(s => s.id)).toEqual(['uuid-1', 'uuid-3'])
+  })
+
   it('普通用户的全站标记会被剥掉，站长的保留（防越权分发）', () => {
     const list = parseAccountSources([
       { id: 'a', name: '甲', url: 'https://a.example/api', siteWide: true },
