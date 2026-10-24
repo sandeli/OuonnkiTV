@@ -396,6 +396,11 @@ export async function isSiteClosed(db: D1Database): Promise<boolean> {
   return (await getSetting(db, 'site_closed')) === '1'
 }
 
+/** 无会员模式（免登录开放）是否开启 */
+export async function isOpenAccess(db: D1Database): Promise<boolean> {
+  return (await getSetting(db, 'open_access')) === '1'
+}
+
 export async function requireUser(
   context: PagesContext,
 ): Promise<{ db: D1Database; user: SessionUser } | Response> {

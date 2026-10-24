@@ -2,6 +2,7 @@ import {
   createSession,
   ensureSchema,
   getRequestGeo,
+  isOpenAccess,
   isSiteClosed,
   json,
   MASTER_USER_ID,
@@ -43,9 +44,10 @@ export const onRequest = async (context: PagesContext) => {
     // 站长登录：用户名 admin + 环境变量 TGYS_ACCESS_PASSWORD
     const masterPassword = context.env.TGYS_ACCESS_PASSWORD ?? ''
     if (!masterPassword) return json({ error: '站长登录未启用' }, 403)
-    // 关站维护期间站长登录必须先过人机验证（防关站时爆破站长密码）；
+    // 站长登录必须先过人机验证的场景：关站维护期间、无会员模式（免登录开放）开启时
+    //（这两种模式下站长入口是公开可见的，防爆破站长密码）；
     // 未配置 Turnstile 密钥时 verifyTurnstile 直接放行
-    if (await isSiteClosed(db)) {
+    if ((await isSiteClosed(db)) || (await isOpenAccess(db))) {
       const token = typeof body?.turnstileToken === 'string' ? body.turnstileToken : undefined
       if (!(await verifyTurnstile(context.env, token))) {
         return json({ error: '人机验证失败，请重试' }, 403)

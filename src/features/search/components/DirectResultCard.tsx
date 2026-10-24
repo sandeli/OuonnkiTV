@@ -4,6 +4,7 @@ import { Play } from 'lucide-react'
 import { AspectRatio } from '@/shared/components/ui/aspect-ratio'
 import { cn } from '@/shared/lib/utils'
 import type { SourceColorScheme } from '@/shared/lib/source-colors'
+import type { PlaybackProbeResult } from '@/shared/lib/playbackProbe'
 
 interface DirectResultCardProps {
   /** 播放页链接 */
@@ -24,8 +25,8 @@ interface DirectResultCardProps {
   resolution?: string | null
   /** 该源接口测速耗时（毫秒）- 绿色描边标 */
   latencyMs?: number
-  /** 该源播放线路测速耗时（毫秒，浏览器直连分集地址）- 蓝色描边标 */
-  playbackLatencyMs?: number
+  /** 该源真实分片吞吐测速结果（起播耗时 + 实测吞吐）- 蓝色描边标 */
+  playbackProbe?: PlaybackProbeResult
   /** 语言（如「汉语普通话」） */
   lang?: string
 }
@@ -44,7 +45,7 @@ export function DirectResultCard({
   remarks,
   resolution,
   latencyMs,
-  playbackLatencyMs,
+  playbackProbe,
   lang,
 }: DirectResultCardProps) {
   const [imgError, setImgError] = useState(false)
@@ -112,7 +113,7 @@ export function DirectResultCard({
         <div className="px-2 py-3 text-center">
           <p className="text-primary line-clamp-1 text-sm font-semibold">{title}</p>
 
-          {(resolution || latencyMs !== undefined || playbackLatencyMs !== undefined) && (
+          {(resolution || latencyMs !== undefined || playbackProbe !== undefined) && (
             <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
               {resolution && (
                 <span className="rounded bg-green-500 px-1.5 py-0.5 text-[11px] font-bold text-white">
@@ -127,12 +128,12 @@ export function DirectResultCard({
                   接口 {latencyMs}ms
                 </span>
               )}
-              {playbackLatencyMs !== undefined && (
+              {playbackProbe !== undefined && (
                 <span
                   className="rounded-full border border-sky-500 px-2 py-0.5 text-[11px] font-medium text-sky-600 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                  title="播放速度：浏览器直连该源视频地址的首字节耗时"
+                  title={`播放测速（浏览器实下真实分片）：起播 ${playbackProbe.startupMs}ms · 实测吞吐 ${playbackProbe.throughputMbps}Mbps${playbackProbe.bitrateMbps !== undefined ? ` · 片源码率约 ${playbackProbe.bitrateMbps}Mbps` : ''}${playbackProbe.headroom !== undefined ? ` · 吞吐余量 ${playbackProbe.headroom} 倍（越大越流畅）` : ''}`}
                 >
-                  播放 {playbackLatencyMs}ms
+                  播放 {playbackProbe.startupMs}ms · {playbackProbe.throughputMbps}Mbps
                 </span>
               )}
             </div>

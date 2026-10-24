@@ -8,12 +8,17 @@ import { useApiStore } from '@/shared/store/apiStore'
 import { getTitleMatchTier } from '@/features/search/hooks/directSearch.utils'
 import { buildDoubanSearchPath } from '@/shared/lib/douban'
 import { buildCmsPlayPath } from '@/shared/lib/routes'
+import {
+  compareProbeResults,
+  probePlayback,
+  type PlaybackProbeResult,
+} from '@/shared/lib/playbackProbe'
 
 /**
  * 豆瓣墙点击直达播放的解析页（/play/auto?q=片名）：
- * 跨源搜索同名资源 → 按标题匹配档位筛候选 → 逐个探测第一集播放延迟 →
- * 选出最快的源后 replace 跳转到标准播放地址 /play/cms/:source/:vodId（播放页本体不感知此流程）。
- * 规则与搜索结果页一致：先比匹配档位，再比播放延迟，测不出延迟的排后面。
+ * 跨源搜索同名资源 → 按标题匹配档位筛候选 → 逐个实测第一集真实分片吞吐 →
+ * 选出最稳的源后 replace 跳转到标准播放地址 /play/cms/:source/:vodId（播放页本体不感知此流程）。
+ * 规则与搜索结果页一致：先比匹配档位，再比测速（吞吐余量优先、再比吞吐、再比起播），测不出的排后面。
  * 主路径等全部源搜索完、候选测速完再做选择；30 秒兜底上限：到时已有候选就用当前
  * 最佳开播（v2.1.43 由 10 秒放宽——10 秒时慢源还没测完就被迫早选，用户反馈会挑错源）。
  * 一个候选都没有则等搜索扫完后回退搜索结果页。
@@ -24,24 +29,20 @@ export interface AutoPlayCandidate {
   sourceName: string
   vodId: string
   tier: number
-  latency: number | null
+  probe: PlaybackProbeResult | null
 }
 
-/** 候选排序：档位优先，其次已测速优先、延迟升序（纯函数，可测） */
+/** 候选排序：档位优先，其次按真实吞吐测速口径（纯函数，可测） */
 export function pickBestCandidate(candidates: AutoPlayCandidate[]): AutoPlayCandidate | null {
   if (candidates.length === 0) return null
   return [...candidates].sort((a, b) => {
     if (a.tier !== b.tier) return a.tier - b.tier
-    if (a.latency === null && b.latency !== null) return 1
-    if (a.latency !== null && b.latency === null) return -1
-    if (a.latency !== null && b.latency !== null) return a.latency - b.latency
-    return 0
+    return compareProbeResults(a.probe, b.probe)
   })[0]
 }
 
 const SEARCH_WORKERS = 4
 const PROBE_WORKERS = 3
-const PROBE_TIMEOUT_MS = 6000
 const RESOLVE_DEADLINE_MS = 30000
 
 export default function AutoPlayResolveView() {
@@ -80,7 +81,7 @@ export default function AutoPlayResolveView() {
       if (best) {
         // 选源交代：让用户（和排障）一眼看出解析页选出了哪个源、测速多少
         toast.success(
-          `已为你选源：${best.sourceName}${best.latency !== null ? ` · 播放 ${best.latency} ms` : ' · 未测得延迟'}`,
+          `已为你选源：${best.sourceName}${best.probe ? ` · 起播 ${best.probe.startupMs} ms · 吞吐 ${best.probe.throughputMbps} Mbps` : ' · 未测得速度'}`,
         )
         navigate(buildCmsPlayPath(best.sourceId, best.vodId), { replace: true })
       } else {
@@ -105,31 +106,10 @@ export default function AutoPlayResolveView() {
         const detail = await cmsClient.getDetail(candidate.vodId, source)
         const episodeUrl = detail.episodes?.[0]
         if (!detail.success || !episodeUrl) return
-        let parsed: URL
-        try {
-          parsed = new URL(episodeUrl)
-        } catch {
-          return
-        }
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
-        const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
-        const start = performance.now()
-        try {
-          const response = await fetch(episodeUrl, {
-            method: 'GET',
-            cache: 'no-store',
-            signal: controller.signal,
-          })
-          candidate.latency = Math.round(performance.now() - start)
-          void response.body?.cancel().catch(() => {})
-        } catch {
-          // 测速失败（跨域/超时）保持 latency=null，排序时排后面
-        } finally {
-          clearTimeout(timer)
-        }
+        // 真实分片吞吐测速（自带 10 秒预算）；失败保持 probe=null，排序时排后面
+        candidate.probe = await probePlayback(episodeUrl)
       } catch {
-        // 详情拉取失败：候选保留但无延迟数据
+        // 详情拉取失败：候选保留但无测速数据
       }
     }
 
@@ -173,7 +153,7 @@ export default function AutoPlayResolveView() {
                 sourceName: source.name,
                 vodId: best.vodId,
                 tier: best.tier,
-                latency: null,
+                probe: null,
               }
               candidates.push(candidate)
               // 按档位插入测速队列：精确匹配的候选先测，兜底超时早选时手里已有靠谱数据

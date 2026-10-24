@@ -34,7 +34,8 @@ export default function Navigation({ hidden = false, enableScrollAnimation = fal
   const carOpenAccess = useAuthStore(state => state.authConfig?.siteBehavior?.carOpenAccess ?? false)
   const visitorMode = openAccess || (carOpenAccess && detectCarBrowser())
   const setLoginWallRequested = useAuthStore(state => state.setLoginWallRequested)
-  const showAdminLogin = authMode === 'server' && visitorMode && !authUser
+  // 车机上不显示管理员入口：车机只用来观看，管理走手机/电脑
+  const showAdminLogin = authMode === 'server' && visitorMode && !authUser && !detectCarBrowser()
 
   // 在搜索页面隐藏导航栏搜索框
   const isSearchPage = location.pathname === '/search'

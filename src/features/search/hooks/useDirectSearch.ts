@@ -4,6 +4,7 @@ import { useApiStore } from '@/shared/store/apiStore'
 import { useCmsClient } from '@/shared/hooks'
 import { PaginationConfig } from '@/shared/config/video.config'
 import { getSourcesToFetch, type SourcePaginationInfo } from './directSearch.utils'
+import { probePlayback, type PlaybackProbeResult } from '@/shared/lib/playbackProbe'
 
 export function useDirectSearch() {
   const [directResults, setDirectResults] = useState<VideoItem[]>([])
@@ -56,9 +57,9 @@ export function useDirectSearch() {
     if (changed) setSourceLatencies(new Map(sourceLatencyRef.current))
   }, [])
 
-  // 各源播放线路测速：源 ID -> 浏览器直连该源分集地址的首字节耗时（毫秒）
-  const [playbackLatencies, setPlaybackLatencies] = useState<Map<string, number>>(new Map())
-  const playbackLatencyRef = useRef<Map<string, number>>(new Map())
+  // 各源播放测速：源 ID -> 真实分片吞吐测速结果（起播耗时/吞吐/码率余量）
+  const [playbackProbes, setPlaybackProbes] = useState<Map<string, PlaybackProbeResult>>(new Map())
+  const playbackProbeRef = useRef<Map<string, PlaybackProbeResult>>(new Map())
   const probedSourcesRef = useRef<Set<string>>(new Set())
   const probeQueueRef = useRef<Array<{ source: VideoSource; vodId: string }>>([])
   const activeProbesRef = useRef(0)
@@ -69,7 +70,7 @@ export function useDirectSearch() {
   const cmsClientRef = useRef(cmsClient)
   cmsClientRef.current = cmsClient
 
-  // 对单个源做播放线路探测：取详情第一集地址，浏览器直连计时（只测到响应头到达，不下载正片）
+  // 对单个源做真实吞吐测速：取详情第一集地址，浏览器直连实下约 1MB 真实分片量吞吐
   const runProbe = useCallback(async (source: VideoSource, vodId: string, version: number) => {
     try {
       const detail = await cmsClientRef.current.getDetail(vodId, source)
@@ -77,34 +78,13 @@ export function useDirectSearch() {
       const episodeUrl = detail.episodes?.[0]
       if (!detail.success || !episodeUrl) return
 
-      let parsed: URL
-      try {
-        parsed = new URL(episodeUrl)
-      } catch {
-        return
-      }
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
-
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 6000)
-      const start = performance.now()
-      try {
-        const response = await fetch(episodeUrl, {
-          method: 'GET',
-          cache: 'no-store',
-          signal: controller.signal,
-        })
-        const latency = Math.round(performance.now() - start)
-        // 只测线路速度，拿到响应头即可中止正文下载
-        void response.body?.cancel().catch(() => {})
-        if (version !== probeVersionRef.current) return
-        playbackLatencyRef.current.set(source.id, latency)
-        setPlaybackLatencies(new Map(playbackLatencyRef.current))
-      } finally {
-        clearTimeout(timer)
-      }
+      const result = await probePlayback(episodeUrl)
+      if (!result) return
+      if (version !== probeVersionRef.current) return
+      playbackProbeRef.current.set(source.id, result)
+      setPlaybackProbes(new Map(playbackProbeRef.current))
     } catch {
-      // 探测失败（跨域限制/超时/无分集地址）静默处理，卡片不展示播放耗时
+      // 探测失败（跨域限制/超时/无分集地址）静默处理，卡片不展示测速数据
     }
   }, [])
 
@@ -166,8 +146,8 @@ export function useDirectSearch() {
       probeVersionRef.current += 1
       probedSourcesRef.current.clear()
       probeQueueRef.current = []
-      playbackLatencyRef.current.clear()
-      setPlaybackLatencies(new Map())
+      playbackProbeRef.current.clear()
+      setPlaybackProbes(new Map())
       setCompletedSourcesInCurrentPage(new Set())
       setSuccessfulSourcesInCurrentPage(new Set())
     } else {
@@ -398,8 +378,8 @@ export function useDirectSearch() {
     probeVersionRef.current += 1
     probedSourcesRef.current.clear()
     probeQueueRef.current = []
-    playbackLatencyRef.current.clear()
-    setPlaybackLatencies(new Map())
+    playbackProbeRef.current.clear()
+    setPlaybackProbes(new Map())
     setCompletedSourcesInCurrentPage(new Set())
     setSuccessfulSourcesInCurrentPage(new Set())
     sourcesToFetchRef.current = []
@@ -435,7 +415,7 @@ export function useDirectSearch() {
     canLoadMore,
     successfulSourcesInCurrentPage,
     sourceLatencies,
-    playbackLatencies,
+    playbackProbes,
     startDirectSearch: fetchDirectSearch,
     abortDirectSearch,
     clearDirectSearchState,

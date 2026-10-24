@@ -13,6 +13,7 @@ import { DirectResultCard } from './DirectResultCard'
 import { getTitleMatchTier } from '../hooks/directSearch.utils'
 import { getPosterUrl } from '@/shared/lib/tmdb'
 import { buildCmsPlayPath, buildTmdbDetailPath } from '@/shared/lib/routes'
+import { compareProbeResults, type PlaybackProbeResult } from '@/shared/lib/playbackProbe'
 
 interface SearchResultsGridProps {
   /** 搜索模式 */
@@ -31,8 +32,8 @@ interface SearchResultsGridProps {
   successfulSources?: Set<string>
   /** 各源响应耗时（毫秒）：直连模式按源速从快到慢排序结果 */
   sourceLatencies?: Map<string, number>
-  /** 各源播放线路测速（源 ID -> 浏览器直连分集地址首字节耗时，毫秒） */
-  playbackLatencies?: Map<string, number>
+  /** 各源播放测速（源 ID -> 真实分片吞吐测速结果） */
+  playbackProbes?: Map<string, PlaybackProbeResult>
   /** 总结果数量（来自 API 分页信息） */
   totalResults?: number
   /** 是否正在搜索新查询（用于显示骨架屏） */
@@ -103,7 +104,7 @@ export function SearchResultsGrid({
   searchProgress,
   successfulSources,
   sourceLatencies,
-  playbackLatencies,
+  playbackProbes,
   totalResults,
   isSearchingNewQuery,
   hasMore = false,
@@ -111,35 +112,38 @@ export function SearchResultsGrid({
   sentinelRef,
   className,
 }: SearchResultsGridProps) {
-  // 直连模式排序：先按标题匹配度分档（精准的在前），同档内按播放测速从快到慢；
-  // 播放速度未测到时先用接口速度代替，测到后自动归位；都未测到的排最后
+  // 直连模式排序：先按标题匹配度分档（精准的在前），同档内按真实吞吐测速排序
+  //（吞吐余量优先、再比吞吐、再比起播）；未测到时先用接口速度代替，测到后自动归位
   const directResultsSorted = useMemo(() => {
     const query = directQuery?.trim() ?? ''
     const hasAnySpeed =
       (sourceLatencies && sourceLatencies.size > 0) ||
-      (playbackLatencies && playbackLatencies.size > 0)
+      (playbackProbes && playbackProbes.size > 0)
     if (!query && !hasAnySpeed) return directResults
     const latencyOf = (item: VideoItem) =>
       (item.source_code ? sourceLatencies?.get(item.source_code) : undefined) ??
       Number.POSITIVE_INFINITY
-    const speedOf = (item: VideoItem) => {
-      const playback = item.source_code ? playbackLatencies?.get(item.source_code) : undefined
-      return playback !== undefined ? playback : latencyOf(item)
-    }
+    const probeOf = (item: VideoItem) =>
+      item.source_code ? playbackProbes?.get(item.source_code) : undefined
     return directResults
       .map((item, index) => ({ item, index }))
       .sort((x, y) => {
         const tierDiff =
           getTitleMatchTier(x.item.vod_name, query) - getTitleMatchTier(y.item.vod_name, query)
         if (tierDiff !== 0) return tierDiff
-        const speedDiff = speedOf(x.item) - speedOf(y.item)
-        if (speedDiff !== 0) return speedDiff
+        const xProbe = probeOf(x.item)
+        const yProbe = probeOf(y.item)
+        if (xProbe || yProbe) {
+          // 至少一方已测速：按测速口径比（未测速一方排后）
+          const probeDiff = compareProbeResults(xProbe, yProbe)
+          if (probeDiff !== 0) return probeDiff
+        }
         const latencyDiff = latencyOf(x.item) - latencyOf(y.item)
         if (latencyDiff !== 0) return latencyDiff
         return x.index - y.index
       })
       .map(entry => entry.item)
-  }, [directResults, sourceLatencies, playbackLatencies, directQuery])
+  }, [directResults, sourceLatencies, playbackProbes, directQuery])
 
   // TMDB 模式：显示所有结果
   if (mode === 'tmdb') {
@@ -218,7 +222,7 @@ export function SearchResultsGrid({
   const hasResults = results.length > 0
   const sortedBySpeed =
     (!!sourceLatencies && sourceLatencies.size > 0) ||
-    (!!playbackLatencies && playbackLatencies.size > 0)
+    (!!playbackProbes && playbackProbes.size > 0)
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -267,7 +271,7 @@ export function SearchResultsGrid({
                   remarks={item.vod_remarks || undefined}
                   resolution={extractResolution(item)}
                   latencyMs={sourceLatencies?.get(sourceCode)}
-                  playbackLatencyMs={playbackLatencies?.get(sourceCode)}
+                  playbackProbe={playbackProbes?.get(sourceCode)}
                   lang={item.vod_lang || undefined}
                 />
               )

@@ -274,6 +274,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const visitorAccess =
     gateMode === 'server' && visitorMode && !siteClosed && !loginWallRequested
 
+  // 站长登录需要人机验证的场景：关站维护中，或无会员模式开启时
+  //（两种模式下站长入口都公开可见，与服务端 login 的校验口径一致；未配置密钥时组件不渲染、服务端放行）
+  const masterTurnstileRequired = siteClosed || openAccess
+
   if (
     gateMode === null ||
     (gateMode !== 'open' && isAuthenticated === null && !visitorAccess)
@@ -286,13 +290,16 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   }
 
   const handleMasterLogin = async () => {
-    if (siteClosed && turnstileSiteKey && !turnstileToken) {
+    if (masterTurnstileRequired && turnstileSiteKey && !turnstileToken) {
       toast.error('请先完成人机验证')
       return
     }
     setIsLoading(true)
     await new Promise(resolve => setTimeout(resolve, 300))
-    const success = await login(password, siteClosed ? turnstileToken || undefined : undefined)
+    const success = await login(
+      password,
+      masterTurnstileRequired ? turnstileToken || undefined : undefined,
+    )
     if (success) {
       handleSuccess()
     } else {
@@ -447,15 +454,19 @@ export default function AuthGuard({ children }: AuthGuardProps) {
                     {siteClosedMessage.trim() || '本站正在维护升级，暂时无法访问，请稍后再来。'}
                   </p>
                 </div>
-                <Button
-                  className="h-11 w-full rounded-full"
-                  onClick={() => setShowClosedLogin(true)}
-                >
-                  管理员登录
-                </Button>
-                <p className="text-muted-foreground text-center text-xs">
-                  维护期间仅管理员可登录
-                </p>
+                {!detectCarBrowser() && (
+                  <>
+                    <Button
+                      className="h-11 w-full rounded-full"
+                      onClick={() => setShowClosedLogin(true)}
+                    >
+                      管理员登录
+                    </Button>
+                    <p className="text-muted-foreground text-center text-xs">
+                      维护期间仅管理员可登录
+                    </p>
+                  </>
+                )}
               </motion.div>
             ) : (
               <>
@@ -491,7 +502,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
             >
               {gateMode === 'legacy' || formMode === 'master' ? (
                 <>
-                  {siteClosed && (
+                  {masterTurnstileRequired && (
                     <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
                   )}
                   <div className="flex items-center gap-2">

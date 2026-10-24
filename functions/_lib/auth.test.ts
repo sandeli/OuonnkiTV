@@ -14,6 +14,7 @@ import {
   registrationFull,
   registrationWindowState,
   isSiteClosed,
+  isOpenAccess,
   readSiteBehavior,
   hashPassword,
   inviteCodeStatus,
@@ -221,6 +222,11 @@ describe('关站维护', () => {
     expect(await isSiteClosed(fakeDb({}))).toBe(false)
     expect(await isSiteClosed(fakeDb({ site_closed: '0' }))).toBe(false)
     expect(await isSiteClosed(fakeDb({ site_closed: '1' }))).toBe(true)
+  })
+  it('isOpenAccess 只认 open_access=1（无会员模式下站长登录据此强制人机验证）', async () => {
+    expect(await isOpenAccess(fakeDb({}))).toBe(false)
+    expect(await isOpenAccess(fakeDb({ open_access: '0' }))).toBe(false)
+    expect(await isOpenAccess(fakeDb({ open_access: '1' }))).toBe(true)
   })
   it('readSiteBehavior 带出关站开关与说明', async () => {
     const b = await readSiteBehavior(fakeDb({ site_closed: '1', site_closed_message: '今晚维护' }))

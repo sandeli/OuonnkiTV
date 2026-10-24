@@ -1,0 +1,330 @@
+/**
+ * 真实分片吞吐测速（浏览器直连，在观众自己的网络环境里测）：
+ * 取分集地址（m3u8）→ 解析播放列表 → 实际下载前几个真实分片（累计约 1MB）→
+ * 用真实字节数与耗时算吞吐；码率取自主列表 BANDWIDTH 或按完整分片的字节/时长估算；
+ * 排序主指标是「吞吐余量 = 吞吐 / 码率」——余量越大播得越稳，比单看延迟真实得多。
+ *
+ * 旧测法只测播放列表的首字节耗时，那测的是"起播快不快"，反映不了"播着卡不卡"。
+ * 测速失败（跨域/超时/无分片）返回 null，调用方按未测速处理。
+ */
+
+export interface PlaybackProbeResult {
+  /** 起播耗时（毫秒）：从开始探测到第一个分片下载完成 */
+  startupMs: number
+  /** 实测下载吞吐（Mbps） */
+  throughputMbps: number
+  /** 估算码率（Mbps）；无法估算时为空 */
+  bitrateMbps?: number
+  /** 吞吐余量（吞吐/码率，倍数）；码率未知时为空 */
+  headroom?: number
+}
+
+/** 累计下载目标字节数：约 1MB 才能避开连接初期的爆发速度、测出持续吞吐 */
+const TARGET_BYTES = 1_000_000
+/** 最多下载的分片数（分片普遍 1~5MB，通常 1 个就够） */
+const MAX_SEGMENTS = 4
+/** 单次探测总时间预算（毫秒）：慢源下满 1MB 可能很久，到点用已下载字节结算 */
+const TIME_BUDGET_MS = 10_000
+/** 部分结算的最低字节数：低于此值样本太小、数据不可信，按测速失败处理 */
+const MIN_PARTIAL_BYTES = 128_000
+
+export interface HlsVariant {
+  url: string
+  bandwidth?: number
+}
+
+export interface HlsSegment {
+  url: string
+  duration?: number
+}
+
+export interface HlsPlaylistInfo {
+  variants: HlsVariant[]
+  segments: HlsSegment[]
+}
+
+function resolveUrl(raw: string, base: string): string | null {
+  try {
+    return new URL(raw, base).toString()
+  } catch {
+    return null
+  }
+}
+
+/** 解析 m3u8 文本：主列表取 variants，媒体列表取 segments（纯函数，可测） */
+export function parseHlsPlaylist(text: string, baseUrl: string): HlsPlaylistInfo {
+  const variants: HlsVariant[] = []
+  const segments: HlsSegment[] = []
+  const lines = text.split(/\r?\n/)
+  let pendingVariant: { bandwidth?: number } | null = null
+  let pendingDuration: number | undefined
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    if (line.startsWith('#EXT-X-STREAM-INF')) {
+      const m = /BANDWIDTH=(\d+)/.exec(line)
+      pendingVariant = { bandwidth: m ? Number(m[1]) : undefined }
+      continue
+    }
+    if (line.startsWith('#EXTINF')) {
+      const m = /#EXTINF:\s*([\d.]+)/.exec(line)
+      pendingDuration = m ? Number(m[1]) : undefined
+      continue
+    }
+    if (line.startsWith('#')) continue
+    const url = resolveUrl(line, baseUrl)
+    if (!url) continue
+    if (pendingVariant) {
+      variants.push({ url, bandwidth: pendingVariant.bandwidth })
+      pendingVariant = null
+    } else {
+      segments.push({ url, duration: pendingDuration })
+      pendingDuration = undefined
+    }
+  }
+  return { variants, segments }
+}
+
+interface DownloadSample {
+  bytes: number
+  /** 每个分片各自的已下载字节数（与 urls 同序；最后一个可能只是部分） */
+  segmentBytes: number[]
+  /** 完整下完的分片个数 */
+  completedSegments: number
+  /** 下载阶段耗时（毫秒，不含播放列表请求） */
+  elapsedMs: number
+  /** 第一个分片下载完成时刻距探测开始的耗时（毫秒） */
+  firstSegmentDoneMs: number | null
+  /** 是否把计划内的分片全部下完（中止结算时为 false） */
+  completedAll: boolean
+}
+
+/** 流式下载多个分片，边下边计数；达到目标字节/时间预算即中止并结算已下载部分 */
+async function downloadSegments(
+  urls: string[],
+  signal: AbortSignal,
+  startedAt: number,
+): Promise<DownloadSample> {
+  let bytes = 0
+  const segmentBytes: number[] = []
+  let completedSegments = 0
+  let firstSegmentDoneMs: number | null = null
+  let completedAll = true
+  const downloadStart = performance.now()
+  outer: for (const url of urls) {
+    if (bytes >= TARGET_BYTES || performance.now() - startedAt > TIME_BUDGET_MS) {
+      completedAll = false
+      break
+    }
+    const response = await fetch(url, { method: 'GET', cache: 'no-store', signal })
+    if (!response.ok) throw new Error(`segment http ${response.status}`)
+    let thisSegment = 0
+    const reader = response.body?.getReader()
+    if (!reader) {
+      const buf = await response.arrayBuffer()
+      thisSegment = buf.byteLength
+      bytes += thisSegment
+    } else {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) {
+          thisSegment += value.byteLength
+          bytes += value.byteLength
+        }
+        if (bytes >= TARGET_BYTES || performance.now() - startedAt > TIME_BUDGET_MS) {
+          completedAll = false
+          void reader.cancel().catch(() => {})
+          segmentBytes.push(thisSegment)
+          break outer
+        }
+      }
+    }
+    segmentBytes.push(thisSegment)
+    completedSegments += 1
+    if (firstSegmentDoneMs === null) firstSegmentDoneMs = performance.now() - startedAt
+  }
+  return {
+    bytes,
+    segmentBytes,
+    completedSegments,
+    elapsedMs: Math.max(1, performance.now() - downloadStart),
+    firstSegmentDoneMs,
+    completedAll,
+  }
+}
+
+/** 用完整下完的分片估算码率：Σ字节 / Σ时长（纯函数，可测） */
+export function estimateBitrateMbps(
+  segments: HlsSegment[],
+  segmentBytes: number[],
+  completedSegments: number,
+): number | undefined {
+  let bytes = 0
+  let duration = 0
+  for (let i = 0; i < completedSegments && i < segments.length; i += 1) {
+    const d = segments[i].duration
+    if (d && d > 0 && segmentBytes[i] > 0) {
+      bytes += segmentBytes[i]
+      duration += d
+    }
+  }
+  if (bytes === 0 || duration === 0) return undefined
+  return Math.round(((bytes * 8) / duration / 1_000_000) * 10) / 10
+}
+
+function buildResult(
+  startupMs: number,
+  bytes: number,
+  elapsedMs: number,
+  bitrateMbps: number | undefined,
+): PlaybackProbeResult {
+  const throughputMbps = Math.round(((bytes * 8) / (elapsedMs / 1000) / 1_000_000) * 10) / 10
+  return {
+    startupMs,
+    throughputMbps,
+    ...(bitrateMbps !== undefined ? { bitrateMbps } : {}),
+    ...(bitrateMbps !== undefined && bitrateMbps > 0
+      ? { headroom: Math.round((throughputMbps / bitrateMbps) * 10) / 10 }
+      : {}),
+  }
+}
+
+/**
+ * 对一个分集地址做真实吞吐测速。episodeUrl 一般是 m3u8；
+ * 若是直连媒体文件（mp4 等），直接对文件本身采样下载（只下约 1MB 即停，不会整文件下载）。
+ */
+export async function probePlayback(episodeUrl: string): Promise<PlaybackProbeResult | null> {
+  let parsed: URL
+  try {
+    parsed = new URL(episodeUrl)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIME_BUDGET_MS + 2000)
+  const startedAt = performance.now()
+  try {
+    const firstResponse = await fetch(episodeUrl, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    if (!firstResponse.ok) return null
+
+    // 先窥一眼开头判断是不是播放列表，避免把直连大文件整个拉下来
+    const reader = firstResponse.body?.getReader()
+    if (!reader) return null
+    const firstChunk = await reader.read()
+    const firstBytes = firstChunk.value ?? new Uint8Array()
+    const headText = new TextDecoder().decode(firstBytes.slice(0, 512))
+    if (!headText.includes('#EXTM3U')) {
+      // 直连媒体文件：沿用当前连接继续采样下载
+      let bytes = firstBytes.byteLength
+      const downloadStart = startedAt
+      let completedAll = firstChunk.done === true
+      while (!completedAll && bytes < TARGET_BYTES && performance.now() - startedAt <= TIME_BUDGET_MS) {
+        const { done, value } = await reader.read()
+        if (done) {
+          completedAll = true
+          break
+        }
+        if (value) bytes += value.byteLength
+      }
+      if (!completedAll) {
+        void reader.cancel().catch(() => {})
+      }
+      if (bytes === 0) return null
+      if (!completedAll && bytes < MIN_PARTIAL_BYTES) return null
+      return buildResult(
+        Math.round(performance.now() - startedAt),
+        bytes,
+        Math.max(1, performance.now() - downloadStart),
+        undefined,
+      )
+    }
+
+    // 播放列表：把剩余正文读完再解析（列表本身很小）
+    const chunks: Uint8Array[] = [firstBytes]
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) chunks.push(value)
+    }
+    const totalLength = chunks.reduce((sum, c) => sum + c.byteLength, 0)
+    const merged = new Uint8Array(totalLength)
+    let offset = 0
+    for (const c of chunks) {
+      merged.set(c, offset)
+      offset += c.byteLength
+    }
+    const text = new TextDecoder().decode(merged)
+
+    let info = parseHlsPlaylist(text, episodeUrl)
+    let bitrateMbps: number | undefined
+    if (info.variants.length > 0) {
+      // 主列表：选码率最高的档位测（观众在自适应下最终会升到这一档）
+      const variant = [...info.variants].sort((a, b) => (b.bandwidth ?? 0) - (a.bandwidth ?? 0))[0]
+      if (variant.bandwidth && variant.bandwidth > 0) {
+        bitrateMbps = Math.round((variant.bandwidth / 1_000_000) * 10) / 10
+      }
+      const variantResponse = await fetch(variant.url, {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal,
+      })
+      if (!variantResponse.ok) return null
+      const variantText = await variantResponse.text()
+      info = parseHlsPlaylist(variantText, variant.url)
+    }
+    if (info.segments.length === 0) return null
+
+    const targetSegments = info.segments.slice(0, MAX_SEGMENTS)
+    const sample = await downloadSegments(
+      targetSegments.map(s => s.url),
+      controller.signal,
+      startedAt,
+    )
+    if (sample.bytes === 0) return null
+    if (!sample.completedAll && sample.bytes < MIN_PARTIAL_BYTES) return null
+
+    if (bitrateMbps === undefined) {
+      bitrateMbps = estimateBitrateMbps(
+        targetSegments,
+        sample.segmentBytes,
+        sample.completedSegments,
+      )
+    }
+    return buildResult(
+      Math.round(sample.firstSegmentDoneMs ?? performance.now() - startedAt),
+      sample.bytes,
+      sample.elapsedMs,
+      bitrateMbps,
+    )
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * 测速结果排序（升序，越小越靠前）：已测速优先；先比吞吐余量（大者靠前）、
+ * 再比吞吐（大者靠前）、最后比起播耗时（小者靠前）；未测速排最后。
+ * 搜索结果页与直达播放选源共用同一套口径。
+ */
+export function compareProbeResults(
+  a: PlaybackProbeResult | null | undefined,
+  b: PlaybackProbeResult | null | undefined,
+): number {
+  if (!a && !b) return 0
+  if (!a) return 1
+  if (!b) return -1
+  const headroomDiff = (b.headroom ?? -1) - (a.headroom ?? -1)
+  if (headroomDiff !== 0) return headroomDiff
+  const throughputDiff = b.throughputMbps - a.throughputMbps
+  if (throughputDiff !== 0) return throughputDiff
+  return a.startupMs - b.startupMs
+}
